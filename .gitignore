@@ -36,9 +36,8 @@ yarn-error.log*
 # vercel
 .vercel
 
-# local file storage (uploaded templates, generated documents) — swap for
-# cloud storage before deploying anywhere without a persistent disk
-/storage
+# File storage moved to Vercel Blob (see lib/file-storage.ts) — nothing is
+# written to local disk anymore, so there's no /storage folder to ignore.
 
 # typescript
 *.tsbuildinfo

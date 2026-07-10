@@ -320,7 +320,7 @@ async function seed() {
 
   const employees = await Employee.insertMany(employeeDocs);
 
-  console.log("Creating document templates (real .docx files on disk)...");
+  console.log("Creating document templates (real .docx files uploaded to Vercel Blob)...");
   const templates = await Promise.all(
     TEMPLATE_SEED_DEFS.map((def) =>
       createTemplate(

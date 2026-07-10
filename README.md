@@ -73,6 +73,23 @@ N8N_WEBHOOK_AUTH_HEADER_VALUE=
 
 Until these are set, clicking Send Email/Send SMS returns a clear error instead of failing silently. **Shortlist** and **Reject Applicant** do *not* call n8n — they're plain status updates written directly to MongoDB (Server Actions), since they're not communications.
 
+### File storage (Vercel Blob)
+
+Uploaded document templates and generated documents are stored in **Vercel Blob** (`lib/file-storage.ts`), not on local disk — serverless functions (Vercel, and most other modern hosts) don't have a persistent filesystem, so anything written to disk during one request can vanish before the next. Files are stored with **private** access (require `BLOB_READ_WRITE_TOKEN` to read), not public URLs — this data includes salaries and personal details, so it's deliberately not fetchable by anyone who happens to find/guess a URL. Downloads go through `app/api/files/[...path]/route.ts`, which authenticates server-side and streams the file back.
+
+Setup:
+1. On your Vercel project: **Storage → Create Database → Blob**. This auto-provisions `BLOB_READ_WRITE_TOKEN` as a project environment variable — nothing else to configure.
+2. For local dev/seeding, pull it down: `vercel env pull .env.local` (or copy the value manually from the Vercel dashboard into `.env.local`).
+
+`npm run seed` uploads real `.docx` files through this same path, so seeding requires `BLOB_READ_WRITE_TOKEN` to be set even locally.
+
+## Deploying to Vercel
+
+- Framework preset, install command, and build command are all auto-detected — no changes needed.
+- Set every variable from `.env.example` (`MONGODB_URI`, the `N8N_WEBHOOK_*` ones you're using, `BLOB_READ_WRITE_TOKEN`) under Project Settings → Environment Variables.
+- **MongoDB Atlas → Network Access**: allow `0.0.0.0/0` (or use the official Vercel–Atlas integration) — Vercel's serverless functions don't have static outbound IPs, so Atlas will otherwise block every connection.
+- PDF conversion (mentioned in the original spec) isn't implemented — it needs a LibreOffice binary, which isn't available in Vercel's serverless runtime. DOCX generation works fully; PDF export would need an external conversion API (e.g. a hosted LibreOffice/Gotenberg service) if you need it later.
+
 ## Running locally
 
 | Command | What it does |

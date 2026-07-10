@@ -1,19 +1,14 @@
-import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
+import { put, get, del } from "@vercel/blob";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-// Uploaded files live outside `public/` (never directly web-accessible) and
-// are served through app/api/files/[...path]/route.ts, which can later add
-// auth checks. Swap this for S3/Cloudflare R2 by changing only this module.
-const STORAGE_ROOT = path.join(process.cwd(), "storage");
-
-function safeJoin(...segments: string[]): string {
-  const resolved = path.join(STORAGE_ROOT, ...segments);
-  if (!resolved.startsWith(STORAGE_ROOT)) {
-    throw new Error("Invalid storage path");
-  }
-  return resolved;
-}
+// Vercel Blob (private access) — serverless functions don't have a
+// persistent local disk, so uploaded templates and generated documents live
+// here instead. Private access means files require BLOB_READ_WRITE_TOKEN to
+// read/delete (via this module), rather than being fetchable by anyone who
+// guesses/finds the URL — appropriate given this data includes salaries and
+// personal details. Callers only ever see a `storageKey`; they never talk to
+// Blob directly, so swapping providers again later only means editing this file.
 
 export async function saveFile(
   folder: string,
@@ -22,21 +17,27 @@ export async function saveFile(
 ): Promise<{ storageKey: string; fileName: string }> {
   const ext = path.extname(originalFileName);
   const fileName = `${randomUUID()}${ext}`;
-  const storageKey = path.posix.join(folder, fileName);
+  const pathname = `${folder}/${fileName}`;
 
-  await mkdir(path.dirname(safeJoin(storageKey)), { recursive: true });
-  await writeFile(safeJoin(storageKey), buffer);
+  const blob = await put(pathname, buffer, {
+    access: "private",
+    addRandomSuffix: false,
+  });
 
-  return { storageKey, fileName };
+  return { storageKey: blob.pathname, fileName };
 }
 
 export async function readFileByKey(storageKey: string): Promise<Buffer> {
-  return readFile(safeJoin(storageKey));
+  const result = await get(storageKey, { access: "private" });
+  if (!result?.stream) throw new Error("File not found");
+
+  const arrayBuffer = await new Response(result.stream).arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 export async function deleteFileByKey(storageKey: string): Promise<void> {
   try {
-    await unlink(safeJoin(storageKey));
+    await del(storageKey);
   } catch {
     // Already gone — deleting a template whose file was manually removed
     // shouldn't block the DB delete.
