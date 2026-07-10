@@ -1,0 +1,34 @@
+import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { APPLICANT_STATUSES } from "@/constants/applicant-status";
+
+export const APPLICANT_SOURCES = ["website", "linkedin", "referral", "job_board", "other"] as const;
+
+const applicantSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    phone: { type: String, trim: true },
+    jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true, index: true },
+    status: { type: String, enum: APPLICANT_STATUSES, default: "new", index: true },
+    source: { type: String, enum: APPLICANT_SOURCES, default: "website" },
+    location: { type: String, trim: true },
+    resumeUrl: { type: String },
+    linkedinUrl: { type: String },
+    githubUrl: { type: String },
+    portfolioUrl: { type: String },
+    skills: { type: [String], default: [] },
+    experienceYears: { type: Number },
+    currentPosition: { type: String, trim: true },
+    tags: { type: [String], default: [] },
+    appliedAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true },
+);
+
+applicantSchema.index({ status: 1, createdAt: -1 });
+applicantSchema.index({ name: "text", email: "text", skills: "text" });
+
+export type ApplicantDoc = InferSchemaType<typeof applicantSchema>;
+
+export const Applicant: Model<ApplicantDoc> =
+  models.Applicant ?? model<ApplicantDoc>("Applicant", applicantSchema);

@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local file storage (uploaded templates, generated documents) — swap for
+# cloud storage before deploying anywhere without a persistent disk
+/storage
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
