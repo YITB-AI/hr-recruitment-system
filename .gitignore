@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch files used to pass multi-line git commit messages via -F, always
+# deleted right after committing — ignored as a backstop against staging
+# them by an accidental `git add -A` before the delete
+_commit-msg*.txt
