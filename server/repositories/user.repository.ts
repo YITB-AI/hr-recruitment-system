@@ -24,6 +24,18 @@ function serializeCompanyUser(row: RawCompanyUserRow): CompanyUserRow {
   };
 }
 
+export type CreateCompanyUserInput = {
+  name: string;
+  email: string;
+  role: UserRole;
+  passwordHash: string;
+  mustChangePassword: boolean;
+};
+
+export type UpdateCompanyUserInput = Partial<{ name: string; role: UserRole }>;
+
+// Every function takes companyId first and filters by it — see the
+// tenant-isolation comment in server/repositories/employee.repository.ts.
 export const userRepository = {
   /** Minimal shape for pickers (e.g. interviewer selection). */
   async findAll(companyId: string): Promise<UserRow[]> {
@@ -39,5 +51,38 @@ export const userRepository = {
       .sort({ createdAt: 1 })
       .lean<RawCompanyUserRow[]>();
     return rows.map(serializeCompanyUser);
+  },
+  async findById(companyId: string, id: string): Promise<CompanyUserRow | null> {
+    const row = await User.findOne({ _id: id, companyId })
+      .select("name email role mustChangePassword createdAt")
+      .lean<RawCompanyUserRow | null>();
+    return row ? serializeCompanyUser(row) : null;
+  },
+  async findByEmail(email: string): Promise<{ _id: string } | null> {
+    const row = await User.findOne({ email: email.toLowerCase().trim() }).select("_id").lean<{ _id: unknown } | null>();
+    return row ? { _id: String(row._id) } : null;
+  },
+  countByRole(companyId: string, role: UserRole): Promise<number> {
+    return User.countDocuments({ companyId, role });
+  },
+  async create(companyId: string, input: CreateCompanyUserInput): Promise<CompanyUserRow> {
+    const doc = await User.create({
+      companyId,
+      name: input.name,
+      email: input.email.toLowerCase().trim(),
+      role: input.role,
+      passwordHash: input.passwordHash,
+      mustChangePassword: input.mustChangePassword,
+    });
+    return serializeCompanyUser(doc.toObject());
+  },
+  async update(companyId: string, id: string, input: UpdateCompanyUserInput): Promise<CompanyUserRow | null> {
+    const row = await User.findOneAndUpdate({ _id: id, companyId }, input, { returnDocument: "after" })
+      .select("name email role mustChangePassword createdAt")
+      .lean<RawCompanyUserRow | null>();
+    return row ? serializeCompanyUser(row) : null;
+  },
+  async delete(companyId: string, id: string): Promise<void> {
+    await User.findOneAndDelete({ _id: id, companyId });
   },
 };
