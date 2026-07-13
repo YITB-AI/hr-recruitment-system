@@ -65,16 +65,14 @@ async function main() {
     mustChangePassword: true,
   });
 
-  const rootDomain = process.env.ROOT_DOMAIN;
   console.log("\n=== Company created ===");
-  console.log(`Name:  ${company.name}`);
-  console.log(`Slug:  ${company.slug}`);
-  console.log(`Login: https://${company.slug}.${rootDomain ?? "<ROOT_DOMAIN not set>"}/login`);
+  console.log(`Name:       ${company.name}`);
+  console.log(`Company ID: ${company.slug}  (enter this on the login form)`);
   console.log("\n=== Admin user created ===");
   console.log(`Name:     ${admin.name}`);
   console.log(`Email:    ${admin.email}`);
   console.log(`Password: ${tempPassword}`);
-  console.log("\nShare the password with the admin over a secure channel (not plain email/Slack).");
+  console.log("\nShare the Company ID, email, and password with the admin over a secure channel (not plain email/Slack).");
   console.log("They will be required to set their own password on first login.\n");
 
   process.exit(0);

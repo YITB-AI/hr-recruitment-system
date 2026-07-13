@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/server/db/connect";
 import { Company } from "@/models/Company";
-import { SESSION_COOKIE_NAME, verifySessionToken, getTenantSlugFromRequest } from "@/lib/auth/session";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
 import type { SessionUser } from "@/types/user";
 
 // Used purely for audit-log attribution when code runs outside a real
@@ -44,8 +44,7 @@ export async function getCurrentUser(): Promise<SessionUser> {
   }
 
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const tenantSlug = await getTenantSlugFromRequest();
-  const user = token ? await verifySessionToken(token, tenantSlug) : null;
+  const user = token ? await verifySessionToken(token) : null;
 
   if (!user) redirect("/login");
   return user;

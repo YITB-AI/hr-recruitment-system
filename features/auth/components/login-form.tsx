@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, Mail } from "lucide-react";
+import { Building2, Eye, EyeOff, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,22 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="companySlug">Company ID</Label>
+        <div className="relative">
+          <Building2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="companySlug"
+            name="companySlug"
+            type="text"
+            autoComplete="organization"
+            placeholder="e.g. digital-auxilius"
+            required
+            className="pl-9"
+          />
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="email">Email address</Label>
         <div className="relative">

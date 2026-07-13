@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
 import { cache } from "react";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/server/db/connect";
 import { User } from "@/models/User";
 import { sessionRepository } from "@/server/repositories/session.repository";
-import { companyRepository } from "@/server/repositories/company.repository";
 import type { UserRole } from "@/models/User";
 import type { SessionUser } from "@/types/user";
 
@@ -27,18 +26,6 @@ export function newSessionExpiry(rememberMe = false): Date {
   return new Date(Date.now() + (rememberMe ? REMEMBER_ME_TTL_MS : ABSOLUTE_TTL_MS));
 }
 
-// proxy.ts attaches this header once it resolves the subdomain — see
-// proxy.ts and models/Company.ts. Returns null outside a real request
-// (scripts) or when the header is missing, rather than throwing.
-export async function getTenantSlugFromRequest(): Promise<string | null> {
-  try {
-    const headerStore = await headers();
-    return headerStore.get("x-tenant-slug");
-  } catch {
-    return null;
-  }
-}
-
 type RawUser = {
   _id: unknown;
   companyId?: unknown;
@@ -50,12 +37,22 @@ type RawUser = {
 
 // The authoritative check — proxy.ts only does an optimistic cookie-presence
 // check (see Next's own documented guidance that Proxy must not be the sole
-// enforcement layer). This looks the session up in the database, confirms
-// it's unexpired/unrevoked/not idle-timed-out, and confirms the user's
-// companyId matches the subdomain-resolved company. Returns null for "not
+// enforcement layer). This looks the session up in the database and confirms
+// it's unexpired/unrevoked/not idle-timed-out. Returns null for "not
 // authenticated" rather than throwing/redirecting — callers (getCurrentUser)
 // decide what to do with that.
-export async function verifySessionToken(token: string, tenantSlug: string | null): Promise<SessionUser | null> {
+//
+// Tenant resolution note: this app originally resolved the active company
+// from the request's subdomain (acme.dax-hr.vercel.app), but that requires a
+// custom domain with real DNS control — subdomains of the shared
+// *.vercel.app alias can't get a valid wildcard TLS certificate (confirmed
+// by an actual failed handshake against a deployed subdomain, not just a
+// DNS lookup). Switched to session-derived resolution instead: the company
+// is chosen once at login (see actions/auth.ts's companySlug field) and
+// companyId then lives entirely in the session row — no per-request domain
+// parsing needed. Revisit subdomain resolution if/when a real custom domain
+// is added.
+export async function verifySessionToken(token: string): Promise<SessionUser | null> {
   await connectDB();
 
   const tokenHash = hashSessionToken(token);
@@ -65,11 +62,6 @@ export async function verifySessionToken(token: string, tenantSlug: string | nul
   const now = Date.now();
   if (session.expiresAt.getTime() < now) return null;
   if (now - session.lastActiveAt.getTime() > IDLE_TTL_MS) return null;
-
-  if (tenantSlug) {
-    const company = await companyRepository.findBySlug(tenantSlug);
-    if (!company || String(session.companyId) !== company._id) return null;
-  }
 
   const user = await User.findById(session.userId).lean<RawUser | null>();
   if (!user) return null;
@@ -97,8 +89,7 @@ export const verifySession = cache(async (): Promise<SessionUser | null> => {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const tenantSlug = await getTenantSlugFromRequest();
-  return verifySessionToken(token, tenantSlug);
+  return verifySessionToken(token);
 });
 
 // Authoritative, redirect-on-failure variant for pages/actions that require

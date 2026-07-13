@@ -1,9 +1,8 @@
 import { connectDB } from "@/server/db/connect";
 import { settingRepository, type SettingRow } from "@/server/repositories/setting.repository";
-import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
-import { getTenantSlugFromRequest } from "@/lib/auth/session";
+import { verifySession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/permissions";
 import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY } from "@/constants/appearance";
 
@@ -28,18 +27,18 @@ const DEFAULT_APPEARANCE_STYLE: React.CSSProperties = {
  * whichever font's own variable (set by that font's next/font loader class,
  * also applied on <html>) the user picked — see app/layout.tsx.
  *
- * Deliberately resolves the company from the subdomain (proxy.ts's
- * x-tenant-slug header), NOT from getCurrentUser() — the root layout renders
- * for unauthenticated requests too (e.g. /login itself), and getCurrentUser()
- * would redirect there, which would break the login page's own rendering.
+ * Deliberately uses verifySession() (returns null, never redirects), NOT
+ * getCurrentUser() — the root layout renders for unauthenticated requests
+ * too (e.g. /login itself), and getCurrentUser() would redirect there,
+ * which would break the login page's own rendering. Falls back to the
+ * default style pre-login, when there's no company to resolve yet.
  */
 export async function getAppearanceStyle(): Promise<React.CSSProperties> {
   await connectDB();
-  const slug = await getTenantSlugFromRequest();
-  const company = slug ? await companyRepository.findBySlug(slug) : null;
-  if (!company) return DEFAULT_APPEARANCE_STYLE;
+  const session = await verifySession();
+  if (!session) return DEFAULT_APPEARANCE_STYLE;
 
-  const settings = await settingRepository.get(company._id);
+  const settings = await settingRepository.get(session.companyId);
   const font = FONT_OPTIONS.find((f) => f.key === settings.appearance.fontKey) ?? FONT_OPTIONS[0];
 
   return {

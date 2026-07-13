@@ -14,7 +14,6 @@ import {
   destroyCurrentSession,
   logoutAllForSelf,
   revokeAllSessionsForUser,
-  getTenantSlugFromRequest,
   requireSession,
 } from "@/lib/auth/session";
 
@@ -22,13 +21,15 @@ export type LoginResult = { success: true } | { success: false; error: string };
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
-// Never reveal *why* a login failed (unknown email vs wrong password vs
-// locked-out-but-attempt-still-counted) beyond the lockout message itself —
-// that distinction is exactly what lets an attacker enumerate valid emails.
-const GENERIC_ERROR: LoginResult = { success: false, error: "Invalid email or password" };
+// Never reveal *why* a login failed (unknown company/email vs wrong
+// password vs locked-out-but-attempt-still-counted) beyond the lockout
+// message itself — that distinction is exactly what lets an attacker
+// enumerate valid companies/emails.
+const GENERIC_ERROR: LoginResult = { success: false, error: "Invalid company, email, or password" };
 
 export async function loginAction(formData: FormData): Promise<LoginResult> {
   const parsed = loginSchema.safeParse({
+    companySlug: String(formData.get("companySlug") ?? ""),
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
   });
@@ -36,13 +37,8 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const tenantSlug = await getTenantSlugFromRequest();
-  if (!tenantSlug) {
-    return { success: false, error: "Could not determine your company from this URL." };
-  }
-
   await connectDB();
-  const company = await companyRepository.findBySlug(tenantSlug);
+  const company = await companyRepository.findBySlug(parsed.data.companySlug.toLowerCase().trim());
   if (!company || company.status !== "active") return GENERIC_ERROR;
 
   const email = parsed.data.email.toLowerCase().trim();
