@@ -9,11 +9,12 @@ import {
 } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { saveFile, readFileByKey } from "@/lib/file-storage";
-import { renderTemplate } from "@/lib/docx";
+import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getCurrentUser } from "@/lib/current-user";
 
 const DOCUMENT_FOLDER = "documents";
+const DOCUMENT_IMAGE_FOLDER = "document-images";
 
 export type DocumentRecipient =
   | { type: "employee"; id: string; name?: string }
@@ -82,6 +83,9 @@ async function generateOne(
 
   const resolvedValues: FieldValueMap = {};
   const missing: string[] = [];
+  // Image fields resolve to a URL first; the real bytes are only fetched
+  // once we know every field passed its required-value check below.
+  const pendingImages: Record<string, { url: string; width: number; height: number }> = {};
 
   for (const field of template.fields) {
     if (field.type === "calculated" && field.calculation) {
@@ -95,6 +99,16 @@ async function generateOne(
       if (field.required && rows.length === 0) missing.push(field.label);
     } else if (field.type === "conditional") {
       resolvedValues[field.key] = Boolean(values[field.key]);
+    } else if (field.type === "image") {
+      const raw = values[field.key];
+      const url = typeof raw === "string" ? raw.trim() : "";
+      if (url) {
+        pendingImages[field.key] = { url, width: field.imageWidth ?? 150, height: field.imageHeight ?? 150 };
+        resolvedValues[field.key] = field.key; // truthy marker; image module reads bytes from `images`, not this value
+      } else {
+        resolvedValues[field.key] = "";
+        if (field.required) missing.push(field.label);
+      }
     } else {
       const raw = values[field.key];
       const provided = typeof raw === "string" ? raw.trim() : "";
@@ -108,8 +122,14 @@ async function generateOne(
     throw new Error(`Missing required field(s): ${missing.join(", ")}`);
   }
 
+  const images: Record<string, TemplateImageValue> = {};
+  for (const [key, pending] of Object.entries(pendingImages)) {
+    const buffer = await readFileByKey(pending.url.replace("/api/files/", ""));
+    images[key] = { buffer, width: pending.width, height: pending.height };
+  }
+
   const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
-  const outputBuffer = renderTemplate(templateBuffer, resolvedValues);
+  const outputBuffer = renderTemplate(templateBuffer, resolvedValues, images);
 
   const fileName = `${template.name.replace(/\s+/g, "_")}_${recipientRecord.name.replace(/\s+/g, "_")}.docx`;
   const { storageKey } = await saveFile(DOCUMENT_FOLDER, fileName, outputBuffer);
@@ -155,6 +175,14 @@ export async function listEmployeesForPicker() {
 export async function listApplicantsForPicker() {
   await connectDB();
   return applicantRepository.findAllForPicker();
+}
+
+// Uploads an image chosen for an "image" template field at generation time
+// (e.g. a signature or one-off attachment) — returns a URL the wizard stores
+// as that field's value; generateOne fetches the bytes back by this URL.
+export async function uploadTemplateImage(buffer: Buffer, originalName: string): Promise<string> {
+  const { storageKey } = await saveFile(DOCUMENT_IMAGE_FOLDER, originalName, buffer);
+  return `/api/files/${storageKey}`;
 }
 
 export async function generateDocument(

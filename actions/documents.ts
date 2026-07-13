@@ -6,6 +6,7 @@ import { documentStatusTransitionSchema } from "@/validators/document-status";
 import {
   generateDocument,
   generateDocumentsBulk,
+  uploadTemplateImage,
   type BulkGenerateResultItem,
 } from "@/features/documents/services/generate-document.service";
 import { transitionDocumentStatus } from "@/features/documents/services/document-history.service";
@@ -56,6 +57,32 @@ export async function generateDocumentsBulkAction(input: unknown): Promise<Gener
 }
 
 export type ActionResult = { success: true } | { success: false; error: string };
+
+export type UploadImageResult = { success: true; url: string } | { success: false; error: string };
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+export async function uploadDocumentImageAction(formData: FormData): Promise<UploadImageResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, error: "Choose an image file first" };
+  }
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    return { success: false, error: "Only PNG, JPEG, or WEBP images are supported" };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { success: false, error: "Image must be smaller than 5MB" };
+  }
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const url = await uploadTemplateImage(buffer, file.name);
+    return { success: true, url };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to upload image" };
+  }
+}
 
 export async function deleteGeneratedDocumentAction(id: string): Promise<ActionResult> {
   try {

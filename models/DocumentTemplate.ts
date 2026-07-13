@@ -28,6 +28,12 @@ const templateFieldSchema = new Schema(
     // "table" fields only: the row shape repeated inside a docxtemplater
     // {{#section}} loop — each row's keys must match a column's `key`.
     columns: { type: [tableColumnSchema], default: undefined },
+    // "image" fields only: fixed render size in pixels — deliberately not
+    // derived from the uploaded image's real dimensions, so every generated
+    // document has a consistent, predictable layout regardless of what the
+    // admin uploads.
+    imageWidth: { type: Number, default: undefined },
+    imageHeight: { type: Number, default: undefined },
   },
   { _id: false },
 );

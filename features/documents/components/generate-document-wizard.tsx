@@ -76,6 +76,7 @@ function formatFieldValueForPreview(field: { type: string }, value: FieldValue |
     const rows = Array.isArray(value) ? value : [];
     return rows.length > 0 ? `${rows.length} row${rows.length === 1 ? "" : "s"}` : "—";
   }
+  if (field.type === "image") return typeof value === "string" && value ? "Uploaded" : "—";
   return typeof value === "string" && value ? value : "—";
 }
 

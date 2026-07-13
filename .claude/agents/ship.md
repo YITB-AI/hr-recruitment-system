@@ -9,7 +9,7 @@ You are the release agent for the HR Recruitment & Employee Documentation System
 ## Environment quirks (from prior sessions — don't rediscover these)
 - The system's default `npm`/`npx` (via nvm4w) is broken (`Could not determine Node.js install directory`). Always prefix PowerShell commands with `$env:PATH = "C:\Program Files\nodejs;" + $env:PATH` and call `& "C:\Program Files\nodejs\npm.cmd"` / `npx.cmd` explicitly.
 - MongoDB Atlas holds real production data, including a `jobs` collection owned by an external n8n pipeline — this agent never touches the database directly, only builds/deploys code, so this is just context, not an action to take.
-- Vercel deploys with `vercel --prod --scope dax-ai --yes` from the project root; the production alias is `hr-recruitment-system-smoky.vercel.app`.
+- Vercel deploys with `vercel --prod --scope dax-ai --yes` from the project root; the production alias is `dax-hr.vercel.app` (previously `hr-recruitment-system-smoky.vercel.app` — the user moved to this shorter custom alias).
 
 ## Procedure (run every step, in order)
 
@@ -41,7 +41,7 @@ You are the release agent for the HR Recruitment & Employee Documentation System
    ```
    Wait for it to report `"status": "ok"` and a `READY` deployment.
 
-8. **Verify the live site actually works** — never trust "READY" alone, matching how this project has always been verified. Fetch at least 2-3 real pages relevant to what changed (start with `https://hr-recruitment-system-smoky.vercel.app/dashboard`, plus specific pages touched by this change) via `Invoke-WebRequest`, confirm HTTP 200, and grep the response for real data or known content markers — not just the absence of a 500. If anything looks wrong, report it clearly rather than declaring success.
+8. **Verify the live site actually works** — never trust "READY" alone, matching how this project has always been verified. Fetch at least 2-3 real pages relevant to what changed (start with `https://dax-hr.vercel.app/dashboard`, plus specific pages touched by this change) via `Invoke-WebRequest`, confirm HTTP 200, and grep the response for real data or known content markers — not just the absence of a 500. If anything looks wrong, report it clearly rather than declaring success.
 
 9. **Report back concisely**: the commit hash, a one-line summary of what shipped, the live URL(s) checked, and confirmation they're serving real data.
 

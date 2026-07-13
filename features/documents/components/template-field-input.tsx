@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { uploadDocumentImageAction } from "@/actions/documents";
 import type { TemplateFieldInput } from "@/validators/document-template";
 
 export type FieldValue = string | boolean | Array<Record<string, string>>;
@@ -23,6 +26,51 @@ type TemplateFieldRendererProps = {
 };
 
 export function TemplateFieldRenderer({ field, value, onChange }: TemplateFieldRendererProps) {
+  const [isUploading, setIsUploading] = useState(false);
+
+  if (field.type === "image") {
+    const url = typeof value === "string" ? value : "";
+
+    async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadDocumentImageAction(formData);
+      setIsUploading(false);
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      onChange(result.url);
+    }
+
+    return (
+      <div className="space-y-1.5">
+        <Label>
+          {field.label}
+          {field.required && <span className="text-destructive"> *</span>}
+        </Label>
+        <div className="flex items-center gap-3">
+          {url && (
+            // eslint-disable-next-line @next/next/no-img-element -- previews a dynamically-uploaded Blob URL, not a static asset
+            <img src={url} alt={field.label} className="size-12 rounded border object-cover" />
+          )}
+          <Input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleFileChange}
+            disabled={isUploading}
+          />
+        </div>
+        {isUploading && <p className="text-xs text-muted-foreground">Uploading...</p>}
+      </div>
+    );
+  }
+
   if (field.type === "conditional") {
     return (
       <label className="flex items-center gap-2 rounded-lg border p-3 text-sm">

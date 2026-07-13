@@ -46,8 +46,8 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
         toast.error(result.error);
         return;
       }
-      const { flatFields, sections } = result.detected;
-      if (flatFields.length === 0 && sections.length === 0) {
+      const { flatFields, sections, images } = result.detected;
+      if (flatFields.length === 0 && sections.length === 0 && images.length === 0) {
         toast.warning("No {{variables}} found in this document");
         return;
       }
@@ -82,8 +82,19 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
               },
         );
 
-      setFields((prev) => [...prev, ...newFlatFields, ...newSectionFields]);
-      toast.success(`Detected ${newFlatFields.length + newSectionFields.length} field(s)`);
+      const newImageFields = images
+        .filter((key) => !existingKeys.has(key))
+        .map<TemplateFieldInput>((key) => ({
+          key,
+          label: prettifyKey(key),
+          type: "image",
+          required: false,
+          imageWidth: 150,
+          imageHeight: 150,
+        }));
+
+      setFields((prev) => [...prev, ...newFlatFields, ...newSectionFields, ...newImageFields]);
+      toast.success(`Detected ${newFlatFields.length + newSectionFields.length + newImageFields.length} field(s)`);
     });
   }
 
@@ -157,6 +168,8 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
         {fileName && <p className="text-xs text-muted-foreground">Current file: {fileName}</p>}
         <p className="text-xs text-muted-foreground">
           Use <code>{"{{variable_name}}"}</code> placeholders in your Word document, then click Detect Variables.
+          For images, use <code>{"{{%field_name}}"}</code> (or <code>{"{{%%field_name}}"}</code> to center) on its own
+          line.
         </p>
       </div>
 

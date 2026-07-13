@@ -1,13 +1,15 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import ImageModule from "docxtemplater-image-module-free";
 
 // Templates use {{variable_name}} placeholders, plus docxtemplater's native
 // section syntax: {{#name}}...{{/name}} (loop over an array, or show once if
 // truthy) and {{^name}}...{{/name}} (show only if falsy — an "else"/inverted
-// section). Detection reads the raw document XML and regex-matches tags
-// rather than fully rendering with docxtemplater, since we only need the
-// variable/section names here.
-const TAG_PATTERN = /\{\{\s*([#^/]?)\s*([\w.]+)\s*\}\}/g;
+// section), plus the image module's own tag syntax {{%name}} (image) and
+// {{%%name}} (centered image) inside our {{ }} delimiters. Detection reads
+// the raw document XML and regex-matches tags rather than fully rendering
+// with docxtemplater, since we only need the variable/section/image names here.
+const TAG_PATTERN = /\{\{\s*(%%|%|[#^/])?\s*([\w.]+)\s*\}\}/g;
 
 export type DetectedSection = {
   key: string;
@@ -19,6 +21,7 @@ export type DetectedSection = {
 export type DetectedTemplateVariables = {
   flatFields: string[];
   sections: DetectedSection[];
+  images: string[];
 };
 
 export function extractTemplateVariables(buffer: Buffer): DetectedTemplateVariables {
@@ -44,11 +47,14 @@ export function extractTemplateVariables(buffer: Buffer): DetectedTemplateVariab
   }
 
   const flatFields = new Set<string>();
+  const images = new Set<string>();
   const sections: DetectedSection[] = [];
   const openStack: TagMatch[] = [];
 
   for (const tag of tags) {
-    if (tag.prefix === "#" || tag.prefix === "^") {
+    if (tag.prefix === "%" || tag.prefix === "%%") {
+      images.add(tag.key);
+    } else if (tag.prefix === "#" || tag.prefix === "^") {
       openStack.push(tag);
     } else if (tag.prefix === "/") {
       const open = openStack.pop();
@@ -67,17 +73,24 @@ export function extractTemplateVariables(buffer: Buffer): DetectedTemplateVariab
     }
   }
 
-  return { flatFields: Array.from(flatFields), sections };
+  return { flatFields: Array.from(flatFields), sections, images: Array.from(images) };
 }
+
+export type TemplateImageValue = { buffer: Buffer; width: number; height: number };
 
 // Merges resolved field values into a template, producing the final .docx.
 // Flat fields are plain strings; a "table" field's value is an array of row
 // objects (repeated inside its {{#section}} loop); a "conditional" field's
 // value is a boolean. Callers are responsible for formatting numbers/dates
-// into strings before calling this.
+// into strings before calling this. `images`, keyed by field name, supplies
+// the raw bytes + target size for any {{%name}}/{{%%name}} image tags — the
+// image module's getImage/getSize run synchronously during doc.render(), so
+// the bytes must already be in hand (fetched from Blob storage by the
+// caller), not lazily resolved here.
 export function renderTemplate(
   buffer: Buffer,
   values: Record<string, string | boolean | Array<Record<string, string>>>,
+  images?: Record<string, TemplateImageValue>,
 ): Buffer {
   let zip: PizZip;
   try {
@@ -86,10 +99,30 @@ export function renderTemplate(
     throw new Error("Could not read template file");
   }
 
+  const modules =
+    images && Object.keys(images).length > 0
+      ? [
+          new ImageModule({
+            centered: false,
+            fileType: "docx",
+            getImage: (_tagValue: string, tagName: string) => {
+              const image = images[tagName];
+              if (!image) throw new Error(`No image provided for field "${tagName}"`);
+              return image.buffer;
+            },
+            getSize: (_img: Buffer | Uint8Array, _tagValue: string, tagName: string) => {
+              const image = images[tagName];
+              return [image?.width ?? 150, image?.height ?? 150];
+            },
+          }),
+        ]
+      : [];
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
     delimiters: { start: "{{", end: "}}" },
+    modules,
   });
 
   doc.render(values);

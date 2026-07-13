@@ -26,6 +26,8 @@ export const templateFieldSchema = z
       })
       .optional(),
     columns: z.array(templateColumnSchema).optional(),
+    imageWidth: z.number().positive().optional(),
+    imageHeight: z.number().positive().optional(),
   })
   .refine((field) => field.type !== "select" || (field.options && field.options.length > 0), {
     message: "Dropdown fields need at least one option",

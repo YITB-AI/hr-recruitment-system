@@ -35,7 +35,9 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
   return (
     <div className="space-y-3 rounded-lg border p-3">
       <div className="flex items-center gap-2">
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{`{{${field.key}}}`}</code>
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+          {field.type === "image" ? `{{%${field.key}}}` : `{{${field.key}}}`}
+        </code>
         <Button
           type="button"
           variant="ghost"
@@ -64,6 +66,8 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
               options: type === "select" ? field.options ?? [""] : undefined,
               calculation: type === "calculated" ? field.calculation ?? { type: "fixed", value: 0 } : undefined,
               columns: type === "table" ? field.columns ?? [{ key: "", label: "" }] : undefined,
+              imageWidth: type === "image" ? field.imageWidth ?? 150 : undefined,
+              imageHeight: type === "image" ? field.imageHeight ?? 150 : undefined,
             })
           }
         >
@@ -134,6 +138,29 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
           >
             Add column
           </Button>
+        </div>
+      )}
+
+      {field.type === "image" && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Render width (px)</p>
+            <Input
+              type="number"
+              min={1}
+              value={field.imageWidth ?? 150}
+              onChange={(e) => onChange({ ...field, imageWidth: Number(e.target.value) || 150 })}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Render height (px)</p>
+            <Input
+              type="number"
+              min={1}
+              value={field.imageHeight ?? 150}
+              onChange={(e) => onChange({ ...field, imageHeight: Number(e.target.value) || 150 })}
+            />
+          </div>
         </div>
       )}
 
