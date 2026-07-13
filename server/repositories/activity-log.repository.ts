@@ -28,4 +28,7 @@ export const activityLogRepository = {
   create(input: CreateActivityLogInput) {
     return ActivityLog.create(input);
   },
+  createMany(inputs: CreateActivityLogInput[]) {
+    return ActivityLog.insertMany(inputs);
+  },
 };

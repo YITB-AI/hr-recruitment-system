@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { FIELD_TYPES, CALCULATION_TYPES } from "@/constants/document-template";
 
+export const templateColumnSchema = z.object({
+  key: z
+    .string()
+    .min(1, "Column key is required")
+    .regex(/^[\w.]+$/, "Use letters, numbers, and underscores only"),
+  label: z.string().min(1, "Column label is required"),
+});
+
 export const templateFieldSchema = z
   .object({
     key: z
@@ -17,6 +25,7 @@ export const templateFieldSchema = z
         value: z.number(),
       })
       .optional(),
+    columns: z.array(templateColumnSchema).optional(),
   })
   .refine((field) => field.type !== "select" || (field.options && field.options.length > 0), {
     message: "Dropdown fields need at least one option",
@@ -25,6 +34,10 @@ export const templateFieldSchema = z
   .refine((field) => field.type !== "calculated" || field.calculation != null, {
     message: "Calculated fields need a calculation type and value",
     path: ["calculation"],
+  })
+  .refine((field) => field.type !== "table" || (field.columns && field.columns.length > 0), {
+    message: "Table fields need at least one column",
+    path: ["columns"],
   });
 
 export const documentTemplateSchema = z.object({

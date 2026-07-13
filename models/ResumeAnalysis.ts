@@ -19,6 +19,10 @@ const resumeAnalysisSchema = new Schema(
   { timestamps: true },
 );
 
+// Makes "latest analysis per applicant" (used by the applicants list score
+// column/sort/filter) a cheap indexed lookup rather than a full scan.
+resumeAnalysisSchema.index({ applicantId: 1, createdAt: -1 });
+
 export type ResumeAnalysisDoc = InferSchemaType<typeof resumeAnalysisSchema>;
 
 export const ResumeAnalysis: Model<ResumeAnalysisDoc> =

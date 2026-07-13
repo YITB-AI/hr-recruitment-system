@@ -46,13 +46,15 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
         toast.error(result.error);
         return;
       }
-      if (result.variables.length === 0) {
+      const { flatFields, sections } = result.detected;
+      if (flatFields.length === 0 && sections.length === 0) {
         toast.warning("No {{variables}} found in this document");
         return;
       }
 
       const existingKeys = new Set(fields.map((f) => f.key));
-      const newFields = result.variables
+
+      const newFlatFields = flatFields
         .filter((key) => !existingKeys.has(key))
         .map<TemplateFieldInput>((key) => ({
           key,
@@ -61,8 +63,27 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
           required: true,
         }));
 
-      setFields((prev) => [...prev, ...newFields]);
-      toast.success(`Detected ${result.variables.length} variable(s)`);
+      const newSectionFields = sections
+        .filter((section) => !existingKeys.has(section.key))
+        .map<TemplateFieldInput>((section) =>
+          section.kind === "repeating"
+            ? {
+                key: section.key,
+                label: prettifyKey(section.key),
+                type: "table",
+                required: false,
+                columns: section.columns.map((col) => ({ key: col, label: prettifyKey(col) })),
+              }
+            : {
+                key: section.key,
+                label: prettifyKey(section.key),
+                type: "conditional",
+                required: false,
+              },
+        );
+
+      setFields((prev) => [...prev, ...newFlatFields, ...newSectionFields]);
+      toast.success(`Detected ${newFlatFields.length + newSectionFields.length} field(s)`);
     });
   }
 

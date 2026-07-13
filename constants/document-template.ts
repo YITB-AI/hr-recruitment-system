@@ -1,5 +1,5 @@
 // Client-safe: no Mongoose/model imports here.
-export const FIELD_TYPES = ["text", "number", "date", "select", "calculated"] as const;
+export const FIELD_TYPES = ["text", "number", "date", "select", "calculated", "table", "conditional"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
 export const CALCULATION_TYPES = ["percentage_of_basic", "percentage_of_gross", "fixed"] as const;
@@ -11,6 +11,8 @@ export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   date: "Date",
   select: "Dropdown",
   calculated: "Calculated (salary-based)",
+  table: "Table (repeating rows)",
+  conditional: "Conditional (show/hide section)",
 };
 
 export const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {

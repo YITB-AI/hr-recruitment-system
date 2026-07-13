@@ -17,7 +17,8 @@ export const jobRepository = {
       },
     });
   },
-  findAll() {
-    return Job.find().select("_id title").lean<Array<{ _id: string; title: string }>>();
+  async findAll(): Promise<Array<{ _id: string; title: string }>> {
+    const rows = await Job.find().select("_id title").lean<Array<{ _id: unknown; title: string }>>();
+    return rows.map((row) => ({ _id: String(row._id), title: row.title }));
   },
 };

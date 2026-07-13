@@ -1,14 +1,27 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 
-// Templates use {{variable_name}} placeholders. Detection reads the raw
-// document XML and regex-matches tags rather than fully rendering with
-// docxtemplater, since we only need the variable names here — actual
-// generation (merging real data into the template) is a later step and will
-// reuse the same {{ }} delimiter convention.
-const VARIABLE_PATTERN = /\{\{\s*([\w.]+)\s*\}\}/g;
+// Templates use {{variable_name}} placeholders, plus docxtemplater's native
+// section syntax: {{#name}}...{{/name}} (loop over an array, or show once if
+// truthy) and {{^name}}...{{/name}} (show only if falsy — an "else"/inverted
+// section). Detection reads the raw document XML and regex-matches tags
+// rather than fully rendering with docxtemplater, since we only need the
+// variable/section names here.
+const TAG_PATTERN = /\{\{\s*([#^/]?)\s*([\w.]+)\s*\}\}/g;
 
-export function extractTemplateVariables(buffer: Buffer): string[] {
+export type DetectedSection = {
+  key: string;
+  /** Best guess only — the template editor lets the admin override this. */
+  kind: "conditional" | "repeating";
+  columns: string[];
+};
+
+export type DetectedTemplateVariables = {
+  flatFields: string[];
+  sections: DetectedSection[];
+};
+
+export function extractTemplateVariables(buffer: Buffer): DetectedTemplateVariables {
   let zip: PizZip;
   try {
     zip = new PizZip(buffer);
@@ -22,19 +35,50 @@ export function extractTemplateVariables(buffer: Buffer): string[] {
   }
 
   const text = documentXml.asText().replace(/<[^>]+>/g, "");
-  const found = new Set<string>();
 
-  for (const match of text.matchAll(VARIABLE_PATTERN)) {
-    found.add(match[1]);
+  type TagMatch = { prefix: string; key: string; start: number; end: number };
+  const tags: TagMatch[] = [];
+  for (const match of text.matchAll(TAG_PATTERN)) {
+    const start = match.index ?? 0;
+    tags.push({ prefix: match[1], key: match[2], start, end: start + match[0].length });
   }
 
-  return Array.from(found);
+  const flatFields = new Set<string>();
+  const sections: DetectedSection[] = [];
+  const openStack: TagMatch[] = [];
+
+  for (const tag of tags) {
+    if (tag.prefix === "#" || tag.prefix === "^") {
+      openStack.push(tag);
+    } else if (tag.prefix === "/") {
+      const open = openStack.pop();
+      if (!open || open.key !== tag.key) continue; // unbalanced/mismatched — best-effort detection, skip rather than throw
+      const innerText = text.slice(open.end, tag.start);
+      const columns = Array.from(new Set(Array.from(innerText.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)).map((m) => m[1])));
+      sections.push({
+        key: open.key,
+        kind: open.prefix === "^" ? "conditional" : columns.length > 0 ? "repeating" : "conditional",
+        columns,
+      });
+    } else if (openStack.length === 0) {
+      // Only counts as a flat field if not nested inside an open section —
+      // nested vars are that section's own columns, tracked separately above.
+      flatFields.add(tag.key);
+    }
+  }
+
+  return { flatFields: Array.from(flatFields), sections };
 }
 
 // Merges resolved field values into a template, producing the final .docx.
-// Values are plain strings — callers are responsible for formatting numbers/
-// dates before calling this.
-export function renderTemplate(buffer: Buffer, values: Record<string, string>): Buffer {
+// Flat fields are plain strings; a "table" field's value is an array of row
+// objects (repeated inside its {{#section}} loop); a "conditional" field's
+// value is a boolean. Callers are responsible for formatting numbers/dates
+// into strings before calling this.
+export function renderTemplate(
+  buffer: Buffer,
+  values: Record<string, string | boolean | Array<Record<string, string>>>,
+): Buffer {
   let zip: PizZip;
   try {
     zip = new PizZip(buffer);

@@ -337,14 +337,14 @@ async function seed() {
   for (const employee of employees.slice(0, 2)) {
     const joiningDate = employee.joiningDate.toISOString().slice(0, 10);
 
-    await generateDocument(String(offerTemplate._id), String(employee._id), {
+    await generateDocument(String(offerTemplate._id), { type: "employee", id: String(employee._id) }, {
       employee_name: employee.name,
       job_title: employee.designation,
       joining_date: joiningDate,
       basic_salary: String(employee.basicSalary),
     });
 
-    await generateDocument(String(appointmentTemplate._id), String(employee._id), {
+    await generateDocument(String(appointmentTemplate._id), { type: "employee", id: String(employee._id) }, {
       employee_name: employee.name,
       designation: employee.designation,
       department: employee.department,

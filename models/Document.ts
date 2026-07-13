@@ -2,20 +2,37 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 
 export const GENERATED_DOCUMENT_STATUSES = ["generated", "sent", "signed"] as const;
 
+// One entry per status transition, oldest first — the current `status` field
+// always mirrors the last entry's status. Kept as a subdocument (not a
+// separate collection) since it's always read/written alongside its parent.
+const statusHistoryEntrySchema = new Schema(
+  {
+    status: { type: String, enum: GENERATED_DOCUMENT_STATUSES, required: true },
+    changedAt: { type: Date, required: true, default: Date.now },
+    changedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  },
+  { _id: false },
+);
+
 const documentSchema = new Schema(
   {
     templateId: { type: Schema.Types.ObjectId, ref: "DocumentTemplate", required: true },
     employeeId: { type: Schema.Types.ObjectId, ref: "Employee" },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant" },
+    // Groups documents written by one bulk-generate call; set to a fresh id
+    // for single-generate too, so the concept is uniform across both paths.
+    batchId: { type: String, index: true },
     fileName: { type: String, required: true },
     fileUrl: { type: String },
     status: { type: String, enum: GENERATED_DOCUMENT_STATUSES, default: "generated", index: true },
+    statusHistory: { type: [statusHistoryEntrySchema], default: [] },
     generatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true },
 );
 
 documentSchema.index({ createdAt: -1 });
+documentSchema.index({ applicantId: 1, createdAt: -1 });
 
 export type DocumentRowDoc = InferSchemaType<typeof documentSchema>;
 

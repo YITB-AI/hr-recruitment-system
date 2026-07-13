@@ -10,6 +10,7 @@ import { RecentDocumentsTable } from "@/features/documents/components/recent-doc
 import {
   listTemplatesForPicker,
   listEmployeesForPicker,
+  listApplicantsForPicker,
   listRecentDocuments,
 } from "@/features/documents/services/generate-document.service";
 
@@ -22,9 +23,10 @@ export default async function DocumentsPage({
   searchParams: Promise<{ templateId?: string }>;
 }) {
   const { templateId } = await searchParams;
-  const [templates, employees, recentDocuments] = await Promise.all([
+  const [templates, employees, applicants, recentDocuments] = await Promise.all([
     listTemplatesForPicker(),
     listEmployeesForPicker(),
+    listApplicantsForPicker(),
     listRecentDocuments(),
   ]);
 
@@ -47,7 +49,13 @@ export default async function DocumentsPage({
             <CardTitle>Document Generation</CardTitle>
           </CardHeader>
           <CardContent>
-            <GenerateDocumentWizard key={templateId ?? "default"} templates={templates} employees={employees} initialTemplateId={templateId} />
+            <GenerateDocumentWizard
+              key={templateId ?? "default"}
+              templates={templates}
+              employees={employees}
+              applicants={applicants}
+              initialTemplateId={templateId}
+            />
           </CardContent>
         </Card>
 
@@ -65,8 +73,11 @@ export default async function DocumentsPage({
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Recent Documents</CardTitle>
+          <Link href="/documents/history" className="text-xs font-medium text-primary hover:underline">
+            View all history
+          </Link>
         </CardHeader>
         <CardContent className="p-0">
           <RecentDocumentsTable documents={recentDocuments} />

@@ -5,7 +5,7 @@ import {
 } from "@/server/repositories/document-template.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
-import { extractTemplateVariables } from "@/lib/docx";
+import { extractTemplateVariables, type DetectedTemplateVariables } from "@/lib/docx";
 import { getCurrentUser } from "@/lib/current-user";
 import type { DocumentTemplateInput } from "@/validators/document-template";
 
@@ -21,7 +21,7 @@ export async function getTemplate(id: string): Promise<DocumentTemplateRow | nul
   return documentTemplateRepository.findById(id);
 }
 
-export function detectVariablesFromUpload(buffer: Buffer): string[] {
+export function detectVariablesFromUpload(buffer: Buffer): DetectedTemplateVariables {
   return extractTemplateVariables(buffer);
 }
 

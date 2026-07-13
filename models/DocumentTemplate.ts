@@ -9,6 +9,14 @@ const calculationSchema = new Schema(
   { _id: false },
 );
 
+const tableColumnSchema = new Schema(
+  {
+    key: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
+  },
+  { _id: false },
+);
+
 const templateFieldSchema = new Schema(
   {
     key: { type: String, required: true, trim: true },
@@ -17,6 +25,9 @@ const templateFieldSchema = new Schema(
     required: { type: Boolean, default: false },
     options: { type: [String], default: undefined },
     calculation: { type: calculationSchema, default: undefined },
+    // "table" fields only: the row shape repeated inside a docxtemplater
+    // {{#section}} loop — each row's keys must match a column's `key`.
+    columns: { type: [tableColumnSchema], default: undefined },
   },
   { _id: false },
 );

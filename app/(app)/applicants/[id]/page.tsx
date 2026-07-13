@@ -5,15 +5,22 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
-import { getApplicantDetail, getApplicantResumeAnalysis } from "@/features/applicants/services/applicant.service";
+import {
+  getApplicantDetail,
+  getApplicantResumeAnalysis,
+  getApplicantDocuments,
+} from "@/features/applicants/services/applicant.service";
 import { ApplicantOverview } from "@/features/applicants/components/applicant-overview";
 import { ApplicantProfileCard } from "@/features/applicants/components/applicant-profile-card";
 import { AiAnalysisPanel } from "@/features/applicants/components/ai-analysis-panel";
 import { QuickActionsPanel } from "@/features/applicants/components/quick-actions-panel";
+import { ApplicantDocumentsTab } from "@/features/applicants/components/applicant-documents-tab";
 
 export const metadata: Metadata = { title: "Applicant Details" };
 export const dynamic = "force-dynamic";
 
+// "History" here means the applicant's pipeline-status timeline, distinct
+// from the "Documents" tab (generated offer/appointment letters, etc.).
 const PLACEHOLDER_TABS = [
   { value: "resume", label: "Resume", description: "Resume preview will appear here once the Resume Viewer is built." },
   { value: "experience", label: "Experience", description: "Structured work history will appear here." },
@@ -24,9 +31,10 @@ const PLACEHOLDER_TABS = [
 
 export default async function ApplicantDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [applicant, resumeAnalysis] = await Promise.all([
+  const [applicant, resumeAnalysis, documents] = await Promise.all([
     getApplicantDetail(id),
     getApplicantResumeAnalysis(id),
+    getApplicantDocuments(id),
   ]);
 
   if (!applicant) notFound();
@@ -63,6 +71,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
                     {tab.label}
@@ -76,6 +85,10 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
 
               <TabsContent value="ai-analysis" className="pt-6">
                 <AiAnalysisPanel analysis={resumeAnalysis} />
+              </TabsContent>
+
+              <TabsContent value="documents" className="pt-6">
+                <ApplicantDocumentsTab documents={documents} />
               </TabsContent>
 
               {PLACEHOLDER_TABS.map((tab) => (

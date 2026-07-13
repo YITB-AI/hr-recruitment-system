@@ -63,6 +63,7 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
               type: type as TemplateFieldInput["type"],
               options: type === "select" ? field.options ?? [""] : undefined,
               calculation: type === "calculated" ? field.calculation ?? { type: "fixed", value: 0 } : undefined,
+              columns: type === "table" ? field.columns ?? [{ key: "", label: "" }] : undefined,
             })
           }
         >
@@ -87,6 +88,53 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
             onChange({ ...field, options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })
           }
         />
+      )}
+
+      {field.type === "table" && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Columns — each row filled in at generation time will have these fields
+          </p>
+          {(field.columns ?? []).map((column, i) => (
+            <div key={i} className="flex gap-2">
+              <Input
+                placeholder="Column key (e.g. item_name)"
+                value={column.key}
+                onChange={(e) => {
+                  const columns = [...(field.columns ?? [])];
+                  columns[i] = { ...column, key: e.target.value };
+                  onChange({ ...field, columns });
+                }}
+              />
+              <Input
+                placeholder="Column label (e.g. Item Name)"
+                value={column.label}
+                onChange={(e) => {
+                  const columns = [...(field.columns ?? [])];
+                  columns[i] = { ...column, label: e.target.value };
+                  onChange({ ...field, columns });
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => onChange({ ...field, columns: (field.columns ?? []).filter((_, idx) => idx !== i) })}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onChange({ ...field, columns: [...(field.columns ?? []), { key: "", label: "" }] })}
+          >
+            Add column
+          </Button>
+        </div>
       )}
 
       {field.type === "calculated" && (
@@ -130,10 +178,12 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={field.required} onCheckedChange={(v) => onChange({ ...field, required: Boolean(v) })} />
-        Required
-      </label>
+      {field.type !== "conditional" && (
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={field.required} onCheckedChange={(v) => onChange({ ...field, required: Boolean(v) })} />
+          Required
+        </label>
+      )}
     </div>
   );
 }

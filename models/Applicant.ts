@@ -1,7 +1,8 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { APPLICANT_STATUSES } from "@/constants/applicant-status";
+import { APPLICANT_SOURCES } from "@/constants/applicant-source";
 
-export const APPLICANT_SOURCES = ["website", "linkedin", "referral", "job_board", "other"] as const;
+export { APPLICANT_SOURCES };
 
 const applicantSchema = new Schema(
   {

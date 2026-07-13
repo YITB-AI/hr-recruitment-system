@@ -9,9 +9,12 @@ import {
   deleteTemplate,
   detectVariablesFromUpload,
 } from "@/features/documents/services/document-template.service";
+import type { DetectedTemplateVariables } from "@/lib/docx";
 
 export type ActionResult = { success: true } | { success: false; error: string };
-export type DetectVariablesResult = { success: true; variables: string[] } | { success: false; error: string };
+export type DetectVariablesResult =
+  | { success: true; detected: DetectedTemplateVariables }
+  | { success: false; error: string };
 
 export async function detectVariablesAction(formData: FormData): Promise<DetectVariablesResult> {
   const file = formData.get("file");
@@ -21,8 +24,8 @@ export async function detectVariablesAction(formData: FormData): Promise<DetectV
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const variables = detectVariablesFromUpload(buffer);
-    return { success: true, variables };
+    const detected = detectVariablesFromUpload(buffer);
+    return { success: true, detected };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Could not read file" };
   }
