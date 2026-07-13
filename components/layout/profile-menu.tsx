@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { LogOut, Settings, User } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +25,14 @@ function initials(name: string) {
 }
 
 export function ProfileMenu({ user }: { user: SessionUser }) {
+  const [isLoggingOut, startLogout] = useTransition();
+
+  function handleLogout() {
+    startLogout(async () => {
+      await logoutAction();
+    });
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-accent transition-colors outline-none">
@@ -53,9 +62,9 @@ export function ProfileMenu({ user }: { user: SessionUser }) {
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => void logoutAction()}>
+        <DropdownMenuItem variant="destructive" disabled={isLoggingOut} onClick={handleLogout}>
           <LogOut className="size-4" />
-          Log out
+          {isLoggingOut ? "Logging out..." : "Log out"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
