@@ -90,8 +90,10 @@ function serializeAggregateRow(row: RawAggregateRow): ApplicantListRow {
   };
 }
 
-function buildMatchStage(filters: Partial<ApplicantListFilters>): Record<string, unknown> {
-  const match: Record<string, unknown> = {};
+// Every function takes companyId first and filters by it — see the
+// tenant-isolation comment in server/repositories/employee.repository.ts.
+function buildMatchStage(companyId: string, filters: Partial<ApplicantListFilters>): Record<string, unknown> {
+  const match: Record<string, unknown> = { companyId: new Types.ObjectId(companyId) };
   if (filters.status) match.status = filters.status;
   if (filters.jobId) {
     // An invalid/stale jobId (malformed URL, deleted job) should yield "no
@@ -176,12 +178,12 @@ const LIST_PROJECT = {
 } as const;
 
 export const applicantRepository = {
-  countTotal() {
-    return Applicant.countDocuments();
+  countTotal(companyId: string) {
+    return Applicant.countDocuments({ companyId });
   },
   /** Minimal shape for pickers (document generation, etc.), mirrors employeeRepository.findAllForPicker. */
-  async findAllForPicker(): Promise<ApplicantPickerRow[]> {
-    const rows = await Applicant.find()
+  async findAllForPicker(companyId: string): Promise<ApplicantPickerRow[]> {
+    const rows = await Applicant.find({ companyId })
       .select("name email")
       .lean<Array<Record<string, unknown> & { _id: unknown }>>();
     return rows.map((row) => ({
@@ -190,8 +192,8 @@ export const applicantRepository = {
       email: row.email as string,
     }));
   },
-  async findAllPaginated(filters: ApplicantListFilters): Promise<ApplicantListResult> {
-    const match = buildMatchStage(filters);
+  async findAllPaginated(companyId: string, filters: ApplicantListFilters): Promise<ApplicantListResult> {
+    const match = buildMatchStage(companyId, filters);
     const scoreMatch = buildScoreMatchStage(filters);
     const sortStage = buildSortStage(filters.sortBy, filters.sortDir);
 
@@ -219,8 +221,8 @@ export const applicantRepository = {
     return { rows, total };
   },
   /** Same filters/joins as findAllPaginated, grouped by pipeline status for the kanban board — no pagination, capped per column. */
-  async findAllForKanban(filters: ApplicantKanbanFilters): Promise<Record<ApplicantStatus, ApplicantListRow[]>> {
-    const match = buildMatchStage(filters);
+  async findAllForKanban(companyId: string, filters: ApplicantKanbanFilters): Promise<Record<ApplicantStatus, ApplicantListRow[]>> {
+    const match = buildMatchStage(companyId, filters);
     match.status = { $in: PIPELINE_STATUSES };
     const scoreMatch = buildScoreMatchStage(filters);
 
@@ -247,23 +249,23 @@ export const applicantRepository = {
     }
     return grouped;
   },
-  async findById(id: string): Promise<ApplicantDetailRow | null> {
-    const row = await Applicant.findById(id).populate("jobId", "title").lean<RawRow | null>();
+  async findById(companyId: string, id: string): Promise<ApplicantDetailRow | null> {
+    const row = await Applicant.findOne({ _id: id, companyId }).populate("jobId", "title").lean<RawRow | null>();
     return serialize<ApplicantDetailRow>(row);
   },
-  async updateStatus(id: string, status: ApplicantStatus): Promise<ApplicantDetailRow | null> {
-    const row = await Applicant.findByIdAndUpdate(id, { status }, { returnDocument: "after" })
+  async updateStatus(companyId: string, id: string, status: ApplicantStatus): Promise<ApplicantDetailRow | null> {
+    const row = await Applicant.findOneAndUpdate({ _id: id, companyId }, { status }, { returnDocument: "after" })
       .populate("jobId", "title")
       .lean<RawRow | null>();
     return serialize<ApplicantDetailRow>(row);
   },
-  async updateStatusMany(ids: string[], status: ApplicantStatus): Promise<number> {
-    const result = await Applicant.updateMany({ _id: { $in: ids } }, { status });
+  async updateStatusMany(companyId: string, ids: string[], status: ApplicantStatus): Promise<number> {
+    const result = await Applicant.updateMany({ _id: { $in: ids }, companyId }, { status });
     return result.modifiedCount;
   },
   /** Minimal per-applicant info for building bulk-action activity-log messages. */
-  async findMinimalByIds(ids: string[]): Promise<Array<{ _id: string; name: string; jobId: { title: string } | null }>> {
-    const rows = await Applicant.find({ _id: { $in: ids } })
+  async findMinimalByIds(companyId: string, ids: string[]): Promise<Array<{ _id: string; name: string; jobId: { title: string } | null }>> {
+    const rows = await Applicant.find({ _id: { $in: ids }, companyId })
       .select("name jobId")
       .populate("jobId", "title")
       .lean<Array<Record<string, unknown> & { _id: unknown; jobId: { title: string } | null }>>();
@@ -273,19 +275,20 @@ export const applicantRepository = {
       jobId: row.jobId ? { title: row.jobId.title } : null,
     }));
   },
-  countByStatus(status: ApplicantStatus) {
-    return Applicant.countDocuments({ status });
+  countByStatus(companyId: string, status: ApplicantStatus) {
+    return Applicant.countDocuments({ companyId, status });
   },
-  countCreatedBetween(start: Date, end: Date) {
-    return Applicant.countDocuments({ createdAt: { $gte: start, $lt: end } });
+  countCreatedBetween(companyId: string, start: Date, end: Date) {
+    return Applicant.countDocuments({ companyId, createdAt: { $gte: start, $lt: end } });
   },
   // Approximates "reached this status within the window" via updatedAt, since
   // status transitions aren't separately timestamped.
-  countByStatusUpdatedBetween(status: ApplicantStatus, start: Date, end: Date) {
-    return Applicant.countDocuments({ status, updatedAt: { $gte: start, $lt: end } });
+  countByStatusUpdatedBetween(companyId: string, status: ApplicantStatus, start: Date, end: Date) {
+    return Applicant.countDocuments({ companyId, status, updatedAt: { $gte: start, $lt: end } });
   },
-  async groupByStatus(): Promise<Array<{ status: ApplicantStatus; count: number }>> {
+  async groupByStatus(companyId: string): Promise<Array<{ status: ApplicantStatus; count: number }>> {
     const rows = await Applicant.aggregate<{ _id: ApplicantStatus; count: number }>([
+      { $match: { companyId: new Types.ObjectId(companyId) } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
     return rows.map((row) => ({ status: row._id, count: row.count }));

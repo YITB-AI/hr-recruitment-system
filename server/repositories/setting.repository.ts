@@ -43,27 +43,27 @@ function serialize(row: RawRow): SettingRow {
 }
 
 export const settingRepository = {
-  /** There is always exactly one Setting document — created with defaults on first read if it doesn't exist yet. */
-  async get(): Promise<SettingRow> {
-    let row = await Setting.findOne().lean<RawRow | null>();
+  /** One Setting document per company — created with defaults on first read if it doesn't exist yet for this companyId. */
+  async get(companyId: string): Promise<SettingRow> {
+    let row = await Setting.findOne({ companyId }).lean<RawRow | null>();
     if (!row) {
-      const created = await Setting.create({ companyName: "My Company" });
+      const created = await Setting.create({ companyId, companyName: "My Company" });
       row = created.toObject();
     }
     return serialize(row);
   },
 
-  async update(input: Partial<{
+  async update(companyId: string, input: Partial<{
     companyName: string;
     timezone: string;
     dateFormat: string;
     features: Partial<SettingRow["features"]>;
     appearance: Partial<SettingRow["appearance"]>;
   }>): Promise<SettingRow> {
-    // Ensure the singleton exists, then merge the partial update — using
+    // Ensure this company's row exists, then merge the partial update — using
     // dot-paths for the nested objects so a partial `features`/`appearance`
     // update doesn't clobber the sibling fields that weren't included.
-    await settingRepository.get();
+    await settingRepository.get(companyId);
 
     const setOps: Record<string, unknown> = {};
     if (input.companyName !== undefined) setOps.companyName = input.companyName;
@@ -76,7 +76,7 @@ export const settingRepository = {
       setOps[`appearance.${key}`] = value;
     }
 
-    const row = await Setting.findOneAndUpdate({}, { $set: setOps }, { returnDocument: "after" }).lean<RawRow>();
+    const row = await Setting.findOneAndUpdate({ companyId }, { $set: setOps }, { returnDocument: "after" }).lean<RawRow>();
     return serialize(row!);
   },
 };

@@ -3,6 +3,7 @@ import { jobRepository } from "@/server/repositories/job.repository";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import {
   APPLICANT_STATUS_CONFIG,
@@ -13,6 +14,7 @@ import type { DashboardData } from "@/types/dashboard";
 
 export async function getDashboardData(): Promise<DashboardData> {
   await connectDB();
+  const { companyId } = await getCurrentUser();
 
   const { previousStart, currentStart, now } = getWeekWindows(new Date());
 
@@ -33,21 +35,24 @@ export async function getDashboardData(): Promise<DashboardData> {
     recentActivity,
     upcomingInterviews,
   ] = await Promise.all([
+    // Job is a documented exception (not companyId-required, see
+    // models/Job.ts) — these counts stay unscoped/global for now until
+    // per-company Job mapping (a later phase) exists.
     jobRepository.countTotal(),
     jobRepository.countCreatedBetween(currentStart, now),
     jobRepository.countCreatedBetween(previousStart, currentStart),
-    applicantRepository.countTotal(),
-    applicantRepository.countCreatedBetween(currentStart, now),
-    applicantRepository.countCreatedBetween(previousStart, currentStart),
-    applicantRepository.countByStatus("shortlisted"),
-    applicantRepository.countByStatusUpdatedBetween("shortlisted", currentStart, now),
-    applicantRepository.countByStatusUpdatedBetween("shortlisted", previousStart, currentStart),
-    applicantRepository.countByStatus("hired"),
-    applicantRepository.countByStatusUpdatedBetween("hired", currentStart, now),
-    applicantRepository.countByStatusUpdatedBetween("hired", previousStart, currentStart),
-    applicantRepository.groupByStatus(),
-    activityLogRepository.findRecent(6),
-    interviewRepository.findUpcoming(5),
+    applicantRepository.countTotal(companyId),
+    applicantRepository.countCreatedBetween(companyId, currentStart, now),
+    applicantRepository.countCreatedBetween(companyId, previousStart, currentStart),
+    applicantRepository.countByStatus(companyId, "shortlisted"),
+    applicantRepository.countByStatusUpdatedBetween(companyId, "shortlisted", currentStart, now),
+    applicantRepository.countByStatusUpdatedBetween(companyId, "shortlisted", previousStart, currentStart),
+    applicantRepository.countByStatus(companyId, "hired"),
+    applicantRepository.countByStatusUpdatedBetween(companyId, "hired", currentStart, now),
+    applicantRepository.countByStatusUpdatedBetween(companyId, "hired", previousStart, currentStart),
+    applicantRepository.groupByStatus(companyId),
+    activityLogRepository.findRecent(companyId, 6),
+    interviewRepository.findUpcoming(companyId, 5),
   ]);
 
   const countsByStatus = new Map<ApplicantStatus, number>(

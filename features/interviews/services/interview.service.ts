@@ -4,29 +4,34 @@ import { applicantRepository } from "@/server/repositories/applicant.repository"
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 import type { ScheduleInterviewInput } from "@/validators/interview";
 
 export async function listInterviews() {
   await connectDB();
-  return interviewRepository.findAll();
+  const { companyId } = await getCurrentUser();
+  return interviewRepository.findAll(companyId);
 }
 
 export async function listInterviewers() {
   await connectDB();
-  return userRepository.findAll();
+  const { companyId } = await getCurrentUser();
+  return userRepository.findAll(companyId);
 }
 
 export async function scheduleInterview(input: ScheduleInterviewInput) {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "interview.schedule");
 
-  const applicant = await applicantRepository.findById(input.applicantId);
+  const applicant = await applicantRepository.findById(actor.companyId, input.applicantId);
   if (!applicant) throw new Error("Applicant not found");
   if (!applicant.jobId) throw new Error("Applicant has no linked job");
 
   const scheduledAt = new Date(`${input.date}T${input.time}:00`);
   if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid date/time");
 
-  const interview = await interviewRepository.create({
+  const interview = await interviewRepository.create(actor.companyId, {
     applicantId: input.applicantId,
     jobId: applicant.jobId._id,
     interviewerIds: input.interviewerIds,
@@ -37,11 +42,11 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
     notes: input.notes || undefined,
   });
 
-  await applicantRepository.updateStatus(input.applicantId, "interview");
+  await applicantRepository.updateStatus(actor.companyId, input.applicantId, "interview");
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "interview.scheduled",
     entityType: "interview",

@@ -5,6 +5,8 @@ export { EMPLOYMENT_STATUSES };
 
 const employeeSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     // Human-friendly display id shown in the UI (e.g. "EMP-1001"), distinct
     // from Mongo's _id. Assigned once at creation, never reused.
     employeeCode: { type: String, required: true, unique: true },

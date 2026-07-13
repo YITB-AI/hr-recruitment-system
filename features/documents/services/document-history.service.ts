@@ -7,6 +7,7 @@ import {
 } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 
 const PAGE_SIZE = 20;
 
@@ -19,13 +20,16 @@ const ALLOWED_NEXT_STATUS: Record<GeneratedDocumentStatus, GeneratedDocumentStat
 
 export async function listDocumentHistory(filters: GeneratedDocumentFilters, page = 1) {
   await connectDB();
-  return generatedDocumentRepository.find(filters, { page, pageSize: PAGE_SIZE });
+  const { companyId } = await getCurrentUser();
+  return generatedDocumentRepository.find(companyId, filters, { page, pageSize: PAGE_SIZE });
 }
 
 export async function transitionDocumentStatus(id: string, newStatus: GeneratedDocumentStatus): Promise<GeneratedDocumentRow> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.status.transition");
 
-  const current = await generatedDocumentRepository.findById(id);
+  const current = await generatedDocumentRepository.findById(actor.companyId, id);
   if (!current) throw new Error("Document not found");
 
   const currentStatus = current.status as GeneratedDocumentStatus;
@@ -33,13 +37,13 @@ export async function transitionDocumentStatus(id: string, newStatus: GeneratedD
     throw new Error(`Cannot move a document from "${currentStatus}" to "${newStatus}"`);
   }
 
-  const actor = await getCurrentUser();
-  const actorId = actor.id === "no-users-seeded" ? undefined : actor.id;
-  const updated = await generatedDocumentRepository.updateStatus(id, newStatus, actorId);
+  const actorId = actor.id === "system" ? undefined : actor.id;
+  const updated = await generatedDocumentRepository.updateStatus(actor.companyId, id, newStatus, actorId);
   if (!updated) throw new Error("Document not found");
 
   const recipientName = updated.employee?.name ?? updated.applicant?.name ?? "recipient";
   await activityLogRepository.create({
+    companyId: actor.companyId,
     actorId,
     actorName: actor.name,
     action: "document.status_changed",

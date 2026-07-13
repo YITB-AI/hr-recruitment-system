@@ -7,6 +7,11 @@ import type { EmploymentStatus, EmploymentType } from "@/constants/employee";
  * React Server Components reject raw BSON ObjectId values when passed to a
  * Client Component, so this repository is the one place that boundary is
  * enforced for the Employee collection.
+ *
+ * Every function takes `companyId` as its first argument and filters by it —
+ * this is the tenant-isolation mechanism for Phase 1 (see the plan's
+ * "Tenant Isolation Mechanism" section): explicit, reviewable in every diff,
+ * and works the same inside scripts (no request context) as inside services.
  */
 export type EmployeeListRow = {
   _id: string;
@@ -102,8 +107,8 @@ const LIST_FIELDS = "employeeCode name email phone department designation employ
 
 export const employeeRepository = {
   /** Real HR staff picker — keeps the interview-scheduling/document-generation flows unaffected by this module's richer shapes. */
-  async findAllForPicker(): Promise<EmployeeRow[]> {
-    const rows = await Employee.find()
+  async findAllForPicker(companyId: string): Promise<EmployeeRow[]> {
+    const rows = await Employee.find({ companyId })
       .select("name email department designation basicSalary grossSalary")
       .lean<Array<Record<string, unknown> & { _id: unknown }>>();
     return rows.map((row) => ({
@@ -117,8 +122,8 @@ export const employeeRepository = {
     }));
   },
 
-  async findAll(filters: EmployeeListFilters): Promise<EmployeeListResult> {
-    const query: Record<string, unknown> = {};
+  async findAll(companyId: string, filters: EmployeeListFilters): Promise<EmployeeListResult> {
+    const query: Record<string, unknown> = { companyId };
     if (filters.status) query.employmentStatus = filters.status;
     if (filters.department) query.department = filters.department;
     if (filters.search) {
@@ -139,49 +144,62 @@ export const employeeRepository = {
     return { rows: rows.map(serializeListRow), total };
   },
 
-  async findById(id: string): Promise<EmployeeDetailRow | null> {
-    const row = await Employee.findById(id).populate("managerId", "name").lean<RawDetailRow | null>();
+  // Scoped by companyId in the query itself (not just id) — an id from
+  // another company must resolve to "not found", never leak the document
+  // (the IDOR case: guessing/enumerating another tenant's employee id).
+  async findById(companyId: string, id: string): Promise<EmployeeDetailRow | null> {
+    const row = await Employee.findOne({ _id: id, companyId }).populate("managerId", "name").lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },
 
-  countTotal() {
-    return Employee.countDocuments();
+  countTotal(companyId: string) {
+    return Employee.countDocuments({ companyId });
   },
-  countByStatus(status: EmploymentStatus) {
-    return Employee.countDocuments({ employmentStatus: status });
+  countByStatus(companyId: string, status: EmploymentStatus) {
+    return Employee.countDocuments({ companyId, employmentStatus: status });
   },
-  countCreatedBetween(start: Date, end: Date) {
-    return Employee.countDocuments({ createdAt: { $gte: start, $lt: end } });
+  countCreatedBetween(companyId: string, start: Date, end: Date) {
+    return Employee.countDocuments({ companyId, createdAt: { $gte: start, $lt: end } });
   },
-  countByStatusUpdatedBetween(status: EmploymentStatus, start: Date, end: Date) {
-    return Employee.countDocuments({ employmentStatus: status, updatedAt: { $gte: start, $lt: end } });
+  countByStatusUpdatedBetween(companyId: string, status: EmploymentStatus, start: Date, end: Date) {
+    return Employee.countDocuments({ companyId, employmentStatus: status, updatedAt: { $gte: start, $lt: end } });
   },
 
-  async listDepartments(): Promise<string[]> {
-    const departments = await Employee.distinct("department");
+  async listDepartments(companyId: string): Promise<string[]> {
+    const departments = await Employee.distinct("department", { companyId });
     return (departments as string[]).sort();
   },
 
-  /** Generates the next sequential display code (EMP-1001, EMP-1002, ...). Not safe against concurrent creates racing on the same count — acceptable for this app's single-admin usage pattern. */
-  async nextEmployeeCode(): Promise<string> {
-    const count = await Employee.countDocuments();
+  /**
+   * Generates the next sequential display code (EMP-1001, EMP-1002, ...),
+   * scoped per company so each company's codes start from EMP-1001. Not safe
+   * against concurrent creates racing on the same count — acceptable for
+   * this app's single-admin-per-company usage pattern.
+   * NOTE: `employeeCode`'s uniqueness is still a bare global unique index
+   * (see models/Employee.ts) — this must become a compound
+   * `{companyId, employeeCode}` index before two companies can safely
+   * both have an "EMP-1001", same tightening step already flagged for
+   * User.email/SavedView.name/Setting.
+   */
+  async nextEmployeeCode(companyId: string): Promise<string> {
+    const count = await Employee.countDocuments({ companyId });
     return `EMP-${String(1001 + count)}`;
   },
 
-  async create(input: CreateEmployeeInput): Promise<EmployeeDetailRow> {
-    const doc = await Employee.create(input);
+  async create(companyId: string, input: CreateEmployeeInput): Promise<EmployeeDetailRow> {
+    const doc = await Employee.create({ ...input, companyId });
     const populated = await Employee.findById(doc._id).populate("managerId", "name").lean<RawDetailRow>();
     return serializeDetailRow(populated!);
   },
 
-  async update(id: string, input: UpdateEmployeeInput): Promise<EmployeeDetailRow | null> {
-    const row = await Employee.findByIdAndUpdate(id, input, { returnDocument: "after" })
+  async update(companyId: string, id: string, input: UpdateEmployeeInput): Promise<EmployeeDetailRow | null> {
+    const row = await Employee.findOneAndUpdate({ _id: id, companyId }, input, { returnDocument: "after" })
       .populate("managerId", "name")
       .lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },
 
-  async delete(id: string): Promise<void> {
-    await Employee.findByIdAndDelete(id);
+  async delete(companyId: string, id: string): Promise<void> {
+    await Employee.findOneAndDelete({ _id: id, companyId });
   },
 };

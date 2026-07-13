@@ -5,6 +5,8 @@ export { INTERVIEW_TYPES, INTERVIEW_STATUSES };
 
 const interviewSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant", required: true, index: true },
     jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     interviewerIds: [{ type: Schema.Types.ObjectId, ref: "User" }],

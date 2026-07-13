@@ -8,6 +8,10 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 // is display-only, never used for permissions.
 const savedViewSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts. The
+    // `name` unique index becomes compound `{companyId, name}` once every
+    // row has one (two companies should be able to reuse the same view name).
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     name: { type: String, required: true, trim: true, unique: true },
     filters: { type: Map, of: String, required: true },
     createdByName: { type: String, trim: true },

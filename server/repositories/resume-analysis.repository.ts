@@ -22,6 +22,13 @@ type RawRow = {
   recommendation?: string;
 };
 
+// NOT companyId-scoped here, unlike other repositories — like Job, this
+// collection is written directly by the external n8n pipeline, which may
+// not stamp companyId reliably (see the comment on Job's companyId field).
+// Isolation is enforced one level up instead: callers must first resolve
+// the applicant via applicantRepository.findById(companyId, applicantId)
+// (which IS scoped) and only call this if that lookup succeeded — see
+// getApplicantResumeAnalysis in applicant.service.ts.
 export const resumeAnalysisRepository = {
   async findByApplicantId(applicantId: string): Promise<ResumeAnalysisRow | null> {
     const row = await ResumeAnalysis.findOne({ applicantId })

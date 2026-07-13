@@ -7,6 +7,14 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 // never overwrite n8n's own values.
 const jobSchema = new Schema(
   {
+    // Deliberately NOT required, even after migration — rows arrive from an
+    // external n8n pipeline outside this codebase's control. Each company
+    // gets its own n8n workflow going forward, tagging new rows with its
+    // companyId; existing untagged rows get one-time manual assignment via
+    // an admin screen (never an automatic guess). Any row with no companyId
+    // is excluded from every tenant-scoped query — fail-closed, not shown to
+    // anyone rather than shown to the wrong company.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     job_id: { type: String, required: true, unique: true, index: true },
     title: { type: String, required: true, trim: true },
     description: { type: String },

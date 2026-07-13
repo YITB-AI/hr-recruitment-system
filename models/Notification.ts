@@ -4,6 +4,8 @@ export const NOTIFICATION_CHANNELS = ["email", "sms", "push", "in_app"] as const
 
 const notificationSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     channel: { type: String, enum: NOTIFICATION_CHANNELS, default: "in_app" },
     title: { type: String, required: true },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { employeeRepository } from "@/server/repositories/employee.repository";
+import { getCurrentUser } from "@/lib/current-user";
 import type { EmploymentStatus } from "@/constants/employee";
 
 const CSV_COLUMNS = [
@@ -22,9 +23,10 @@ function escapeCsvCell(value: string): string {
 /** Exports the currently filtered employee list as CSV — respects the same status/department/search query params as the Employees page. */
 export async function GET(request: Request) {
   await connectDB();
+  const { companyId } = await getCurrentUser();
 
   const { searchParams } = new URL(request.url);
-  const { rows } = await employeeRepository.findAll({
+  const { rows } = await employeeRepository.findAll(companyId, {
     status: (searchParams.get("status") as EmploymentStatus) || undefined,
     department: searchParams.get("department") || undefined,
     search: searchParams.get("search") || undefined,

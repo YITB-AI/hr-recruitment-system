@@ -1,14 +1,25 @@
 import { connectDB } from "@/server/db/connect";
 import { settingRepository, type SettingRow } from "@/server/repositories/setting.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
-import { FONT_OPTIONS } from "@/constants/appearance";
+import { getTenantSlugFromRequest } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/permissions";
+import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY } from "@/constants/appearance";
+
 import type { GeneralSettingsInput, NotificationSettingsInput, AppearanceSettingsInput } from "@/validators/settings";
 
+/** For the authenticated Settings management page — scoped to the logged-in user's own company. */
 export async function getSettings(): Promise<SettingRow> {
   await connectDB();
-  return settingRepository.get();
+  const { companyId } = await getCurrentUser();
+  return settingRepository.get(companyId);
 }
+
+const DEFAULT_APPEARANCE_STYLE: React.CSSProperties = {
+  "--primary": DEFAULT_PRIMARY_COLOR,
+  "--font-sans": `var(${FONT_OPTIONS.find((f) => f.key === DEFAULT_FONT_KEY)?.variable ?? FONT_OPTIONS[0].variable})`,
+} as React.CSSProperties;
 
 /**
  * Turns the saved appearance settings into inline CSS custom properties for
@@ -16,9 +27,19 @@ export async function getSettings(): Promise<SettingRow> {
  * selector in globals.css on specificity, and `--font-sans` is reassigned to
  * whichever font's own variable (set by that font's next/font loader class,
  * also applied on <html>) the user picked — see app/layout.tsx.
+ *
+ * Deliberately resolves the company from the subdomain (proxy.ts's
+ * x-tenant-slug header), NOT from getCurrentUser() — the root layout renders
+ * for unauthenticated requests too (e.g. /login itself), and getCurrentUser()
+ * would redirect there, which would break the login page's own rendering.
  */
 export async function getAppearanceStyle(): Promise<React.CSSProperties> {
-  const settings = await getSettings();
+  await connectDB();
+  const slug = await getTenantSlugFromRequest();
+  const company = slug ? await companyRepository.findBySlug(slug) : null;
+  if (!company) return DEFAULT_APPEARANCE_STYLE;
+
+  const settings = await settingRepository.get(company._id);
   const font = FONT_OPTIONS.find((f) => f.key === settings.appearance.fontKey) ?? FONT_OPTIONS[0];
 
   return {
@@ -27,10 +48,11 @@ export async function getAppearanceStyle(): Promise<React.CSSProperties> {
   } as React.CSSProperties;
 }
 
-async function logSettingsChange(section: string, settingsId: string) {
+async function logSettingsChange(companyId: string, section: string, settingsId: string) {
   const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "settings.updated",
     entityType: "setting",
@@ -41,21 +63,27 @@ async function logSettingsChange(section: string, settingsId: string) {
 
 export async function updateGeneralSettings(input: GeneralSettingsInput): Promise<SettingRow> {
   await connectDB();
-  const updated = await settingRepository.update(input);
-  await logSettingsChange("general", updated._id);
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  const updated = await settingRepository.update(actor.companyId, input);
+  await logSettingsChange(actor.companyId, "general", updated._id);
   return updated;
 }
 
 export async function updateNotificationSettings(input: NotificationSettingsInput): Promise<SettingRow> {
   await connectDB();
-  const updated = await settingRepository.update({ features: input });
-  await logSettingsChange("notification", updated._id);
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  const updated = await settingRepository.update(actor.companyId, { features: input });
+  await logSettingsChange(actor.companyId, "notification", updated._id);
   return updated;
 }
 
 export async function updateAppearanceSettings(input: AppearanceSettingsInput): Promise<SettingRow> {
   await connectDB();
-  const updated = await settingRepository.update({ appearance: input });
-  await logSettingsChange("appearance", updated._id);
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  const updated = await settingRepository.update(actor.companyId, { appearance: input });
+  await logSettingsChange(actor.companyId, "appearance", updated._id);
   return updated;
 }

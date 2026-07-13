@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/types/user";
 
 function initials(name: string) {
@@ -52,7 +53,7 @@ export function ProfileMenu({ user }: { user: SessionUser }) {
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive">
+        <DropdownMenuItem variant="destructive" onClick={() => void logoutAction()}>
           <LogOut className="size-4" />
           Log out
         </DropdownMenuItem>

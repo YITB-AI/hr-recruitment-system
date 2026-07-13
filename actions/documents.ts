@@ -12,6 +12,8 @@ import {
 import { transitionDocumentStatus } from "@/features/documents/services/document-history.service";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
+import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 
 export type GenerateDocumentResult =
   | { success: true; document: GeneratedDocumentRow }
@@ -86,7 +88,9 @@ export async function uploadDocumentImageAction(formData: FormData): Promise<Upl
 
 export async function deleteGeneratedDocumentAction(id: string): Promise<ActionResult> {
   try {
-    await generatedDocumentRepository.delete(id);
+    const actor = await getCurrentUser();
+    requireRole(actor, "document.delete");
+    await generatedDocumentRepository.delete(actor.companyId, id);
     revalidatePath("/documents");
     revalidatePath("/documents/history");
     return { success: true };

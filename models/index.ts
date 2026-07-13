@@ -1,5 +1,7 @@
 // Central import so every model is registered before any populate() call
 // resolves a ref by string name, regardless of which file is imported first.
+export * from "./Company";
+export * from "./Session";
 export * from "./User";
 export * from "./Job";
 export * from "./Applicant";

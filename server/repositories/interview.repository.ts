@@ -46,9 +46,11 @@ export type CreateInterviewInput = {
   notes?: string;
 };
 
+// Every function takes companyId first and filters by it — see the
+// tenant-isolation comment in server/repositories/employee.repository.ts.
 export const interviewRepository = {
-  async findUpcoming(limit: number): Promise<InterviewRow[]> {
-    const rows = await Interview.find({ status: "scheduled", scheduledAt: { $gte: new Date() } })
+  async findUpcoming(companyId: string, limit: number): Promise<InterviewRow[]> {
+    const rows = await Interview.find({ companyId, status: "scheduled", scheduledAt: { $gte: new Date() } })
       .sort({ scheduledAt: 1 })
       .limit(limit)
       .populate("applicantId", "name")
@@ -56,8 +58,8 @@ export const interviewRepository = {
       .lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async findAll(limit = 100): Promise<InterviewRow[]> {
-    const rows = await Interview.find()
+  async findAll(companyId: string, limit = 100): Promise<InterviewRow[]> {
+    const rows = await Interview.find({ companyId })
       .sort({ scheduledAt: -1 })
       .limit(limit)
       .populate("applicantId", "name")
@@ -65,7 +67,7 @@ export const interviewRepository = {
       .lean<RawRow[]>();
     return rows.map(serialize);
   },
-  create(input: CreateInterviewInput) {
-    return Interview.create({ ...input, status: "scheduled" });
+  create(companyId: string, input: CreateInterviewInput) {
+    return Interview.create({ ...input, companyId, status: "scheduled" });
   },
 };

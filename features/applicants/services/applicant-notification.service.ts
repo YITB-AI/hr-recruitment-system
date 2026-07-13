@@ -1,11 +1,13 @@
 import { getApplicantDetail } from "@/features/applicants/services/applicant.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 
 export type NotificationResult = { success: true; data: unknown } | { success: false; error: string };
 
 export async function sendApplicantEmail(applicantId: string): Promise<NotificationResult> {
+  requireRole(await getCurrentUser(), "applicant.notify");
   const applicant = await getApplicantDetail(applicantId);
   if (!applicant) return { success: false, error: "Applicant not found" };
 
@@ -20,7 +22,8 @@ export async function sendApplicantEmail(applicantId: string): Promise<Notificat
 
   const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "applicant.email_sent",
     entityType: "applicant",
@@ -32,6 +35,7 @@ export async function sendApplicantEmail(applicantId: string): Promise<Notificat
 }
 
 export async function sendApplicantSms(applicantId: string): Promise<NotificationResult> {
+  requireRole(await getCurrentUser(), "applicant.notify");
   const applicant = await getApplicantDetail(applicantId);
   if (!applicant) return { success: false, error: "Applicant not found" };
   if (!applicant.phone) return { success: false, error: "Applicant has no phone number on file" };
@@ -47,7 +51,8 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
 
   const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "applicant.sms_sent",
     entityType: "applicant",

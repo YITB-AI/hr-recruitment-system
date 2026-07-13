@@ -40,25 +40,27 @@ export type CreateTemplateInput = {
 
 export type UpdateTemplateInput = Partial<CreateTemplateInput> & { isActive?: boolean };
 
+// Every function takes companyId first and filters by it — see the
+// tenant-isolation comment in server/repositories/employee.repository.ts.
 export const documentTemplateRepository = {
-  async findAll(): Promise<DocumentTemplateRow[]> {
-    const rows = await DocumentTemplate.find().sort({ createdAt: -1 }).lean<RawRow[]>();
+  async findAll(companyId: string): Promise<DocumentTemplateRow[]> {
+    const rows = await DocumentTemplate.find({ companyId }).sort({ createdAt: -1 }).lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async findById(id: string): Promise<DocumentTemplateRow | null> {
-    const row = await DocumentTemplate.findById(id).lean<RawRow | null>();
+  async findById(companyId: string, id: string): Promise<DocumentTemplateRow | null> {
+    const row = await DocumentTemplate.findOne({ _id: id, companyId }).lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
-  async create(input: CreateTemplateInput): Promise<DocumentTemplateRow> {
-    const doc = await DocumentTemplate.create(input);
+  async create(companyId: string, input: CreateTemplateInput): Promise<DocumentTemplateRow> {
+    const doc = await DocumentTemplate.create({ ...input, companyId });
     return serialize(doc.toObject());
   },
-  async update(id: string, input: UpdateTemplateInput): Promise<DocumentTemplateRow | null> {
-    const row = await DocumentTemplate.findByIdAndUpdate(id, input, { returnDocument: "after" }).lean<RawRow | null>();
+  async update(companyId: string, id: string, input: UpdateTemplateInput): Promise<DocumentTemplateRow | null> {
+    const row = await DocumentTemplate.findOneAndUpdate({ _id: id, companyId }, input, { returnDocument: "after" }).lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
-  async delete(id: string): Promise<DocumentTemplateRow | null> {
-    const row = await DocumentTemplate.findByIdAndDelete(id).lean<RawRow | null>();
+  async delete(companyId: string, id: string): Promise<DocumentTemplateRow | null> {
+    const row = await DocumentTemplate.findOneAndDelete({ _id: id, companyId }).lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
 };

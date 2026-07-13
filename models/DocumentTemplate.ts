@@ -40,6 +40,8 @@ const templateFieldSchema = new Schema(
 
 const documentTemplateSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     name: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true, index: true },
     description: { type: String },

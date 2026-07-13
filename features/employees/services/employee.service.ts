@@ -7,27 +7,29 @@ import {
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import type { EmployeeFormInput } from "@/validators/employee";
 
 /** Everything the Employees list page needs: paginated rows + the 4 stat cards + filter option lists. */
 export async function getEmployeesPageData(filters: EmployeeListFilters) {
   await connectDB();
+  const { companyId } = await getCurrentUser();
 
   const { previousStart, currentStart, now } = getWeekWindows(new Date());
 
   const [list, departments, totalCount, activeCount, onLeaveCount, inactiveCount, activeThisWeek, activePrevWeek, inactiveThisWeek, inactivePrevWeek] =
     await Promise.all([
-      employeeRepository.findAll(filters),
-      employeeRepository.listDepartments(),
-      employeeRepository.countTotal(),
-      employeeRepository.countByStatus("active"),
-      employeeRepository.countByStatus("on_leave"),
-      employeeRepository.countByStatus("terminated"),
-      employeeRepository.countByStatusUpdatedBetween("active", currentStart, now),
-      employeeRepository.countByStatusUpdatedBetween("active", previousStart, currentStart),
-      employeeRepository.countByStatusUpdatedBetween("terminated", currentStart, now),
-      employeeRepository.countByStatusUpdatedBetween("terminated", previousStart, currentStart),
+      employeeRepository.findAll(companyId, filters),
+      employeeRepository.listDepartments(companyId),
+      employeeRepository.countTotal(companyId),
+      employeeRepository.countByStatus(companyId, "active"),
+      employeeRepository.countByStatus(companyId, "on_leave"),
+      employeeRepository.countByStatus(companyId, "terminated"),
+      employeeRepository.countByStatusUpdatedBetween(companyId, "active", currentStart, now),
+      employeeRepository.countByStatusUpdatedBetween(companyId, "active", previousStart, currentStart),
+      employeeRepository.countByStatusUpdatedBetween(companyId, "terminated", currentStart, now),
+      employeeRepository.countByStatusUpdatedBetween(companyId, "terminated", previousStart, currentStart),
     ]);
 
   return {
@@ -44,24 +46,29 @@ export async function getEmployeesPageData(filters: EmployeeListFilters) {
 
 export async function getEmployee(id: string): Promise<EmployeeDetailRow | null> {
   await connectDB();
-  return employeeRepository.findById(id);
+  const { companyId } = await getCurrentUser();
+  return employeeRepository.findById(companyId, id);
 }
 
 export async function getEmployeeDocuments(employeeId: string) {
   await connectDB();
-  return generatedDocumentRepository.findByEmployeeId(employeeId);
+  const { companyId } = await getCurrentUser();
+  return generatedDocumentRepository.findByEmployeeId(companyId, employeeId);
 }
 
 export async function listManagerOptions() {
   await connectDB();
-  return employeeRepository.findAllForPicker();
+  const { companyId } = await getCurrentUser();
+  return employeeRepository.findAllForPicker(companyId);
 }
 
 export async function createEmployee(input: EmployeeFormInput): Promise<EmployeeDetailRow> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "employee.create");
 
-  const employeeCode = await employeeRepository.nextEmployeeCode();
-  const created = await employeeRepository.create({
+  const employeeCode = await employeeRepository.nextEmployeeCode(actor.companyId);
+  const created = await employeeRepository.create(actor.companyId, {
     employeeCode,
     name: input.name,
     email: input.email,
@@ -76,9 +83,9 @@ export async function createEmployee(input: EmployeeFormInput): Promise<Employee
     grossSalary: input.grossSalary,
   });
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "employee.created",
     entityType: "employee",
@@ -91,8 +98,10 @@ export async function createEmployee(input: EmployeeFormInput): Promise<Employee
 
 export async function updateEmployee(id: string, input: EmployeeFormInput): Promise<EmployeeDetailRow | null> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "employee.update");
 
-  const updated = await employeeRepository.update(id, {
+  const updated = await employeeRepository.update(actor.companyId, id, {
     name: input.name,
     email: input.email,
     phone: input.phone,
@@ -107,9 +116,9 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
   });
   if (!updated) return null;
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "employee.updated",
     entityType: "employee",
@@ -122,15 +131,17 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
 
 export async function deleteEmployee(id: string): Promise<void> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "employee.delete");
 
-  const existing = await employeeRepository.findById(id);
+  const existing = await employeeRepository.findById(actor.companyId, id);
   if (!existing) throw new Error("Employee not found");
 
-  await employeeRepository.delete(id);
+  await employeeRepository.delete(actor.companyId, id);
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "employee.deleted",
     entityType: "employee",

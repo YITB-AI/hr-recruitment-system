@@ -26,15 +26,15 @@ export type CreateSavedViewInput = {
 };
 
 export const savedViewRepository = {
-  async findAll(): Promise<SavedViewRow[]> {
-    const rows = await SavedView.find().sort({ name: 1 }).lean<RawRow[]>();
+  async findAll(companyId: string): Promise<SavedViewRow[]> {
+    const rows = await SavedView.find({ companyId }).sort({ name: 1 }).lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async create(input: CreateSavedViewInput): Promise<SavedViewRow> {
-    const doc = await SavedView.create(input);
+  async create(companyId: string, input: CreateSavedViewInput): Promise<SavedViewRow> {
+    const doc = await SavedView.create({ ...input, companyId });
     return serialize(doc.toObject());
   },
-  async delete(id: string): Promise<void> {
-    await SavedView.findByIdAndDelete(id);
+  async delete(companyId: string, id: string): Promise<void> {
+    await SavedView.findOneAndDelete({ _id: id, companyId });
   },
 };

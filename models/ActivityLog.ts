@@ -7,10 +7,14 @@ export const ACTIVITY_ENTITY_TYPES = [
   "employee",
   "document",
   "setting",
+  "auth",
 ] as const;
 
 const activityLogSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts for why
+    // (staged multi-tenancy rollout, becomes required post-migration).
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     actorId: { type: Schema.Types.ObjectId, ref: "User" },
     actorName: { type: String, trim: true },
     action: { type: String, required: true, trim: true },

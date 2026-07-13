@@ -62,9 +62,11 @@ export type GeneratedDocumentListResult = {
   total: number;
 };
 
+// Every function takes companyId first and filters by it — see the
+// tenant-isolation comment in server/repositories/employee.repository.ts.
 export const generatedDocumentRepository = {
-  async findById(id: string): Promise<GeneratedDocumentRow | null> {
-    const row = await GeneratedDocument.findById(id)
+  async findById(companyId: string, id: string): Promise<GeneratedDocumentRow | null> {
+    const row = await GeneratedDocument.findOne({ _id: id, companyId })
       .populate("templateId", "name")
       .populate("employeeId", "name")
       .populate("applicantId", "name")
@@ -72,8 +74,8 @@ export const generatedDocumentRepository = {
       .lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
-  async findRecent(limit = 20): Promise<GeneratedDocumentRow[]> {
-    const rows = await GeneratedDocument.find()
+  async findRecent(companyId: string, limit = 20): Promise<GeneratedDocumentRow[]> {
+    const rows = await GeneratedDocument.find({ companyId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .populate("templateId", "name")
@@ -83,8 +85,8 @@ export const generatedDocumentRepository = {
       .lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async findByEmployeeId(employeeId: string): Promise<GeneratedDocumentRow[]> {
-    const rows = await GeneratedDocument.find({ employeeId })
+  async findByEmployeeId(companyId: string, employeeId: string): Promise<GeneratedDocumentRow[]> {
+    const rows = await GeneratedDocument.find({ companyId, employeeId })
       .sort({ createdAt: -1 })
       .populate("templateId", "name")
       .populate("employeeId", "name")
@@ -93,8 +95,8 @@ export const generatedDocumentRepository = {
       .lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async findByApplicantId(applicantId: string): Promise<GeneratedDocumentRow[]> {
-    const rows = await GeneratedDocument.find({ applicantId })
+  async findByApplicantId(companyId: string, applicantId: string): Promise<GeneratedDocumentRow[]> {
+    const rows = await GeneratedDocument.find({ companyId, applicantId })
       .sort({ createdAt: -1 })
       .populate("templateId", "name")
       .populate("employeeId", "name")
@@ -103,8 +105,8 @@ export const generatedDocumentRepository = {
       .lean<RawRow[]>();
     return rows.map(serialize);
   },
-  async findByBatchId(batchId: string): Promise<GeneratedDocumentRow[]> {
-    const rows = await GeneratedDocument.find({ batchId })
+  async findByBatchId(companyId: string, batchId: string): Promise<GeneratedDocumentRow[]> {
+    const rows = await GeneratedDocument.find({ companyId, batchId })
       .sort({ createdAt: -1 })
       .populate("templateId", "name")
       .populate("employeeId", "name")
@@ -115,10 +117,11 @@ export const generatedDocumentRepository = {
   },
   /** General filtered/paginated query backing the document history view. */
   async find(
+    companyId: string,
     filters: GeneratedDocumentFilters,
     opts: { page?: number; pageSize?: number } = {},
   ): Promise<GeneratedDocumentListResult> {
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = { companyId };
     if (filters.templateId) query.templateId = filters.templateId;
     if (filters.status) query.status = filters.status;
     if (filters.batchId) query.batchId = filters.batchId;
@@ -149,9 +152,10 @@ export const generatedDocumentRepository = {
 
     return { rows: rows.map(serialize), total };
   },
-  async create(input: CreateGeneratedDocumentInput): Promise<GeneratedDocumentRow> {
+  async create(companyId: string, input: CreateGeneratedDocumentInput): Promise<GeneratedDocumentRow> {
     const doc = await GeneratedDocument.create({
       ...input,
+      companyId,
       statusHistory: [{ status: "generated", changedAt: new Date(), changedBy: input.generatedBy }],
     });
     const populated = await GeneratedDocument.findById(doc._id)
@@ -163,12 +167,17 @@ export const generatedDocumentRepository = {
     return serialize(populated!);
   },
   /** Unconditional status write — transition-rule enforcement (generated→sent→signed) lives in the service layer, not here. */
-  async updateStatus(id: string, status: GeneratedDocumentStatus, actorId?: string): Promise<GeneratedDocumentRow | null> {
-    await GeneratedDocument.findByIdAndUpdate(id, {
-      status,
-      $push: { statusHistory: { status, changedAt: new Date(), changedBy: actorId } },
-    });
-    const populated = await GeneratedDocument.findById(id)
+  async updateStatus(
+    companyId: string,
+    id: string,
+    status: GeneratedDocumentStatus,
+    actorId?: string,
+  ): Promise<GeneratedDocumentRow | null> {
+    await GeneratedDocument.findOneAndUpdate(
+      { _id: id, companyId },
+      { status, $push: { statusHistory: { status, changedAt: new Date(), changedBy: actorId } } },
+    );
+    const populated = await GeneratedDocument.findOne({ _id: id, companyId })
       .populate("templateId", "name")
       .populate("employeeId", "name")
       .populate("applicantId", "name")
@@ -176,7 +185,7 @@ export const generatedDocumentRepository = {
       .lean<RawRow | null>();
     return populated ? serialize(populated) : null;
   },
-  async delete(id: string) {
-    return GeneratedDocument.findByIdAndDelete(id).lean();
+  async delete(companyId: string, id: string) {
+    return GeneratedDocument.findOneAndDelete({ _id: id, companyId }).lean();
   },
 };

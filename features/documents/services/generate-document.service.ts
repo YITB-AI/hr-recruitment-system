@@ -12,6 +12,8 @@ import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
+import type { SessionUser } from "@/types/user";
 
 const DOCUMENT_FOLDER = "documents";
 const DOCUMENT_IMAGE_FOLDER = "document-images";
@@ -63,6 +65,7 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord): string | 
 export type FieldValueMap = Record<string, string | boolean | Array<Record<string, string>>>;
 
 async function generateOne(
+  actor: SessionUser,
   template: DocumentTemplateRow,
   recipient: DocumentRecipient,
   values: FieldValueMap,
@@ -70,8 +73,8 @@ async function generateOne(
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
-      ? await employeeRepository.findById(recipient.id)
-      : await applicantRepository.findById(recipient.id);
+      ? await employeeRepository.findById(actor.companyId, recipient.id)
+      : await applicantRepository.findById(actor.companyId, recipient.id);
   if (!recipientRecord) {
     throw new Error(recipient.type === "employee" ? "Employee not found" : "Applicant not found");
   }
@@ -134,19 +137,19 @@ async function generateOne(
   const fileName = `${template.name.replace(/\s+/g, "_")}_${recipientRecord.name.replace(/\s+/g, "_")}.docx`;
   const { storageKey } = await saveFile(DOCUMENT_FOLDER, fileName, outputBuffer);
 
-  const actor = await getCurrentUser();
-  const created = await generatedDocumentRepository.create({
+  const created = await generatedDocumentRepository.create(actor.companyId, {
     templateId: template._id,
     employeeId: recipient.type === "employee" ? recipient.id : undefined,
     applicantId: recipient.type === "applicant" ? recipient.id : undefined,
     batchId,
     fileName,
     fileUrl: `/api/files/${storageKey}`,
-    generatedBy: actor.id === "no-users-seeded" ? undefined : actor.id,
+    generatedBy: actor.id === "system" ? undefined : actor.id,
   });
 
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "document.generated",
     entityType: "document",
@@ -159,28 +162,33 @@ async function generateOne(
 
 export async function listRecentDocuments(): Promise<GeneratedDocumentRow[]> {
   await connectDB();
-  return generatedDocumentRepository.findRecent();
+  const { companyId } = await getCurrentUser();
+  return generatedDocumentRepository.findRecent(companyId);
 }
 
 export async function listTemplatesForPicker() {
   await connectDB();
-  return documentTemplateRepository.findAll();
+  const { companyId } = await getCurrentUser();
+  return documentTemplateRepository.findAll(companyId);
 }
 
 export async function listEmployeesForPicker() {
   await connectDB();
-  return employeeRepository.findAllForPicker();
+  const { companyId } = await getCurrentUser();
+  return employeeRepository.findAllForPicker(companyId);
 }
 
 export async function listApplicantsForPicker() {
   await connectDB();
-  return applicantRepository.findAllForPicker();
+  const { companyId } = await getCurrentUser();
+  return applicantRepository.findAllForPicker(companyId);
 }
 
 // Uploads an image chosen for an "image" template field at generation time
 // (e.g. a signature or one-off attachment) — returns a URL the wizard stores
 // as that field's value; generateOne fetches the bytes back by this URL.
 export async function uploadTemplateImage(buffer: Buffer, originalName: string): Promise<string> {
+  requireRole(await getCurrentUser(), "document.generate");
   const { storageKey } = await saveFile(DOCUMENT_IMAGE_FOLDER, originalName, buffer);
   return `/api/files/${storageKey}`;
 }
@@ -191,11 +199,13 @@ export async function generateDocument(
   values: FieldValueMap,
 ): Promise<GeneratedDocumentRow> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.generate");
 
-  const template = await documentTemplateRepository.findById(templateId);
+  const template = await documentTemplateRepository.findById(actor.companyId, templateId);
   if (!template) throw new Error("Template not found");
 
-  return generateOne(template, recipient, values, randomUUID());
+  return generateOne(actor, template, recipient, values, randomUUID());
 }
 
 export type BulkGenerateResultItem =
@@ -208,8 +218,10 @@ export async function generateDocumentsBulk(
   values: FieldValueMap,
 ): Promise<{ batchId: string; results: BulkGenerateResultItem[] }> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.generate");
 
-  const template = await documentTemplateRepository.findById(templateId);
+  const template = await documentTemplateRepository.findById(actor.companyId, templateId);
   if (!template) throw new Error("Template not found");
 
   const batchId = randomUUID();
@@ -217,7 +229,7 @@ export async function generateDocumentsBulk(
   // allSettled, not all — one bad recipient (missing record, missing
   // required field) must not sink the rest of the batch.
   const settled = await Promise.allSettled(
-    recipients.map((recipient) => generateOne(template, recipient, values, batchId)),
+    recipients.map((recipient) => generateOne(actor, template, recipient, values, batchId)),
   );
 
   const results: BulkGenerateResultItem[] = settled.map((outcome, index) => {

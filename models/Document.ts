@@ -16,6 +16,8 @@ const statusHistoryEntrySchema = new Schema(
 
 const documentSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     templateId: { type: Schema.Types.ObjectId, ref: "DocumentTemplate", required: true },
     employeeId: { type: Schema.Types.ObjectId, ref: "Employee" },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant" },

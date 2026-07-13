@@ -1,29 +1,52 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { connectDB } from "@/server/db/connect";
-import { User } from "@/models/User";
+import { Company } from "@/models/Company";
+import { SESSION_COOKIE_NAME, verifySessionToken, getTenantSlugFromRequest } from "@/lib/auth/session";
 import type { SessionUser } from "@/types/user";
 
-const FALLBACK_USER: SessionUser = {
-  id: "no-users-seeded",
-  name: "No user found",
-  email: "-",
-  role: "-",
-  avatarUrl: null,
-};
-
-// Placeholder until NextAuth (Auth.js) session wiring is built: reads the
-// first real user from the database rather than hardcoding one. Swap the body
-// of this function for a real `auth()` call once that step lands.
-export async function getCurrentUser(): Promise<SessionUser> {
+// Used purely for audit-log attribution when code runs outside a real
+// Next.js request — standalone scripts like scripts/seed.ts and
+// scripts/migrate-tenancy.ts, where cookies()/headers() aren't callable at
+// all (they throw, not return empty). There is no "current user" concept in
+// a script; this is not a security boundary and must never be treated as one.
+// companyId is resolved to any real Company row that exists (scripts are
+// single-operator dev tools, not multi-tenant-aware) — a hardcoded "" here
+// would make every companyId-scoped write (e.g. scripts/seed.ts calling
+// createTemplate/generateDocument) fail with a Mongoose CastError instead of
+// actually writing usable data.
+async function getSystemUser(): Promise<SessionUser> {
   await connectDB();
-  const user = await User.findOne().sort({ createdAt: 1 }).lean();
-
-  if (!user) return FALLBACK_USER;
-
+  const anyCompany = await Company.findOne().lean<{ _id: unknown } | null>();
   return {
-    id: String(user._id),
-    name: user.name,
-    email: user.email,
-    role: user.title ?? user.role,
-    avatarUrl: user.avatarUrl ?? null,
+    id: "system",
+    companyId: anyCompany ? String(anyCompany._id) : "",
+    name: "System",
+    email: "system@internal",
+    role: "admin",
+    avatarUrl: null,
   };
+}
+
+// Real session-backed auth (Phase 1). Every existing call site still just
+// does `const actor = await getCurrentUser()` and reads id/name/email/role/
+// avatarUrl — this keeps returning that exact shape, so none of them need
+// to change. The one behavior change: a real, unauthenticated web request
+// now gets redirected to /login instead of silently getting a placeholder
+// user, matching Next's documented DAL pattern (redirect happens here, not
+// in proxy.ts, which only does an optimistic cookie-presence check).
+export async function getCurrentUser(): Promise<SessionUser> {
+  let cookieStore;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    return getSystemUser();
+  }
+
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const tenantSlug = await getTenantSlugFromRequest();
+  const user = token ? await verifySessionToken(token, tenantSlug) : null;
+
+  if (!user) redirect("/login");
+  return user;
 }

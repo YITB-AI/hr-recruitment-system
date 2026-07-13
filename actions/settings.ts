@@ -11,6 +11,7 @@ import {
   updateNotificationSettings,
   updateAppearanceSettings,
 } from "@/features/settings/services/settings.service";
+import { assignJobToCompany } from "@/features/settings/services/job-mapping.service";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -56,5 +57,18 @@ export async function updateAppearanceSettingsAction(input: unknown): Promise<Ac
   // Appearance is applied on <html> in the root layout, so every route needs
   // to re-render, not just /settings.
   revalidatePath("/", "layout");
+  return { success: true };
+}
+
+export async function assignJobToCompanyAction(jobId: string, companyId: string): Promise<ActionResult> {
+  if (!jobId || !companyId) return { success: false, error: "Select a company" };
+
+  try {
+    await assignJobToCompany(jobId, companyId);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to assign job" };
+  }
+
+  revalidatePath("/settings");
   return { success: true };
 }

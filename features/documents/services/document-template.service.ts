@@ -7,18 +7,21 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { extractTemplateVariables, type DetectedTemplateVariables } from "@/lib/docx";
 import { getCurrentUser } from "@/lib/current-user";
+import { requireRole } from "@/lib/auth/permissions";
 import type { DocumentTemplateInput } from "@/validators/document-template";
 
 const TEMPLATE_FOLDER = "templates";
 
 export async function listTemplates(): Promise<DocumentTemplateRow[]> {
   await connectDB();
-  return documentTemplateRepository.findAll();
+  const { companyId } = await getCurrentUser();
+  return documentTemplateRepository.findAll(companyId);
 }
 
 export async function getTemplate(id: string): Promise<DocumentTemplateRow | null> {
   await connectDB();
-  return documentTemplateRepository.findById(id);
+  const { companyId } = await getCurrentUser();
+  return documentTemplateRepository.findById(companyId, id);
 }
 
 export function detectVariablesFromUpload(buffer: Buffer): DetectedTemplateVariables {
@@ -30,10 +33,12 @@ export async function createTemplate(
   file: { buffer: Buffer; originalName: string },
 ): Promise<DocumentTemplateRow> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.template.manage");
 
   const { storageKey } = await saveFile(TEMPLATE_FOLDER, file.originalName, file.buffer);
 
-  const template = await documentTemplateRepository.create({
+  const template = await documentTemplateRepository.create(actor.companyId, {
     name: input.name,
     category: input.category,
     description: input.description,
@@ -42,9 +47,9 @@ export async function createTemplate(
     fields: input.fields,
   });
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "template.created",
     entityType: "document",
@@ -61,8 +66,10 @@ export async function updateTemplate(
   file: { buffer: Buffer; originalName: string } | null,
 ): Promise<DocumentTemplateRow | null> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.template.manage");
 
-  const existing = await documentTemplateRepository.findById(id);
+  const existing = await documentTemplateRepository.findById(actor.companyId, id);
   if (!existing) return null;
 
   let fileFields: { fileName: string; fileUrl: string } | undefined;
@@ -72,7 +79,7 @@ export async function updateTemplate(
     await deleteFileByKey(existing.fileUrl.replace("/api/files/", ""));
   }
 
-  const updated = await documentTemplateRepository.update(id, {
+  const updated = await documentTemplateRepository.update(actor.companyId, id, {
     name: input.name,
     category: input.category,
     description: input.description,
@@ -80,9 +87,9 @@ export async function updateTemplate(
     ...fileFields,
   });
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "template.updated",
     entityType: "document",
@@ -95,16 +102,18 @@ export async function updateTemplate(
 
 export async function deleteTemplate(id: string): Promise<void> {
   await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "document.template.manage");
 
-  const existing = await documentTemplateRepository.findById(id);
+  const existing = await documentTemplateRepository.findById(actor.companyId, id);
   if (!existing) throw new Error("Template not found");
 
   await deleteFileByKey(existing.fileUrl.replace("/api/files/", ""));
-  await documentTemplateRepository.delete(id);
+  await documentTemplateRepository.delete(actor.companyId, id);
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
-    actorId: actor.id === "no-users-seeded" ? undefined : actor.id,
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
     actorName: actor.name,
     action: "template.deleted",
     entityType: "document",

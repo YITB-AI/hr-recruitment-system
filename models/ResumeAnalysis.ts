@@ -6,6 +6,8 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 // finalized — swap these field names for whatever it actually emits.
 const resumeAnalysisSchema = new Schema(
   {
+    // Optional for now — see the companyId comment in models/User.ts.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant", required: true, index: true },
     jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     overallScore: { type: Number, required: true },

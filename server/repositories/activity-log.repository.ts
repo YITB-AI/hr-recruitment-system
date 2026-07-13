@@ -9,6 +9,8 @@ export type ActivityLogRow = {
 };
 
 export type CreateActivityLogInput = {
+  // Optional for now — see the companyId comment in models/User.ts.
+  companyId?: Types.ObjectId | string;
   actorId?: Types.ObjectId | string;
   actorName?: string;
   action: string;
@@ -18,8 +20,8 @@ export type CreateActivityLogInput = {
 };
 
 export const activityLogRepository = {
-  findRecent(limit: number) {
-    return ActivityLog.find()
+  findRecent(companyId: string, limit: number) {
+    return ActivityLog.find({ companyId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .select("message actorName createdAt")
