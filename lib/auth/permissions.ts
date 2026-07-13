@@ -19,7 +19,6 @@ export const PERMISSION_ACTIONS = [
   "interview.schedule",
   "settings.manage",
   "user.manage",
-  "job_mapping.manage",
 ] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
@@ -72,4 +71,20 @@ export function requireRole(user: { role: string }, action: PermissionAction): v
   if (allowed === "*") return;
   if (allowed?.has(action)) return;
   throw new ForbiddenError(action);
+}
+
+export class PlatformForbiddenError extends Error {
+  constructor() {
+    super("This action is restricted to platform administrators.");
+    this.name = "PlatformForbiddenError";
+  }
+}
+
+// Cross-company actions (creating a new company, assigning an unmapped job
+// to a company) are NOT part of the per-company role matrix above — role
+// "admin" only ever governs a user's own company. isPlatformAdmin is a
+// separate, narrower flag (see models/User.ts) for Digital Auxilius's own
+// operators only.
+export function requirePlatformAdmin(user: { isPlatformAdmin: boolean }): void {
+  if (!user.isPlatformAdmin) throw new PlatformForbiddenError();
 }

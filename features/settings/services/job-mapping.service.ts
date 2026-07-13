@@ -3,26 +3,26 @@ import { jobRepository } from "@/server/repositories/job.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
-import { requireRole } from "@/lib/auth/permissions";
+import { requirePlatformAdmin } from "@/lib/auth/permissions";
 
 export async function listUnmappedJobs() {
   await connectDB();
   const actor = await getCurrentUser();
-  requireRole(actor, "job_mapping.manage");
+  requirePlatformAdmin(actor);
   return jobRepository.findUnmapped();
 }
 
 export async function listCompaniesForMapping() {
   await connectDB();
   const actor = await getCurrentUser();
-  requireRole(actor, "job_mapping.manage");
+  requirePlatformAdmin(actor);
   return companyRepository.findAll();
 }
 
 export async function assignJobToCompany(jobId: string, companyId: string): Promise<void> {
   await connectDB();
   const actor = await getCurrentUser();
-  requireRole(actor, "job_mapping.manage");
+  requirePlatformAdmin(actor);
 
   const company = await companyRepository.findById(companyId);
   if (!company) throw new Error("Company not found");

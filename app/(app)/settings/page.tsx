@@ -7,9 +7,11 @@ import { NotificationSettingsForm } from "@/features/settings/components/notific
 import { AppearanceSettingsForm } from "@/features/settings/components/appearance-settings-form";
 import { UsersTable } from "@/features/settings/components/users-table";
 import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-table";
+import { CompaniesTable } from "@/features/settings/components/companies-table";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
 import { listUnmappedJobs, listCompaniesForMapping } from "@/features/settings/services/job-mapping.service";
+import { listCompanies } from "@/features/settings/services/company-management.service";
 import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -18,12 +20,14 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const actor = await getCurrentUser();
   const isAdmin = actor.role === "admin";
+  const isPlatformAdmin = actor.isPlatformAdmin;
 
-  const [settings, users, unmappedJobs, companies] = await Promise.all([
+  const [settings, users, unmappedJobs, companiesForMapping, allCompanies] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
-    isAdmin ? listUnmappedJobs() : Promise.resolve(null),
-    isAdmin ? listCompaniesForMapping() : Promise.resolve(null),
+    isPlatformAdmin ? listUnmappedJobs() : Promise.resolve(null),
+    isPlatformAdmin ? listCompaniesForMapping() : Promise.resolve(null),
+    isPlatformAdmin ? listCompanies() : Promise.resolve(null),
   ]);
 
   return (
@@ -38,7 +42,8 @@ export default async function SettingsPage() {
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               {isAdmin && <TabsTrigger value="users">Users & Roles</TabsTrigger>}
-              {isAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
+              {isPlatformAdmin && <TabsTrigger value="companies">Companies</TabsTrigger>}
+              {isPlatformAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="general" className="pt-6">
@@ -59,9 +64,15 @@ export default async function SettingsPage() {
               </TabsContent>
             )}
 
-            {isAdmin && unmappedJobs && companies && (
+            {isPlatformAdmin && allCompanies && (
+              <TabsContent value="companies" className="pt-6">
+                <CompaniesTable companies={allCompanies} />
+              </TabsContent>
+            )}
+
+            {isPlatformAdmin && unmappedJobs && companiesForMapping && (
               <TabsContent value="unmapped-jobs" className="pt-6">
-                <UnmappedJobsTable jobs={unmappedJobs} companies={companies} />
+                <UnmappedJobsTable jobs={unmappedJobs} companies={companiesForMapping} />
               </TabsContent>
             )}
           </Tabs>

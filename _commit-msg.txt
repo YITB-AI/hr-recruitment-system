@@ -1,0 +1,21 @@
+Add Companies UI, gated by a new platform-admin flag
+
+Adds a UI for company creation (Settings -> Companies), matching the
+CLI script's temp-password + forced-change flow. While designing it,
+found that "Unmapped Jobs" (assign an n8n-sourced job with no companyId
+to a company) was gated by role==="admin" - meaning any regular
+per-company admin could see every other company's name and assign
+jobs to them. Both actions are genuinely cross-company/platform-level,
+not per-company-admin actions, so introduced a real distinction:
+
+- models/User.ts: new isPlatformAdmin flag, separate from role "admin"
+  (which only ever governs a user's own company).
+- lib/auth/permissions.ts: new requirePlatformAdmin() check, distinct
+  from the per-company requireRole() matrix.
+- Settings page: "Companies" and "Unmapped Jobs" tabs now gated by
+  isPlatformAdmin; "Users & Roles" stays gated by role==="admin" (it's
+  correctly per-company scoped already).
+- Set isPlatformAdmin=true for the one real operator account.
+
+Verified: build clean, platform-admin gating logic tested directly
+(allowed/denied/error-type all correct).

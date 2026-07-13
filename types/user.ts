@@ -9,4 +9,7 @@ export type SessionUser = {
   email: string;
   role: string;
   avatarUrl: string | null;
+  // Cross-company platform operator flag — see the comment on
+  // models/User.ts's isPlatformAdmin. Distinct from role "admin".
+  isPlatformAdmin: boolean;
 };

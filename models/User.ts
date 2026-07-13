@@ -29,6 +29,14 @@ const userSchema = new Schema(
     // an admin resets someone's password — forces a change on next login
     // rather than leaving an operator-known password live indefinitely.
     mustChangePassword: { type: Boolean, default: false },
+    // Distinct from role "admin" — role "admin" only manages their OWN
+    // company (users, settings). isPlatformAdmin is a Digital-Auxilius-only
+    // capability that crosses company boundaries: creating new companies and
+    // assigning n8n-sourced jobs with no companyId to a company. A regular
+    // client company's admin must never be able to set this on themselves —
+    // it's set only via scripts/create-company.ts's own operator (never
+    // exposed on the company-creation form) or directly in the database.
+    isPlatformAdmin: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

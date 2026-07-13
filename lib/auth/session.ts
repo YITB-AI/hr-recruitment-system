@@ -33,6 +33,7 @@ type RawUser = {
   email: string;
   role: UserRole;
   avatarUrl?: string;
+  isPlatformAdmin?: boolean;
 };
 
 // The authoritative check — proxy.ts only does an optimistic cookie-presence
@@ -76,6 +77,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     email: user.email,
     role: user.role,
     avatarUrl: user.avatarUrl ?? null,
+    isPlatformAdmin: Boolean(user.isPlatformAdmin),
   };
 }
 
