@@ -11,6 +11,7 @@ import { getApplicantsPageData, getApplicantsKanbanData } from "@/features/appli
 import { listSavedViews } from "@/features/applicants/services/saved-view.service";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { connectDB } from "@/server/db/connect";
+import { getCurrentUser } from "@/lib/current-user";
 import type { ApplicantStatus } from "@/constants/applicant-status";
 
 export const metadata: Metadata = { title: "Applicants" };
@@ -53,6 +54,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
   };
 
   await connectDB();
+  const actor = await getCurrentUser();
   const [tableData, kanbanData, savedViews, jobs] = await Promise.all([
     isKanban
       ? Promise.resolve(null)
@@ -66,7 +68,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
         }),
     isKanban ? getApplicantsKanbanData(sharedFilters) : Promise.resolve(null),
     listSavedViews(),
-    jobRepository.findAll(),
+    jobRepository.findAllForPicker(actor.companyId),
   ]);
 
   function buildBaseQuery() {

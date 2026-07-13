@@ -19,6 +19,7 @@ export const PERMISSION_ACTIONS = [
   "interview.schedule",
   "settings.manage",
   "user.manage",
+  "job.create",
 ] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
@@ -42,6 +43,7 @@ const ROLE_PERMISSIONS: Record<UserRole, "*" | Set<PermissionAction>> = {
     "applicant.notify",
     "saved_view.manage",
     "interview.schedule",
+    "job.create",
   ]),
   recruiter: new Set([
     "document.generate",
@@ -51,6 +53,7 @@ const ROLE_PERMISSIONS: Record<UserRole, "*" | Set<PermissionAction>> = {
     "applicant.notify",
     "saved_view.manage",
     "interview.schedule",
+    "job.create",
   ]),
   interviewer: new Set([]),
 };

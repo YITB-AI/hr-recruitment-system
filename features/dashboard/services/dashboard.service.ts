@@ -35,12 +35,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     recentActivity,
     upcomingInterviews,
   ] = await Promise.all([
-    // Job is a documented exception (not companyId-required, see
-    // models/Job.ts) — these counts stay unscoped/global for now until
-    // per-company Job mapping (a later phase) exists.
-    jobRepository.countTotal(),
-    jobRepository.countCreatedBetween(currentStart, now),
-    jobRepository.countCreatedBetween(previousStart, currentStart),
+    // Job stays optional-companyId at the schema level (n8n-authored rows
+    // may have none — see models/Job.ts), but these counts are scoped to
+    // this company's own jobs (app-created ones, plus any n8n rows an admin
+    // has mapped in via Settings -> Unmapped Jobs).
+    jobRepository.countTotal(companyId),
+    jobRepository.countCreatedBetween(companyId, currentStart, now),
+    jobRepository.countCreatedBetween(companyId, previousStart, currentStart),
     applicantRepository.countTotal(companyId),
     applicantRepository.countCreatedBetween(companyId, currentStart, now),
     applicantRepository.countCreatedBetween(companyId, previousStart, currentStart),
