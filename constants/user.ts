@@ -9,3 +9,10 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   recruiter: "Recruiter",
   interviewer: "Interviewer",
 };
+
+export const USER_ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: "Full access to every module, including company settings, users, and roles.",
+  hr: "Manages employees, documents, applicants, and interviews. No company settings.",
+  recruiter: "Manages applicants, interviews, and documents for candidates. No employee records.",
+  interviewer: "Read-only access to assigned applicants and interviews.",
+};

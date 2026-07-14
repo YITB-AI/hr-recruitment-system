@@ -10,11 +10,13 @@ import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-
 import { CompaniesTable } from "@/features/settings/components/companies-table";
 import { TenantInfoCard } from "@/features/settings/components/tenant-info-card";
 import { StatusManagementPanel } from "@/features/settings/components/status-management-panel";
+import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
 import { listUnmappedJobs, listCompaniesForMapping } from "@/features/settings/services/job-mapping.service";
 import { listCompanies } from "@/features/settings/services/company-management.service";
 import { listStatuses } from "@/features/settings/services/status-management.service";
+import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
@@ -30,18 +32,30 @@ export default async function SettingsPage() {
   const isAdmin = actor.role === "admin";
   const isPlatformAdmin = actor.isPlatformAdmin;
 
-  const [settings, users, unmappedJobs, companiesForMapping, allCompanies, company, teamMembers, applicantStatuses, employeeStatuses] =
-    await Promise.all([
-      getSettings(),
-      isAdmin ? listCompanyUsers() : Promise.resolve(null),
-      isPlatformAdmin ? listUnmappedJobs() : Promise.resolve(null),
-      isPlatformAdmin ? listCompaniesForMapping() : Promise.resolve(null),
-      isPlatformAdmin ? listCompanies() : Promise.resolve(null),
-      companyRepository.findById(actor.companyId),
-      userRepository.findAll(actor.companyId),
-      isAdmin ? listStatuses("applicant") : Promise.resolve(null),
-      isAdmin ? listStatuses("employee") : Promise.resolve(null),
-    ]);
+  const [
+    settings,
+    users,
+    unmappedJobs,
+    companiesForMapping,
+    allCompanies,
+    company,
+    teamMembers,
+    applicantStatuses,
+    employeeStatuses,
+    roleSummaries,
+  ] = await Promise.all([
+    getSettings(),
+    isAdmin ? listCompanyUsers() : Promise.resolve(null),
+    isPlatformAdmin ? listUnmappedJobs() : Promise.resolve(null),
+    isPlatformAdmin ? listCompaniesForMapping() : Promise.resolve(null),
+    isPlatformAdmin ? listCompanies() : Promise.resolve(null),
+    companyRepository.findById(actor.companyId),
+    userRepository.findAll(actor.companyId),
+    isAdmin ? listStatuses("applicant") : Promise.resolve(null),
+    isAdmin ? listStatuses("employee") : Promise.resolve(null),
+    isAdmin ? listRoleSummaries() : Promise.resolve(null),
+  ]);
+  const allPermissionActions = getAllPermissionActions();
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -57,6 +71,7 @@ export default async function SettingsPage() {
                   <TabsTrigger value="appearance">Appearance</TabsTrigger>
                   <TabsTrigger value="notifications">Notifications</TabsTrigger>
                   {isAdmin && <TabsTrigger value="users">Users & Roles</TabsTrigger>}
+                  {isAdmin && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
                   {isAdmin && <TabsTrigger value="statuses">Statuses</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="companies">Companies</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
@@ -83,6 +98,12 @@ export default async function SettingsPage() {
                 {isAdmin && applicantStatuses && employeeStatuses && (
                   <TabsContent value="statuses" className="pt-6">
                     <StatusManagementPanel statusesByModule={{ applicant: applicantStatuses, employee: employeeStatuses }} />
+                  </TabsContent>
+                )}
+
+                {isAdmin && roleSummaries && (
+                  <TabsContent value="permissions" className="pt-6">
+                    <PermissionsPanel roles={roleSummaries} allActions={allPermissionActions} />
                   </TabsContent>
                 )}
 

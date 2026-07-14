@@ -80,6 +80,15 @@ export function requireRole(user: { role: string }, action: PermissionAction): v
   throw new ForbiddenError(action);
 }
 
+// Read-only view of the real matrix above, for the Settings > Permissions
+// screen (Roles & Permissions restyle) — never a second source of truth,
+// this just expands admin's "*" into the full action list so the UI has a
+// plain array to render per role instead of special-casing the wildcard.
+export function getPermissionsForRole(role: UserRole): PermissionAction[] {
+  const allowed = ROLE_PERMISSIONS[role];
+  return allowed === "*" ? [...PERMISSION_ACTIONS] : Array.from(allowed ?? []);
+}
+
 export class PlatformForbiddenError extends Error {
   constructor() {
     super("This action is restricted to platform administrators.");
