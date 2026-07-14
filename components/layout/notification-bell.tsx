@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,11 @@ export function NotificationBell({ count = 0, notifications }: NotificationBellP
             ))}
           </ul>
         )}
+        <div className="border-t px-4 py-2.5 text-center">
+          <Link href="/notifications" className="text-xs font-medium text-primary hover:underline">
+            View all notifications
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   );

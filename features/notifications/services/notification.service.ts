@@ -12,3 +12,18 @@ export async function getRecentNotifications(userId: string, limit = 5) {
   await connectDB();
   return notificationRepository.findRecent(userId, limit);
 }
+
+export async function getNotificationsPageData(userId: string, page: number, pageSize = 15) {
+  await connectDB();
+  return notificationRepository.findAllPaginated(userId, page, pageSize);
+}
+
+export async function markNotificationRead(id: string, userId: string): Promise<void> {
+  await connectDB();
+  await notificationRepository.markRead(id, userId);
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  await connectDB();
+  await notificationRepository.markAllRead(userId);
+}

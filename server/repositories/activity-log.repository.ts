@@ -27,6 +27,22 @@ export const activityLogRepository = {
       .select("message actorName createdAt")
       .lean<ActivityLogRow[]>();
   },
+  async findAllPaginated(
+    companyId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: ActivityLogRow[]; total: number }> {
+    const [data, total] = await Promise.all([
+      ActivityLog.find({ companyId })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .select("message actorName createdAt")
+        .lean<ActivityLogRow[]>(),
+      ActivityLog.countDocuments({ companyId }),
+    ]);
+    return { data, total };
+  },
   findByEntity(companyId: string, entityType: (typeof ACTIVITY_ENTITY_TYPES)[number], entityId: string, limit: number) {
     return ActivityLog.find({ companyId, entityType, entityId })
       .sort({ createdAt: -1 })
