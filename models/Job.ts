@@ -29,6 +29,11 @@ const jobSchema = new Schema(
     note: { type: String, default: null },
     createdAt: { type: String },
     updatedAt: { type: String },
+    // Soft delete — an archived job stops showing in the default jobs list
+    // but keeps every Applicant/Interview reference intact. Kept as its own
+    // field rather than overloading `status` (a free-text string n8n also
+    // writes to) so "archived" is never confused with n8n's own status values.
+    archivedAt: { type: Date },
   },
   { timestamps: false },
 );

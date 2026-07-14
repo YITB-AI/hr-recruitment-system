@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Briefcase } from "lucide-react";
+import { JobRowActions } from "@/features/jobs/components/job-row-actions";
 import type { JobRow } from "@/server/repositories/job.repository";
 
 function statusVariant(status: string): "outline" | "destructive" {
@@ -23,19 +25,30 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
           <th className="px-4 py-3 font-medium">Location</th>
           <th className="px-4 py-3 font-medium">Type</th>
           <th className="px-4 py-3 font-medium">Status</th>
+          <th className="px-4 py-3 font-medium" />
         </tr>
       </thead>
       <tbody className="divide-y">
         {jobs.map((job) => (
-          <tr key={job._id} className="hover:bg-muted/30">
-            <td className="px-4 py-3 font-medium">{job.title}</td>
+          <tr key={job._id} className={`hover:bg-muted/30 ${job.archivedAt ? "opacity-60" : ""}`}>
+            <td className="px-4 py-3 font-medium">
+              <Link href={`/jobs/${job._id}`} className="hover:underline">
+                {job.title}
+              </Link>
+            </td>
             <td className="px-4 py-3 text-foreground/80">{job.department || "—"}</td>
             <td className="px-4 py-3 text-foreground/80">
               {[job.city, job.state, job.country].filter(Boolean).join(", ") || "—"}
             </td>
             <td className="px-4 py-3 text-foreground/80">{job.type ?? "—"}</td>
             <td className="px-4 py-3">
-              <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+                {job.archivedAt && <Badge variant="outline">Archived</Badge>}
+              </div>
+            </td>
+            <td className="px-4 py-3 text-right">
+              <JobRowActions jobId={job._id} title={job.title} isArchived={Boolean(job.archivedAt)} />
             </td>
           </tr>
         ))}

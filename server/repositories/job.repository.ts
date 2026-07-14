@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Job } from "@/models";
+import { Job, Applicant, Interview } from "@/models";
 import type { JobStatus, JobType } from "@/constants/job";
 
 export type JobRow = {
@@ -14,6 +14,7 @@ export type JobRow = {
   status: string;
   type: string | null;
   createdAt: string | null;
+  archivedAt: string | null;
 };
 
 type RawJobRow = Record<string, unknown> & { _id: unknown };
@@ -31,6 +32,7 @@ function serializeJobRow(row: RawJobRow): JobRow {
     status: (row.status as string) || "Open",
     type: (row.type as string | undefined) ?? null,
     createdAt: (row.createdAt as string | undefined) ?? null,
+    archivedAt: row.archivedAt ? (row.archivedAt as Date).toISOString() : null,
   };
 }
 
@@ -43,6 +45,26 @@ export type CreateJobInput = {
   country?: string;
   status: JobStatus;
   type: JobType;
+};
+
+export type UpdateJobInput = Partial<CreateJobInput>;
+
+export type JobListFilters = {
+  search?: string;
+  status?: string;
+  includeArchived?: boolean;
+  sort?: "newest" | "oldest" | "title_asc" | "title_desc";
+  page: number;
+  pageSize: number;
+};
+
+export type JobListResult = { rows: JobRow[]; total: number };
+
+const SORT_MAP: Record<NonNullable<JobListFilters["sort"]>, Record<string, 1 | -1>> = {
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+  title_asc: { title: 1 },
+  title_desc: { title: -1 },
 };
 
 // createdAt is stored as an ISO string (n8n's convention), not a BSON date,
@@ -79,9 +101,59 @@ export const jobRepository = {
     const rows = await Job.find({ companyId }).sort({ createdAt: -1 }).lean<RawJobRow[]>();
     return rows.map(serializeJobRow);
   },
+  async findAllForCompanyPaginated(companyId: string, filters: JobListFilters): Promise<JobListResult> {
+    const query: Record<string, unknown> = { companyId };
+    if (!filters.includeArchived) query.archivedAt = { $exists: false };
+    if (filters.status) query.status = filters.status;
+    if (filters.search) {
+      const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      query.$or = [{ title: pattern }, { department: pattern }, { job_id: pattern }];
+    }
+
+    const sort = SORT_MAP[filters.sort ?? "newest"];
+    const [rows, total] = await Promise.all([
+      Job.find(query)
+        .sort(sort)
+        .skip((filters.page - 1) * filters.pageSize)
+        .limit(filters.pageSize)
+        .lean<RawJobRow[]>(),
+      Job.countDocuments(query),
+    ]);
+
+    return { rows: rows.map(serializeJobRow), total };
+  },
   async findById(companyId: string, id: string): Promise<JobRow | null> {
     const row = await Job.findOne({ _id: id, companyId }).lean<RawJobRow | null>();
     return row ? serializeJobRow(row) : null;
+  },
+  async update(companyId: string, id: string, input: UpdateJobInput): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { ...input, updatedAt: new Date().toISOString() },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
+  async archive(companyId: string, id: string): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate({ _id: id, companyId }, { archivedAt: new Date() }, { returnDocument: "after" }).lean<
+      RawJobRow | null
+    >();
+    return row ? serializeJobRow(row) : null;
+  },
+  async restore(companyId: string, id: string): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate({ _id: id, companyId }, { $unset: { archivedAt: "" } }, { returnDocument: "after" }).lean<
+      RawJobRow | null
+    >();
+    return row ? serializeJobRow(row) : null;
+  },
+  async delete(companyId: string, id: string): Promise<void> {
+    await Job.findOneAndDelete({ _id: id, companyId });
+  },
+  countApplicants(companyId: string, jobId: string): Promise<number> {
+    return Applicant.countDocuments({ companyId, jobId });
+  },
+  countInterviews(companyId: string, jobId: string): Promise<number> {
+    return Interview.countDocuments({ companyId, jobId });
   },
   async create(companyId: string, input: CreateJobInput): Promise<JobRow> {
     const now = new Date().toISOString();

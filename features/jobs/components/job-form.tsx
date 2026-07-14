@@ -15,27 +15,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createJobSchema, type CreateJobInput } from "@/validators/job";
-import { createJobAction } from "@/actions/jobs";
+import { createJobSchema, updateJobSchema, type CreateJobInput, type UpdateJobInput } from "@/validators/job";
+import { createJobAction, updateJobAction } from "@/actions/jobs";
 import { JOB_STATUSES, JOB_TYPES } from "@/constants/job";
+import type { JobRow } from "@/server/repositories/job.repository";
 
 const STATUS_ITEMS = JOB_STATUSES.map((s) => ({ value: s, label: s }));
 const TYPE_ITEMS = JOB_TYPES.map((t) => ({ value: t, label: t }));
 
-export function JobForm() {
+type JobFormValues = CreateJobInput | UpdateJobInput;
+
+export function JobForm({ job }: { job?: JobRow }) {
   const router = useRouter();
+  const isEdit = Boolean(job);
   const {
     register,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<CreateJobInput>({
-    resolver: zodResolver(createJobSchema),
-    defaultValues: { title: "", description: "", department: "", city: "", state: "", country: "", status: "Open", type: "Full-time" },
+  } = useForm<JobFormValues>({
+    resolver: zodResolver(isEdit ? updateJobSchema : createJobSchema),
+    defaultValues: job
+      ? {
+          jobId: job._id,
+          title: job.title,
+          description: job.description ?? "",
+          department: job.department,
+          city: job.city,
+          state: job.state,
+          country: job.country,
+          status: (job.status as CreateJobInput["status"]) ?? "Open",
+          type: (job.type as CreateJobInput["type"]) ?? "Full-time",
+        }
+      : { title: "", description: "", department: "", city: "", state: "", country: "", status: "Open", type: "Full-time" },
   });
 
-  async function onSubmit(values: CreateJobInput) {
-    const result = await createJobAction(values);
+  async function onSubmit(values: JobFormValues) {
+    const result = isEdit ? await updateJobAction(values) : await createJobAction(values);
     // On success the action calls redirect(), which throws internally and
     // never returns here — only the failure path produces a value.
     if (result && !result.success) toast.error(result.error);
@@ -124,7 +140,7 @@ export function JobForm() {
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Creating..." : "Create Job"}
+          {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Job"}
         </Button>
       </div>
     </form>
