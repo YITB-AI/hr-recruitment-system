@@ -8,6 +8,7 @@ import {
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { resumeAnalysisRepository, type ResumeAnalysisRow } from "@/server/repositories/resume-analysis.repository";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
+import { emailLogRepository, type EmailLogRow } from "@/server/repositories/email-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { APPLICANT_STATUS_CONFIG, type ApplicantStatus } from "@/constants/applicant-status";
@@ -45,6 +46,40 @@ export async function getApplicantDocuments(id: string) {
   await connectDB();
   const { companyId } = await getCurrentUser();
   return generatedDocumentRepository.findByApplicantId(companyId, id);
+}
+
+export type ApplicantTimelineEntry =
+  | { kind: "activity"; _id: string; message: string; actorName: string | null; createdAt: Date }
+  | { kind: "email"; _id: string; message: string; actorName: string | null; createdAt: Date; email: EmailLogRow };
+
+export async function getApplicantHistory(id: string): Promise<ApplicantTimelineEntry[]> {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  const [activity, emails] = await Promise.all([
+    activityLogRepository.findByEntity(companyId, "applicant", id, 50),
+    emailLogRepository.findByApplicantId(companyId, id, 50),
+  ]);
+
+  const activityEntries: ApplicantTimelineEntry[] = activity.map((row) => ({
+    kind: "activity",
+    _id: row._id,
+    message: row.message,
+    actorName: row.actorName,
+    createdAt: row.createdAt,
+  }));
+  const emailEntries: ApplicantTimelineEntry[] = emails.map((row) => ({
+    kind: "email",
+    _id: row._id,
+    message:
+      row.status === "sent"
+        ? `${row.subject} email sent to ${row.to}`
+        : `Failed to send "${row.subject}" email to ${row.to}`,
+    actorName: row.userName,
+    createdAt: row.createdAt,
+    email: row,
+  }));
+
+  return [...activityEntries, ...emailEntries].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function changeApplicantStatus(id: string, status: ApplicantStatus): Promise<ApplicantDetailRow> {

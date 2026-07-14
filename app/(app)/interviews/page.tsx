@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { listInterviews } from "@/features/interviews/services/interview.service";
+import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
 
 export const metadata: Metadata = { title: "Interviews" };
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export default async function InterviewsPage() {
                 <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Scheduled</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -68,6 +70,19 @@ export default async function InterviewsPage() {
                     <Badge variant="outline" className="capitalize">
                       {interview.status}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {interview.applicantId && (
+                      <SendEmailDialog
+                        applicantId={interview.applicantId._id}
+                        applicantEmail={interview.applicantId.email}
+                        template="interview_invite"
+                        interviewId={interview._id}
+                        triggerLabel="Send Email"
+                        triggerVariant="ghost"
+                        triggerClassName="h-8"
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

@@ -3,20 +3,23 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Mail, MessageSquareText, CalendarPlus, CheckCircle2, XCircle } from "lucide-react";
+import { MessageSquareText, CalendarPlus, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shortlistApplicantAction, rejectApplicantAction } from "@/actions/applicants";
+import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
 import type { ApplicantStatus } from "@/constants/applicant-status";
 
 type QuickActionsPanelProps = {
   applicantId: string;
   status: ApplicantStatus;
+  email: string;
   hasPhone: boolean;
+  latestInterviewId?: string | null;
 };
 
-type SendKind = "email" | "sms" | null;
+type SendKind = "sms" | null;
 
-export function QuickActionsPanel({ applicantId, status, hasPhone }: QuickActionsPanelProps) {
+export function QuickActionsPanel({ applicantId, status, email, hasPhone, latestInterviewId }: QuickActionsPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [sending, setSending] = useState<SendKind>(null);
 
@@ -36,7 +39,7 @@ export function QuickActionsPanel({ applicantId, status, hasPhone }: QuickAction
     });
   }
 
-  async function handleSend(kind: "email" | "sms") {
+  async function handleSend(kind: "sms") {
     setSending(kind);
     try {
       const response = await fetch(`/api/applicants/${applicantId}/send-${kind}`, { method: "POST" });
@@ -47,7 +50,7 @@ export function QuickActionsPanel({ applicantId, status, hasPhone }: QuickAction
         return;
       }
 
-      toast.success(kind === "email" ? "Email queued via n8n" : "SMS queued via n8n", {
+      toast.success("SMS queued via n8n", {
         description: typeof body.data === "string" ? body.data : undefined,
       });
     } catch {
@@ -79,15 +82,17 @@ export function QuickActionsPanel({ applicantId, status, hasPhone }: QuickAction
         Schedule Interview
       </Button>
 
-      <Button
-        variant="outline"
-        className="w-full justify-start"
-        disabled={sending === "email"}
-        onClick={() => handleSend("email")}
-      >
-        <Mail />
-        {sending === "email" ? "Sending..." : "Send Email"}
-      </Button>
+      <SendEmailDialog applicantId={applicantId} applicantEmail={email} template="general_notification" />
+
+      {latestInterviewId && (
+        <SendEmailDialog
+          applicantId={applicantId}
+          applicantEmail={email}
+          template="interview_invite"
+          interviewId={latestInterviewId}
+          triggerLabel="Send Interview Email"
+        />
+      )}
 
       <Button
         variant="outline"

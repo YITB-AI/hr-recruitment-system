@@ -27,6 +27,13 @@ export const activityLogRepository = {
       .select("message actorName createdAt")
       .lean<ActivityLogRow[]>();
   },
+  findByEntity(companyId: string, entityType: (typeof ACTIVITY_ENTITY_TYPES)[number], entityId: string, limit: number) {
+    return ActivityLog.find({ companyId, entityType, entityId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .select("action message actorName createdAt")
+      .lean<Array<ActivityLogRow & { action: string }>>();
+  },
   create(input: CreateActivityLogInput) {
     return ActivityLog.create(input);
   },

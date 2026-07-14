@@ -9,7 +9,7 @@ export type InterviewRow = {
   durationMinutes: number;
   meetingLink: string | null;
   notes: string | null;
-  applicantId: { _id: string; name: string } | null;
+  applicantId: { _id: string; name: string; email: string } | null;
   jobId: { _id: string; title: string } | null;
 };
 
@@ -17,7 +17,7 @@ export type UpcomingInterviewRow = InterviewRow;
 
 type RawRow = Record<string, unknown> & {
   _id: unknown;
-  applicantId: { _id: unknown; name: string } | null;
+  applicantId: { _id: unknown; name: string; email?: string } | null;
   jobId: { _id: unknown; title: string } | null;
 };
 
@@ -30,7 +30,9 @@ function serialize(row: RawRow): InterviewRow {
     durationMinutes: row.durationMinutes as number,
     meetingLink: (row.meetingLink as string | undefined) ?? null,
     notes: (row.notes as string | undefined) ?? null,
-    applicantId: row.applicantId ? { _id: String(row.applicantId._id), name: row.applicantId.name } : null,
+    applicantId: row.applicantId
+      ? { _id: String(row.applicantId._id), name: row.applicantId.name, email: row.applicantId.email ?? "" }
+      : null,
     jobId: row.jobId ? { _id: String(row.jobId._id), title: row.jobId.title } : null,
   };
 }
@@ -53,7 +55,7 @@ export const interviewRepository = {
     const rows = await Interview.find({ companyId, status: "scheduled", scheduledAt: { $gte: new Date() } })
       .sort({ scheduledAt: 1 })
       .limit(limit)
-      .populate("applicantId", "name")
+      .populate("applicantId", "name email")
       .populate("jobId", "title")
       .lean<RawRow[]>();
     return rows.map(serialize);
@@ -62,7 +64,23 @@ export const interviewRepository = {
     const rows = await Interview.find({ companyId })
       .sort({ scheduledAt: -1 })
       .limit(limit)
-      .populate("applicantId", "name")
+      .populate("applicantId", "name email")
+      .populate("jobId", "title")
+      .lean<RawRow[]>();
+    return rows.map(serialize);
+  },
+  async findById(companyId: string, id: string): Promise<InterviewRow | null> {
+    const row = await Interview.findOne({ _id: id, companyId })
+      .populate("applicantId", "name email")
+      .populate("jobId", "title")
+      .lean<RawRow | null>();
+    return row ? serialize(row) : null;
+  },
+  async findByApplicantId(companyId: string, applicantId: string, limit = 20): Promise<InterviewRow[]> {
+    const rows = await Interview.find({ companyId, applicantId })
+      .sort({ scheduledAt: -1 })
+      .limit(limit)
+      .populate("applicantId", "name email")
       .populate("jobId", "title")
       .lean<RawRow[]>();
     return rows.map(serialize);

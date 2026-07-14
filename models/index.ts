@@ -14,3 +14,4 @@ export * from "./Notification";
 export * from "./Setting";
 export * from "./ResumeAnalysis";
 export * from "./SavedView";
+export * from "./EmailLog";
