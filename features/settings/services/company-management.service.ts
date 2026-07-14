@@ -3,10 +3,14 @@ import crypto from "node:crypto";
 import { connectDB } from "@/server/db/connect";
 import { Company } from "@/models/Company";
 import { User } from "@/models/User";
-import { companyRepository, type CompanyRow } from "@/server/repositories/company.repository";
-import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { companyRepository, type CompanyRow, type CompanyListFilters } from "@/server/repositories/company.repository";
+import { userRepository, type CompanyUserRow } from "@/server/repositories/user.repository";
+import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
+import { activityLogRepository, type ActivityLogRow } from "@/server/repositories/activity-log.repository";
+import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { getCurrentUser } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
+import type { CompanyStatus } from "@/models/Company";
 
 // Platform-admin-only — see the isPlatformAdmin comment on models/User.ts.
 // Mirrors scripts/create-company.ts exactly (same temp-password + forced
@@ -31,6 +35,151 @@ export async function listCompanies(): Promise<CompanyRow[]> {
   const actor = await getCurrentUser();
   requirePlatformAdmin(actor);
   return companyRepository.findAll();
+}
+
+export async function getCompaniesPageData(filters: CompanyListFilters) {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+  return companyRepository.findAllPaginated(filters);
+}
+
+export type CompanyDetail = {
+  company: CompanyRow;
+  userCount: number;
+  jobCount: number;
+  users: CompanyUserRow[];
+  jobs: JobRow[];
+  activity: ActivityLogRow[];
+};
+
+// Deliberately reads an ARBITRARY company's users/jobs/activity, not the
+// caller's own — this is the one place in the app that's expected to do a
+// genuine cross-tenant read, which is exactly why it's gated by
+// requirePlatformAdmin rather than the per-company "admin" role.
+export async function getCompanyDetail(companyId: string): Promise<CompanyDetail | null> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const company = await companyRepository.findById(companyId);
+  if (!company) return null;
+
+  const [userCount, jobCount, users, jobs, activity] = await Promise.all([
+    companyRepository.countUsers(companyId),
+    companyRepository.countJobs(companyId),
+    userRepository.findAllForCompany(companyId),
+    jobRepository.findAllForCompany(companyId),
+    activityLogRepository.findRecent(companyId, 30),
+  ]);
+
+  return { company, userCount, jobCount, users, jobs, activity };
+}
+
+export type CompanyActionResult = { success: true } | { success: false; error: string };
+
+export async function updateCompany(companyId: string, input: { name: string }): Promise<CompanyRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const company = await companyRepository.update(companyId, { name: input.name });
+  if (!company) throw new Error("Company not found");
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "company.updated",
+    entityType: "setting",
+    entityId: company._id,
+    message: `${actor.name} updated company "${company.name}"`,
+  });
+
+  return company;
+}
+
+export async function setCompanyStatus(companyId: string, status: CompanyStatus): Promise<CompanyRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const company = await companyRepository.setStatus(companyId, status);
+  if (!company) throw new Error("Company not found");
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: status === "active" ? "company.activated" : "company.suspended",
+    entityType: "setting",
+    entityId: company._id,
+    message: `${actor.name} ${status === "active" ? "reactivated" : "suspended"} company "${company.name}"`,
+  });
+
+  return company;
+}
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const LOGO_FOLDER = "company-logos";
+
+export async function uploadCompanyLogo(companyId: string, file: File): Promise<CompanyRow> {
+  if (!ALLOWED_LOGO_TYPES.has(file.type)) throw new Error("Only PNG, JPEG, or WEBP images are supported");
+  if (file.size > MAX_LOGO_BYTES) throw new Error("Logo must be smaller than 5MB");
+
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const existing = await companyRepository.findById(companyId);
+  if (!existing) throw new Error("Company not found");
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { storageKey } = await saveFile(LOGO_FOLDER, file.name, buffer);
+  const logoUrl = `/api/files/${storageKey}`;
+
+  const company = await companyRepository.update(companyId, { logoUrl });
+  if (existing.logoUrl) await deleteFileByKey(existing.logoUrl.replace("/api/files/", ""));
+
+  return company!;
+}
+
+// Deliberately much stricter than deleteJob's guard: a company can carry an
+// entire client's worth of users/jobs/applicants/documents, so this only
+// ever allows deleting one that's genuinely empty (e.g. created by
+// mistake). Anything with real data must be suspended instead — irreversibly
+// deleting a live client's tenant is exactly the kind of action this
+// project's own standards call for extra caution around.
+export async function deleteCompany(companyId: string): Promise<void> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const company = await companyRepository.findById(companyId);
+  if (!company) throw new Error("Company not found");
+
+  const [userCount, jobCount] = await Promise.all([
+    companyRepository.countUsers(companyId),
+    companyRepository.countJobs(companyId),
+  ]);
+  if (userCount > 0 || jobCount > 0) {
+    throw new Error(
+      `"${company.name}" has ${userCount} user(s) and ${jobCount} job(s) — suspend it instead of deleting, so their records aren't orphaned.`,
+    );
+  }
+
+  await companyRepository.delete(companyId);
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "company.deleted",
+    entityType: "setting",
+    entityId: companyId,
+    message: `${actor.name} deleted company "${company.name}"`,
+  });
 }
 
 export type CreateCompanyResult = {
