@@ -41,7 +41,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="overview">
-              <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (

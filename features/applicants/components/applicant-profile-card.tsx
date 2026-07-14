@@ -1,7 +1,7 @@
 import { Mail, Phone, MapPin, Briefcase, Clock } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { ApplicantStatusSelect } from "@/features/applicants/components/applicant-status-select";
 import type { ApplicantDetailRow } from "@/server/repositories/applicant.repository";
 
 function initials(name: string) {
@@ -34,7 +34,9 @@ export function ApplicantProfileCard({ applicant }: { applicant: ApplicantDetail
             <p className="text-lg font-semibold">{applicant.name}</p>
             <p className="text-sm text-muted-foreground">{applicant.jobId?.title ?? "No job linked"}</p>
           </div>
-          <StatusBadge status={applicant.status} />
+          <div className="w-full">
+            <ApplicantStatusSelect applicantId={applicant._id} status={applicant.status} />
+          </div>
         </div>
 
         <div className="space-y-3 border-t pt-4">

@@ -17,6 +17,7 @@ import { AiAnalysisPanel } from "@/features/applicants/components/ai-analysis-pa
 import { QuickActionsPanel } from "@/features/applicants/components/quick-actions-panel";
 import { ApplicantDocumentsTab } from "@/features/applicants/components/applicant-documents-tab";
 import { ApplicantHistoryTab } from "@/features/applicants/components/applicant-history-tab";
+import { CvViewerTab } from "@/features/applicants/components/cv-viewer-tab";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { getCurrentUser } from "@/lib/current-user";
 
@@ -25,9 +26,9 @@ export const dynamic = "force-dynamic";
 
 // "History" means the applicant's full timeline (status changes + emails
 // sent), distinct from the "Documents" tab (generated offer/appointment
-// letters, etc.).
+// letters, etc.). "Resume" now has a real CV Viewer (see CvViewerTab) — the
+// remaining placeholders below have no backing data model yet.
 const PLACEHOLDER_TABS = [
-  { value: "resume", label: "Resume", description: "Resume preview will appear here once the Resume Viewer is built." },
   { value: "experience", label: "Experience", description: "Structured work history will appear here." },
   { value: "education", label: "Education", description: "Education history will appear here." },
   { value: "notes", label: "Notes", description: "Internal notes about this applicant will appear here." },
@@ -81,10 +82,11 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="overview">
-              <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="resume">Resume</TabsTrigger>
+                <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
                 <TabsTrigger value="history">History</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
@@ -97,12 +99,16 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <ApplicantOverview applicant={applicant} />
               </TabsContent>
 
-              <TabsContent value="ai-analysis" className="pt-6">
-                <AiAnalysisPanel analysis={resumeAnalysis} />
-              </TabsContent>
-
               <TabsContent value="documents" className="pt-6">
                 <ApplicantDocumentsTab documents={documents} />
+              </TabsContent>
+
+              <TabsContent value="resume" className="pt-6">
+                <CvViewerTab resumeUrl={applicant.resumeUrl} />
+              </TabsContent>
+
+              <TabsContent value="ai-analysis" className="pt-6">
+                <AiAnalysisPanel analysis={resumeAnalysis} />
               </TabsContent>
 
               <TabsContent value="history" className="pt-6">

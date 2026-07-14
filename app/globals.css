@@ -99,6 +99,21 @@
   --status-hired: #0ca30c;
   --status-rejected: #d03b3b;
   --status-incomplete: #898781;
+  --status-applied: #5b8def;
+  --status-ai-screening: #0891b2;
+  --status-interview-completed: #6d28d9;
+  --status-selected: #16a34a;
+  --status-offer-accepted: #059669;
+  --status-offer-declined: #b45309;
+  --status-on-hold: #d97706;
+  --status-not-interested: #64748b;
+  --status-not-available: #475569;
+  --status-no-response: #71717a;
+  --status-followup-required: #0ea5e9;
+  --status-future-opportunity: #7c3aed;
+  --status-duplicate: #78716c;
+  --status-withdrawn: #e11d48;
+  --status-archived: #52525b;
   --success: #0ca30c;
   --warning: #eda100;
 }
@@ -143,6 +158,21 @@
   --status-hired: #0ca30c;
   --status-rejected: #e66767;
   --status-incomplete: #898781;
+  --status-applied: #7ba7f5;
+  --status-ai-screening: #22b8cf;
+  --status-interview-completed: #9775fa;
+  --status-selected: #4ade80;
+  --status-offer-accepted: #34d399;
+  --status-offer-declined: #d97706;
+  --status-on-hold: #f59e0b;
+  --status-not-interested: #94a3b8;
+  --status-not-available: #64748b;
+  --status-no-response: #a1a1aa;
+  --status-followup-required: #38bdf8;
+  --status-future-opportunity: #a78bfa;
+  --status-duplicate: #a8a29e;
+  --status-withdrawn: #fb7185;
+  --status-archived: #a1a1aa;
   --success: #0ca30c;
   --warning: #c98500;
 }

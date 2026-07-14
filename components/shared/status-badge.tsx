@@ -7,6 +7,7 @@ export function StatusBadge({ status, className }: { status: ApplicantStatus; cl
 
   return (
     <Badge className={cn("border-0 font-medium", config.badgeClassName, className)}>
+      <config.icon className="size-3.5" />
       {config.label}
     </Badge>
   );
