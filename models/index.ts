@@ -15,3 +15,4 @@ export * from "./Setting";
 export * from "./ResumeAnalysis";
 export * from "./SavedView";
 export * from "./EmailLog";
+export * from "./ApplicantFollowup";

@@ -9,6 +9,12 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-[60px] rounded-xl" />
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Skeleton className="h-72 rounded-2xl" />
         <Skeleton className="h-72 rounded-2xl" />

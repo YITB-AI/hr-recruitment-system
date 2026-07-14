@@ -9,6 +9,8 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { resumeAnalysisRepository, type ResumeAnalysisRow } from "@/server/repositories/resume-analysis.repository";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import { emailLogRepository, type EmailLogRow } from "@/server/repositories/email-log.repository";
+import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server/repositories/applicant-followup.repository";
+import { FOLLOWUP_TYPE_LABELS } from "@/constants/followup";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { APPLICANT_STATUS_CONFIG, type ApplicantStatus } from "@/constants/applicant-status";
@@ -50,14 +52,23 @@ export async function getApplicantDocuments(id: string) {
 
 export type ApplicantTimelineEntry =
   | { kind: "activity"; _id: string; message: string; actorName: string | null; createdAt: Date }
-  | { kind: "email"; _id: string; message: string; actorName: string | null; createdAt: Date; email: EmailLogRow };
+  | { kind: "email"; _id: string; message: string; actorName: string | null; createdAt: Date; email: EmailLogRow }
+  | {
+      kind: "followup";
+      _id: string;
+      message: string;
+      actorName: string | null;
+      createdAt: Date;
+      followup: ApplicantFollowupRow;
+    };
 
 export async function getApplicantHistory(id: string): Promise<ApplicantTimelineEntry[]> {
   await connectDB();
   const { companyId } = await getCurrentUser();
-  const [activity, emails] = await Promise.all([
+  const [activity, emails, followups] = await Promise.all([
     activityLogRepository.findByEntity(companyId, "applicant", id, 50),
     emailLogRepository.findByApplicantId(companyId, id, 50),
+    applicantFollowupRepository.findByApplicantId(companyId, id, 50),
   ]);
 
   const activityEntries: ApplicantTimelineEntry[] = activity.map((row) => ({
@@ -78,8 +89,26 @@ export async function getApplicantHistory(id: string): Promise<ApplicantTimeline
     createdAt: row.createdAt,
     email: row,
   }));
+  // "email" is intentionally excluded here — EmailLog above already
+  // represents every email with richer detail (subject/template); showing
+  // both would duplicate the same event twice in the timeline.
+  const followupEntries: ApplicantTimelineEntry[] = followups
+    .filter((row) => row.type !== "email")
+    .map((row) => ({
+      kind: "followup",
+      _id: row._id,
+      message:
+        row.status === "failed"
+          ? `${FOLLOWUP_TYPE_LABELS[row.type]} attempt failed`
+          : `${FOLLOWUP_TYPE_LABELS[row.type]} requested`,
+      actorName: row.createdByName,
+      createdAt: row.createdAt,
+      followup: row,
+    }));
 
-  return [...activityEntries, ...emailEntries].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return [...activityEntries, ...emailEntries, ...followupEntries].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  );
 }
 
 export async function changeApplicantStatus(id: string, status: ApplicantStatus): Promise<ApplicantDetailRow> {

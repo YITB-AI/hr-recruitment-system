@@ -3,6 +3,7 @@ import { jobRepository } from "@/server/repositories/job.repository";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import {
@@ -34,6 +35,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     statusBreakdown,
     recentActivity,
     upcomingInterviews,
+    communicationCounts,
   ] = await Promise.all([
     // Job stays optional-companyId at the schema level (n8n-authored rows
     // may have none — see models/Job.ts), but these counts are scoped to
@@ -54,6 +56,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     applicantRepository.groupByStatus(companyId),
     activityLogRepository.findRecent(companyId, 6),
     interviewRepository.findUpcoming(companyId, 5),
+    applicantFollowupRepository.countByType(companyId),
   ]);
 
   const countsByStatus = new Map<ApplicantStatus, number>(
@@ -113,5 +116,12 @@ export async function getDashboardData(): Promise<DashboardData> {
       jobTitle: entry.jobId?.title ?? "Unknown role",
       scheduledAt: entry.scheduledAt.toISOString(),
     })),
+    communication: {
+      calls: communicationCounts.call,
+      emails: communicationCounts.email,
+      messages: communicationCounts.sms + communicationCounts.whatsapp,
+      pending: communicationCounts.pending,
+      failed: communicationCounts.failed,
+    },
   };
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { getDashboardData } from "@/features/dashboard/services/dashboard.service";
 import { StatsGrid } from "@/features/dashboard/components/stats-grid";
+import { CommunicationStatsRow } from "@/features/dashboard/components/communication-stats-row";
 import { ApplicantsStatusChart } from "@/features/dashboard/components/applicants-status-chart";
 import { RecentActivity } from "@/features/dashboard/components/recent-activity";
 import { UpcomingInterviews } from "@/features/dashboard/components/upcoming-interviews";
@@ -30,6 +31,11 @@ export async function DashboardContent() {
   return (
     <div className="space-y-6">
       <StatsGrid stats={data.stats} />
+
+      <div>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Communication</h2>
+        <CommunicationStatsRow stats={data.communication} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">

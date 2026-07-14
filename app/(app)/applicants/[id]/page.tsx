@@ -67,9 +67,11 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
               <h3 className="mb-3 text-sm font-semibold">Quick Actions</h3>
               <QuickActionsPanel
                 applicantId={applicant._id}
+                name={applicant.name}
                 status={applicant.status}
                 email={applicant.email}
-                hasPhone={Boolean(applicant.phone)}
+                phone={applicant.phone ?? ""}
+                jobTitle={applicant.jobId?.title ?? null}
                 latestInterviewId={latestInterviewId}
               />
             </CardContent>

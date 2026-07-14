@@ -1,6 +1,7 @@
 import { getApplicantDetail } from "@/features/applicants/services/applicant.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { emailLogRepository } from "@/server/repositories/email-log.repository";
+import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
@@ -93,12 +94,30 @@ export async function sendApplicantEmail(
       : `Failed to send "${subject}" email to ${applicant.name}: ${result.error}`,
   });
 
+  // Every communication channel also writes here (see
+  // applicant-followup.service comment on models/ApplicantFollowup.ts) so
+  // the dashboard's communication counters have one place to count from.
+  // The applicant timeline UI still reads email detail from EmailLog above
+  // to avoid showing the same email twice.
+  await applicantFollowupRepository.create({
+    companyId: actor.companyId,
+    applicantId: applicant._id,
+    type: "email",
+    source: "send-email",
+    status: result.ok ? "sent" : "failed",
+    response: result.ok ? summarizeResponse(result.data) : undefined,
+    error: result.ok ? undefined : result.error,
+    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdByName: actor.name,
+  });
+
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }
 
 export async function sendApplicantSms(applicantId: string): Promise<NotificationResult> {
-  requireRole(await getCurrentUser(), "applicant.notify");
+  const actor = await getCurrentUser();
+  requireRole(actor, "applicant.notify");
   const applicant = await getApplicantDetail(applicantId);
   if (!applicant) return { success: false, error: "Applicant not found" };
   if (!applicant.phone) return { success: false, error: "Applicant has no phone number on file" };
@@ -110,9 +129,7 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
     jobTitle: applicant.jobId?.title ?? null,
     status: applicant.status,
   });
-  if (!result.ok) return { success: false, error: result.error };
 
-  const actor = await getCurrentUser();
   await activityLogRepository.create({
     companyId: actor.companyId,
     actorId: actor.id === "system" ? undefined : actor.id,
@@ -120,8 +137,23 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
     action: "applicant.sms_sent",
     entityType: "applicant",
     entityId: applicant._id,
-    message: `SMS sent to ${applicant.name}`,
+    message: result.ok
+      ? `SMS sent to ${applicant.name}`
+      : `Failed to send SMS to ${applicant.name}: ${result.error}`,
   });
 
+  await applicantFollowupRepository.create({
+    companyId: actor.companyId,
+    applicantId: applicant._id,
+    type: "sms",
+    source: "send-sms",
+    status: result.ok ? "sent" : "failed",
+    response: result.ok ? summarizeResponse(result.data) : undefined,
+    error: result.ok ? undefined : result.error,
+    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdByName: actor.name,
+  });
+
+  if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }

@@ -2,11 +2,14 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { Clock, Mail, MailWarning, RotateCw } from "lucide-react";
+import { Clock, Mail, MailWarning, MessageSquareText, Phone, PhoneMissed, RotateCw } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { sendApplicantEmailAction } from "@/actions/email";
 import type { ApplicantTimelineEntry } from "@/features/applicants/services/applicant.service";
+
+const FOLLOWUP_ICONS = { call: Phone, sms: MessageSquareText, whatsapp: MessageSquareText, email: Mail } as const;
 
 function formatDateTime(date: Date) {
   return new Date(date).toLocaleString("en-US", {
@@ -47,26 +50,48 @@ export function ApplicantHistoryTab({ applicantId, entries }: { applicantId: str
     <ul className="divide-y">
       {entries.map((entry) => {
         const isFailedEmail = entry.kind === "email" && entry.email.status === "failed";
-        const Icon = entry.kind === "email" ? (isFailedEmail ? MailWarning : Mail) : Clock;
+        const isFailedFollowup = entry.kind === "followup" && entry.followup.status === "failed";
+        const isFailed = isFailedEmail || isFailedFollowup;
+
+        const Icon =
+          entry.kind === "email"
+            ? isFailedEmail
+              ? MailWarning
+              : Mail
+            : entry.kind === "followup"
+              ? isFailedFollowup
+                ? PhoneMissed
+                : FOLLOWUP_ICONS[entry.followup.type]
+              : Clock;
 
         return (
           <li key={`${entry.kind}-${entry._id}`} className="flex items-start justify-between gap-3 py-3">
             <div className="flex items-start gap-3">
               <div
                 className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                  isFailedEmail ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+                  isFailed ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
                 }`}
               >
                 <Icon className="size-4" />
               </div>
               <div>
-                <p className="text-sm">{entry.message}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm">{entry.message}</p>
+                  {entry.kind === "followup" && (
+                    <Badge variant={isFailedFollowup ? "destructive" : "outline"} className="capitalize">
+                      {entry.followup.status}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {formatDateTime(entry.createdAt)}
                   {entry.actorName ? ` · ${entry.actorName}` : ""}
                 </p>
                 {entry.kind === "email" && entry.email.error && (
                   <p className="mt-1 text-xs text-destructive">{entry.email.error}</p>
+                )}
+                {entry.kind === "followup" && entry.followup.error && (
+                  <p className="mt-1 text-xs text-destructive">{entry.followup.error}</p>
                 )}
               </div>
             </div>

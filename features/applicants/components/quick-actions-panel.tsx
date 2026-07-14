@@ -7,19 +7,31 @@ import { MessageSquareText, CalendarPlus, CheckCircle2, XCircle } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { shortlistApplicantAction, rejectApplicantAction } from "@/actions/applicants";
 import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
+import { AiCallDialog } from "@/features/applicants/components/ai-call-dialog";
 import type { ApplicantStatus } from "@/constants/applicant-status";
 
 type QuickActionsPanelProps = {
   applicantId: string;
+  name: string;
   status: ApplicantStatus;
   email: string;
-  hasPhone: boolean;
+  phone: string;
+  jobTitle: string | null;
   latestInterviewId?: string | null;
 };
 
 type SendKind = "sms" | null;
 
-export function QuickActionsPanel({ applicantId, status, email, hasPhone, latestInterviewId }: QuickActionsPanelProps) {
+export function QuickActionsPanel({
+  applicantId,
+  name,
+  status,
+  email,
+  phone,
+  jobTitle,
+  latestInterviewId,
+}: QuickActionsPanelProps) {
+  const hasPhone = Boolean(phone);
   const [isPending, startTransition] = useTransition();
   const [sending, setSending] = useState<SendKind>(null);
 
@@ -104,6 +116,8 @@ export function QuickActionsPanel({ applicantId, status, email, hasPhone, latest
         <MessageSquareText />
         {sending === "sms" ? "Sending..." : "Send SMS"}
       </Button>
+
+      <AiCallDialog applicantId={applicantId} name={name} phone={phone} email={email} jobTitle={jobTitle} />
 
       <Button
         variant="destructive"

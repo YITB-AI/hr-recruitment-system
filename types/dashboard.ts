@@ -42,9 +42,18 @@ export type UpcomingInterview = {
   scheduledAt: string;
 };
 
+export type CommunicationStats = {
+  calls: number;
+  emails: number;
+  messages: number;
+  pending: number;
+  failed: number;
+};
+
 export type DashboardData = {
   stats: DashboardStats;
   applicantsByStatus: ApplicantStatusSlice[];
   recentActivity: ActivityFeedItem[];
   upcomingInterviews: UpcomingInterview[];
+  communication: CommunicationStats;
 };
