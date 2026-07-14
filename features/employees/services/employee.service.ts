@@ -6,10 +6,16 @@ import {
 } from "@/server/repositories/employee.repository";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { statusRepository } from "@/server/repositories/status.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import type { EmployeeFormInput } from "@/validators/employee";
+
+async function assertValidEmploymentStatus(companyId: string, status: string): Promise<void> {
+  const row = await statusRepository.findByKey(companyId, "employee", status);
+  if (!row || !row.isActive) throw new Error("Invalid or inactive employment status");
+}
 
 /** Everything the Employees list page needs: paginated rows + the 4 stat cards + filter option lists. */
 export async function getEmployeesPageData(filters: EmployeeListFilters) {
@@ -66,6 +72,7 @@ export async function createEmployee(input: EmployeeFormInput): Promise<Employee
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "employee.create");
+  await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
 
   const employeeCode = await employeeRepository.nextEmployeeCode(actor.companyId);
   const created = await employeeRepository.create(actor.companyId, {
@@ -100,6 +107,7 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "employee.update");
+  await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
 
   const updated = await employeeRepository.update(actor.companyId, id, {
     name: input.name,

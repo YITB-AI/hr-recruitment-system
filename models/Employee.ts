@@ -1,7 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { EMPLOYMENT_STATUSES, EMPLOYMENT_TYPES } from "@/constants/employee";
-
-export { EMPLOYMENT_STATUSES };
+import { EMPLOYMENT_TYPES } from "@/constants/employee";
 
 const employeeSchema = new Schema(
   {
@@ -19,7 +17,8 @@ const employeeSchema = new Schema(
     managerId: { type: Schema.Types.ObjectId, ref: "Employee" },
     joiningDate: { type: Date, required: true },
     employmentType: { type: String, enum: EMPLOYMENT_TYPES, default: "full_time" },
-    employmentStatus: { type: String, enum: EMPLOYMENT_STATUSES, default: "active", index: true },
+    // No schema-level enum — see the matching comment on models/Applicant.ts.
+    employmentStatus: { type: String, default: "active", index: true },
     basicSalary: { type: Number, required: true },
     grossSalary: { type: Number, required: true },
   },

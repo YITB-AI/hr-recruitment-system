@@ -13,7 +13,7 @@ import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server
 import { FOLLOWUP_TYPE_LABELS } from "@/constants/followup";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
-import { APPLICANT_STATUS_CONFIG, type ApplicantStatus } from "@/constants/applicant-status";
+import { statusRepository } from "@/server/repositories/status.repository";
 
 export async function getApplicantsPageData(filters: ApplicantListFilters) {
   await connectDB();
@@ -111,15 +111,18 @@ export async function getApplicantHistory(id: string): Promise<ApplicantTimeline
   );
 }
 
-export async function changeApplicantStatus(id: string, status: ApplicantStatus): Promise<ApplicantDetailRow> {
+export async function changeApplicantStatus(id: string, status: string): Promise<ApplicantDetailRow> {
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "applicant.status.change");
 
+  const statusRow = await statusRepository.findByKey(actor.companyId, "applicant", status);
+  if (!statusRow || !statusRow.isActive) throw new Error("Invalid or inactive status");
+
   const updated = await applicantRepository.updateStatus(actor.companyId, id, status);
   if (!updated) throw new Error("Applicant not found");
 
-  const label = APPLICANT_STATUS_CONFIG[status].label;
+  const label = statusRow.name;
   await activityLogRepository.create({
     companyId: actor.companyId,
     actorId: actor.id === "system" ? undefined : actor.id,
@@ -141,16 +144,19 @@ export function rejectApplicant(id: string) {
   return changeApplicantStatus(id, "rejected");
 }
 
-export async function bulkChangeApplicantStatus(ids: string[], status: ApplicantStatus): Promise<{ successCount: number }> {
+export async function bulkChangeApplicantStatus(ids: string[], status: string): Promise<{ successCount: number }> {
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "applicant.status.change");
+
+  const statusRow = await statusRepository.findByKey(actor.companyId, "applicant", status);
+  if (!statusRow || !statusRow.isActive) throw new Error("Invalid or inactive status");
 
   const targets = await applicantRepository.findMinimalByIds(actor.companyId, ids);
   const successCount = await applicantRepository.updateStatusMany(actor.companyId, ids, status);
 
   if (targets.length > 0) {
-    const label = APPLICANT_STATUS_CONFIG[status].label;
+    const label = statusRow.name;
     await activityLogRepository.createMany(
       targets.map((target) => ({
         companyId: actor.companyId,

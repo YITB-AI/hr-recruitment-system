@@ -3,7 +3,7 @@ import { Pencil } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { EmployeeStatusBadge } from "@/features/employees/components/employee-status-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
 import type { EmployeeDetailRow } from "@/server/repositories/employee.repository";
 
 function initials(name: string) {
@@ -24,7 +24,7 @@ export function EmployeeProfileCard({ employee }: { employee: EmployeeDetailRow 
           <p className="text-sm text-muted-foreground">{employee.designation}</p>
           <p className="text-xs text-muted-foreground">{employee.employeeCode}</p>
         </div>
-        <EmployeeStatusBadge status={employee.employmentStatus} />
+        <StatusBadge status={employee.employmentStatus} />
         <Button
           variant="outline"
           className="w-full"

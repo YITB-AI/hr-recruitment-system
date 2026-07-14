@@ -4,13 +4,10 @@ import { applicantRepository } from "@/server/repositories/applicant.repository"
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
+import { statusRepository } from "@/server/repositories/status.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
-import {
-  APPLICANT_STATUS_CONFIG,
-  PIPELINE_STATUSES,
-  type ApplicantStatus,
-} from "@/constants/applicant-status";
+import { PIPELINE_STATUSES, type ApplicantStatus } from "@/constants/applicant-status";
 import type { DashboardData } from "@/types/dashboard";
 
 export async function getDashboardData(): Promise<DashboardData> {
@@ -36,6 +33,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     recentActivity,
     upcomingInterviews,
     communicationCounts,
+    applicantStatuses,
   ] = await Promise.all([
     // Job stays optional-companyId at the schema level (n8n-authored rows
     // may have none — see models/Job.ts), but these counts are scoped to
@@ -57,7 +55,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     activityLogRepository.findRecent(companyId, 6),
     interviewRepository.findUpcoming(companyId, 5),
     applicantFollowupRepository.countByType(companyId),
+    statusRepository.findAllForModule(companyId, "applicant"),
   ]);
+  const statusByKey = new Map(applicantStatuses.map((s) => [s.key, s]));
 
   const countsByStatus = new Map<ApplicantStatus, number>(
     statusBreakdown.map((row) => [row.status, row.count]),
@@ -70,12 +70,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   const applicantsByStatus = PIPELINE_STATUSES.filter((status) => (countsByStatus.get(status) ?? 0) > 0).map(
     (status) => {
       const count = countsByStatus.get(status) ?? 0;
+      const statusConfig = statusByKey.get(status);
       return {
         status,
-        label: APPLICANT_STATUS_CONFIG[status].label,
+        label: statusConfig?.name ?? status,
         count,
         percentage: pipelineTotal === 0 ? 0 : Math.round((count / pipelineTotal) * 1000) / 10,
-        colorVar: APPLICANT_STATUS_CONFIG[status].colorVar,
+        colorVar: statusConfig?.color ?? "#71717a",
       };
     },
   );

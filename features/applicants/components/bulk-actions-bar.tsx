@@ -6,9 +6,7 @@ import { X, Mail, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { bulkUpdateStatusAction, bulkSendEmailAction, bulkSendSmsAction, type BulkActionResult } from "@/actions/applicants";
-import { APPLICANT_STATUSES, APPLICANT_STATUS_CONFIG, type ApplicantStatus } from "@/constants/applicant-status";
-
-const STATUS_ITEMS = APPLICANT_STATUSES.map((status) => ({ value: status, label: APPLICANT_STATUS_CONFIG[status].label }));
+import { useStatusLookup } from "@/components/shared/status-config-provider";
 
 function describeResult(result: BulkActionResult, verb: string): string {
   if (result.failures.length === 0) return `${verb} ${result.successCount} applicant${result.successCount === 1 ? "" : "s"}`;
@@ -22,8 +20,10 @@ export function BulkActionsBar({
   selectedIds: string[];
   onClear: () => void;
 }) {
-  const [statusToApply, setStatusToApply] = useState<ApplicantStatus | "">("");
+  const [statusToApply, setStatusToApply] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const { statuses } = useStatusLookup();
+  const STATUS_ITEMS = statuses.map((status) => ({ value: status.key, label: status.name }));
 
   if (selectedIds.length === 0) return null;
 
@@ -59,7 +59,7 @@ export function BulkActionsBar({
       <span className="text-sm font-medium">{selectedIds.length} selected</span>
 
       <div className="flex items-center gap-2">
-        <Select items={STATUS_ITEMS} value={statusToApply} onValueChange={(v) => setStatusToApply((v as ApplicantStatus) ?? "")}>
+        <Select items={STATUS_ITEMS} value={statusToApply} onValueChange={(v) => setStatusToApply(v ?? "")}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Change status to…" />
           </SelectTrigger>

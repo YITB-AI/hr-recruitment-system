@@ -16,23 +16,20 @@ import {
 } from "@/components/ui/select";
 import { employeeFormSchema, type EmployeeFormInput } from "@/validators/employee";
 import { createEmployeeAction, updateEmployeeAction } from "@/actions/employees";
-import {
-  EMPLOYMENT_STATUSES,
-  EMPLOYMENT_STATUS_LABELS,
-  EMPLOYMENT_TYPES,
-  EMPLOYMENT_TYPE_LABELS,
-} from "@/constants/employee";
+import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS } from "@/constants/employee";
 import type { EmployeeRow, EmployeeDetailRow } from "@/server/repositories/employee.repository";
+import type { StatusRow } from "@/server/repositories/status.repository";
 
-const STATUS_ITEMS = EMPLOYMENT_STATUSES.map((s) => ({ value: s, label: EMPLOYMENT_STATUS_LABELS[s] }));
 const TYPE_ITEMS = EMPLOYMENT_TYPES.map((t) => ({ value: t, label: EMPLOYMENT_TYPE_LABELS[t] }));
 
 type EmployeeFormProps = {
   managers: EmployeeRow[];
+  statuses: StatusRow[];
   existing?: EmployeeDetailRow;
 };
 
-export function EmployeeForm({ managers, existing }: EmployeeFormProps) {
+export function EmployeeForm({ managers, statuses, existing }: EmployeeFormProps) {
+  const statusItems = statuses.map((s) => ({ value: s.key, label: s.name }));
   const router = useRouter();
   const {
     register,
@@ -165,14 +162,14 @@ export function EmployeeForm({ managers, existing }: EmployeeFormProps) {
             control={control}
             name="employmentStatus"
             render={({ field }) => (
-              <Select items={STATUS_ITEMS} value={field.value} onValueChange={field.onChange}>
+              <Select items={statusItems} value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {EMPLOYMENT_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {EMPLOYMENT_STATUS_LABELS[status]}
+                  {statuses.map((status) => (
+                    <SelectItem key={status.key} value={status.key}>
+                      {status.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { EmployeeProfileCard } from "@/features/employees/components/employee-profile-card";
 import { EmployeeOverview } from "@/features/employees/components/employee-overview";
 import { EmployeeDocumentsTab } from "@/features/employees/components/employee-documents-tab";
+import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { getEmployee, getEmployeeDocuments } from "@/features/employees/services/employee.service";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 
 export const metadata: Metadata = { title: "Employee Profile" };
 export const dynamic = "force-dynamic";
@@ -21,11 +23,16 @@ const PLACEHOLDER_TABS = [
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [employee, documents] = await Promise.all([getEmployee(id), getEmployeeDocuments(id)]);
+  const [employee, documents, employeeStatuses] = await Promise.all([
+    getEmployee(id),
+    getEmployeeDocuments(id),
+    listActiveStatuses("employee"),
+  ]);
 
   if (!employee) notFound();
 
   return (
+    <StatusConfigProvider statuses={employeeStatuses}>
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/employees" className="hover:text-foreground">
@@ -69,5 +76,6 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         </Card>
       </div>
     </div>
+    </StatusConfigProvider>
   );
 }

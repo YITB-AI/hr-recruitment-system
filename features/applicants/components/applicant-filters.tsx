@@ -30,19 +30,19 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { APPLICANT_STATUSES, APPLICANT_STATUS_CONFIG } from "@/constants/applicant-status";
+import { useStatusLookup } from "@/components/shared/status-config-provider";
 import { APPLICANT_SOURCES, APPLICANT_SOURCE_LABELS } from "@/constants/applicant-source";
 import { createSavedViewAction, deleteSavedViewAction } from "@/actions/saved-views";
 import type { SavedViewRow } from "@/server/repositories/saved-view.repository";
 
-const STATUS_TABS = [
-  { value: undefined, label: "All Applicants" },
-  ...APPLICANT_STATUSES.map((status) => ({ value: status, label: APPLICANT_STATUS_CONFIG[status].label })),
-];
-
 type Job = { _id: string; title: string };
 
 export function ApplicantFilters({ jobs, savedViews }: { jobs: Job[]; savedViews: SavedViewRow[] }) {
+  const { statuses } = useStatusLookup();
+  const STATUS_TABS = [
+    { value: undefined, label: "All Applicants" },
+    ...statuses.map((status) => ({ value: status.key, label: status.name })),
+  ];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

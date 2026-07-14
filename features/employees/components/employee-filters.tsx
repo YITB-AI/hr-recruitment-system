@@ -12,14 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { EMPLOYMENT_STATUSES, EMPLOYMENT_STATUS_LABELS } from "@/constants/employee";
-
-const STATUS_TABS = [
-  { value: undefined, label: "All Employees" },
-  ...EMPLOYMENT_STATUSES.map((status) => ({ value: status, label: EMPLOYMENT_STATUS_LABELS[status] })),
-];
+import { useStatusLookup } from "@/components/shared/status-config-provider";
 
 export function EmployeeFilters({ departments }: { departments: string[] }) {
+  const { statuses } = useStatusLookup();
+  const STATUS_TABS = [
+    { value: undefined, label: "All Employees" },
+    ...statuses.map((status) => ({ value: status.key, label: status.name })),
+  ];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

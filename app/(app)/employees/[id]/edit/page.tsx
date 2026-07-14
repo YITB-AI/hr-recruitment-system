@@ -5,13 +5,18 @@ import { ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmployeeForm } from "@/features/employees/components/employee-form";
 import { getEmployee, listManagerOptions } from "@/features/employees/services/employee.service";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 
 export const metadata: Metadata = { title: "Edit Employee" };
 export const dynamic = "force-dynamic";
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [employee, managers] = await Promise.all([getEmployee(id), listManagerOptions()]);
+  const [employee, managers, statuses] = await Promise.all([
+    getEmployee(id),
+    listManagerOptions(),
+    listActiveStatuses("employee"),
+  ]);
 
   if (!employee) notFound();
 
@@ -31,7 +36,7 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
 
       <Card className="mx-auto max-w-2xl">
         <CardContent className="pt-6">
-          <EmployeeForm managers={managers} existing={employee} />
+          <EmployeeForm managers={managers} statuses={statuses} existing={employee} />
         </CardContent>
       </Card>
     </div>

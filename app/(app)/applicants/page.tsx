@@ -9,6 +9,8 @@ import { ApplicantsListView } from "@/features/applicants/components/applicants-
 import { ApplicantsKanbanBoard } from "@/features/applicants/components/applicants-kanban-board";
 import { getApplicantsPageData, getApplicantsKanbanData } from "@/features/applicants/services/applicant.service";
 import { listSavedViews } from "@/features/applicants/services/saved-view.service";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
+import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { connectDB } from "@/server/db/connect";
 import { getCurrentUser } from "@/lib/current-user";
@@ -55,7 +57,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
 
   await connectDB();
   const actor = await getCurrentUser();
-  const [tableData, kanbanData, savedViews, jobs] = await Promise.all([
+  const [tableData, kanbanData, savedViews, jobs, applicantStatuses] = await Promise.all([
     isKanban
       ? Promise.resolve(null)
       : getApplicantsPageData({
@@ -69,6 +71,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
     isKanban ? getApplicantsKanbanData(sharedFilters) : Promise.resolve(null),
     listSavedViews(),
     jobRepository.findAllForPicker(actor.companyId),
+    listActiveStatuses("applicant"),
   ]);
 
   function buildBaseQuery() {
@@ -105,6 +108,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
   kanbanViewQuery.set("view", "kanban");
 
   return (
+    <StatusConfigProvider statuses={applicantStatuses}>
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader
         title="Applicants"
@@ -154,5 +158,6 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
         ) : null}
       </div>
     </div>
+    </StatusConfigProvider>
   );
 }

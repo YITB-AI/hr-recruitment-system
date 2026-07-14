@@ -8,6 +8,8 @@ import { EmployeeStats } from "@/features/employees/components/employee-stats";
 import { EmployeeFilters } from "@/features/employees/components/employee-filters";
 import { EmployeesTable } from "@/features/employees/components/employees-table";
 import { getEmployeesPageData } from "@/features/employees/services/employee.service";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
+import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import type { EmploymentStatus } from "@/constants/employee";
 
 export const metadata: Metadata = { title: "Employees" };
@@ -23,13 +25,16 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
 
-  const data = await getEmployeesPageData({
-    page,
-    pageSize: PAGE_SIZE,
-    status: params.status as EmploymentStatus | undefined,
-    department: params.department,
-    search: params.search,
-  });
+  const [data, employeeStatuses] = await Promise.all([
+    getEmployeesPageData({
+      page,
+      pageSize: PAGE_SIZE,
+      status: params.status as EmploymentStatus | undefined,
+      department: params.department,
+      search: params.search,
+    }),
+    listActiveStatuses("employee"),
+  ]);
 
   function buildHref(targetPage: number) {
     const query = new URLSearchParams();
@@ -47,6 +52,7 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
   const exportHref = `/api/employees/export?${exportQuery.toString()}`;
 
   return (
+    <StatusConfigProvider statuses={employeeStatuses}>
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader
         title="Employees"
@@ -77,5 +83,6 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
         </div>
       </div>
     </div>
+    </StatusConfigProvider>
   );
 }

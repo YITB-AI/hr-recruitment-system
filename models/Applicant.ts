@@ -1,5 +1,4 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { APPLICANT_STATUSES } from "@/constants/applicant-status";
 import { APPLICANT_SOURCES } from "@/constants/applicant-source";
 
 export { APPLICANT_SOURCES };
@@ -12,7 +11,11 @@ const applicantSchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true, index: true },
     phone: { type: String, trim: true },
     jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true, index: true },
-    status: { type: String, enum: APPLICANT_STATUSES, default: "new", index: true },
+    // No schema-level enum — status keys are now managed per company via
+    // the Status collection (Settings > Statuses), validated at the
+    // service layer (see features/applicants/services/applicant.service.ts)
+    // instead of a compile-time list.
+    status: { type: String, default: "new", index: true },
     source: { type: String, enum: APPLICANT_SOURCES, default: "website" },
     location: { type: String, trim: true },
     resumeUrl: { type: String },

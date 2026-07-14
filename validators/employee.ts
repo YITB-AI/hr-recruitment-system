@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EMPLOYMENT_STATUSES, EMPLOYMENT_TYPES } from "@/constants/employee";
+import { EMPLOYMENT_TYPES } from "@/constants/employee";
 
 /**
  * Shared create/edit schema for the Employee form. Used on both the client
@@ -15,7 +15,9 @@ export const employeeFormSchema = z.object({
   managerId: z.string().optional(),
   joiningDate: z.string().min(1, "Joining date is required"),
   employmentType: z.enum(EMPLOYMENT_TYPES),
-  employmentStatus: z.enum(EMPLOYMENT_STATUSES),
+  // No longer a static enum — validated against this company's own
+  // Status collection at the service layer (see employee.service.ts).
+  employmentStatus: z.string().min(1, "Status is required"),
   basicSalary: z.number().positive("Must be greater than 0"),
   grossSalary: z.number().positive("Must be greater than 0"),
 });

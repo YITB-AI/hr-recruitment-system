@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { JobRowActions } from "@/features/jobs/components/job-row-actions";
 import { getJobDetail } from "@/features/jobs/services/job.service";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 
@@ -32,9 +34,13 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
 
   const { job, applicantCount, interviewCount, recentApplicants } = detail;
   const { companyId } = await getCurrentUser();
-  const activity = await activityLogRepository.findByEntity(companyId, "job", id, 30);
+  const [activity, applicantStatuses] = await Promise.all([
+    activityLogRepository.findByEntity(companyId, "job", id, 30),
+    listActiveStatuses("applicant"),
+  ]);
 
   return (
+    <StatusConfigProvider statuses={applicantStatuses}>
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/jobs" className="hover:text-foreground">
@@ -180,5 +186,6 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
         </div>
       </div>
     </div>
+    </StatusConfigProvider>
   );
 }

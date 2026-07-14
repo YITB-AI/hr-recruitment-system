@@ -18,7 +18,9 @@ import { QuickActionsPanel } from "@/features/applicants/components/quick-action
 import { ApplicantDocumentsTab } from "@/features/applicants/components/applicant-documents-tab";
 import { ApplicantHistoryTab } from "@/features/applicants/components/applicant-history-tab";
 import { CvViewerTab } from "@/features/applicants/components/cv-viewer-tab";
+import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { interviewRepository } from "@/server/repositories/interview.repository";
+import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Applicant Details" };
@@ -46,10 +48,14 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   if (!applicant) notFound();
 
   const { companyId } = await getCurrentUser();
-  const interviews = await interviewRepository.findByApplicantId(companyId, id, 1);
+  const [interviews, applicantStatuses] = await Promise.all([
+    interviewRepository.findByApplicantId(companyId, id, 1),
+    listActiveStatuses("applicant"),
+  ]);
   const latestInterviewId = interviews[0]?._id ?? null;
 
   return (
+    <StatusConfigProvider statuses={applicantStatuses}>
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/applicants" className="hover:text-foreground">
@@ -125,5 +131,6 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
         </Card>
       </div>
     </div>
+    </StatusConfigProvider>
   );
 }

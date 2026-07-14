@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { EmployeeStatusBadge } from "@/features/employees/components/employee-status-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { EmployeeRowActions } from "@/features/employees/components/employee-row-actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Users } from "lucide-react";
@@ -56,7 +56,7 @@ export function EmployeesTable({ employees }: { employees: EmployeeListRow[] }) 
             <td className="px-4 py-3 text-foreground/80">{employee.department}</td>
             <td className="px-4 py-3 text-foreground/80">{employee.designation}</td>
             <td className="px-4 py-3">
-              <EmployeeStatusBadge status={employee.employmentStatus} />
+              <StatusBadge status={employee.employmentStatus} />
             </td>
             <td className="px-4 py-3 text-foreground/80">{employee.email}</td>
             <td className="px-4 py-3 text-foreground/80">{employee.phone ?? "—"}</td>

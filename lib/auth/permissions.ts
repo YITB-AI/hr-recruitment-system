@@ -21,6 +21,7 @@ export const PERMISSION_ACTIONS = [
   "user.manage",
   "job.create",
   "job.manage",
+  "status.manage",
 ] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
