@@ -9,6 +9,7 @@ import { User } from "@/models/User";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { requireRole } from "@/lib/auth/permissions";
+import { changeOwnPassword } from "@/features/profile/services/profile.service";
 import {
   createUserSession,
   destroyCurrentSession,
@@ -81,7 +82,10 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     return GENERIC_ERROR;
   }
 
-  await User.updateOne({ _id: user._id }, { failedLoginAttempts: 0, $unset: { lockedUntil: "" } });
+  await User.updateOne(
+    { _id: user._id },
+    { failedLoginAttempts: 0, lastLoginAt: new Date(), $unset: { lockedUntil: "" } },
+  );
 
   const headerStore = await headers();
   await createUserSession({
@@ -121,26 +125,8 @@ export async function changeOwnPasswordAction(formData: FormData): Promise<Chang
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const actor = await requireSession();
-  await connectDB();
-  const user = await User.findById(actor.id);
-  if (!user) return { success: false, error: "User not found" };
-
-  const currentValid = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
-  if (!currentValid) return { success: false, error: "Current password is incorrect" };
-
-  const newHash = await bcrypt.hash(parsed.data.newPassword, 10);
-  await User.updateOne({ _id: user._id }, { passwordHash: newHash, mustChangePassword: false });
-
-  await activityLogRepository.create({
-    companyId: actor.companyId,
-    actorId: actor.id,
-    actorName: actor.name,
-    action: "auth.password_changed",
-    entityType: "auth",
-    entityId: actor.id,
-    message: `${actor.name} changed their password`,
-  });
+  const result = await changeOwnPassword(parsed.data);
+  if (!result.success) return result;
 
   redirect("/dashboard");
 }

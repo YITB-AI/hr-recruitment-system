@@ -19,7 +19,22 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: USER_ROLES, default: "recruiter" },
     title: { type: String, trim: true },
+    department: { type: String, trim: true },
+    phone: { type: String, trim: true },
     avatarUrl: { type: String },
+    lastLoginAt: { type: Date },
+    // Existing users predate this flow and were provisioned by an admin, not
+    // self-registered — treated as verified from day one. New/changed emails
+    // (see pending* fields below) start unverified until the code is confirmed.
+    emailVerified: { type: Boolean, default: true },
+    // Secure email-change flow: the new address is staged here (never
+    // written to `email` directly) until its one-time code is confirmed —
+    // see features/profile/services/profile.service.ts.
+    pendingEmail: { type: String, lowercase: true, trim: true },
+    emailVerificationCodeHash: { type: String },
+    emailVerificationExpiresAt: { type: Date },
+    emailVerificationAttempts: { type: Number, default: 0 },
+    emailVerificationSentAt: { type: Date },
     // Brute-force protection: incremented on each failed login, reset to 0
     // on success. lockedUntil is set once failedLoginAttempts crosses the
     // threshold (see lib/auth/session.ts) and checked before a password

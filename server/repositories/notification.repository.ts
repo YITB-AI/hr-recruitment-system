@@ -8,9 +8,23 @@ export type NotificationRow = {
   createdAt: Date;
 };
 
+export type CreateNotificationInput = {
+  companyId: string;
+  userId: string;
+  title: string;
+  message: string;
+};
+
 export const notificationRepository = {
   countUnread(userId: string) {
     return Notification.countDocuments({ userId, read: false });
+  },
+  async create(input: CreateNotificationInput): Promise<void> {
+    await Notification.create(input);
+  },
+  async createMany(inputs: CreateNotificationInput[]): Promise<void> {
+    if (inputs.length === 0) return;
+    await Notification.insertMany(inputs);
   },
   async findRecent(userId: string, limit: number): Promise<NotificationRow[]> {
     const rows = await Notification.find({ userId })

@@ -8,6 +8,7 @@ export const ACTIVITY_ENTITY_TYPES = [
   "document",
   "setting",
   "auth",
+  "user",
 ] as const;
 
 const activityLogSchema = new Schema(

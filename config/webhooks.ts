@@ -1,8 +1,10 @@
-export type WebhookAction = "send-email" | "send-sms";
+export type WebhookAction = "send-email" | "send-sms" | "send-verification-email" | "notify-admin-email-change";
 
 const WEBHOOK_ENV_VAR: Record<WebhookAction, string> = {
   "send-email": "N8N_WEBHOOK_SEND_EMAIL",
   "send-sms": "N8N_WEBHOOK_SEND_SMS",
+  "send-verification-email": "N8N_WEBHOOK_SEND_VERIFICATION_EMAIL",
+  "notify-admin-email-change": "N8N_WEBHOOK_NOTIFY_ADMIN_EMAIL_CHANGE",
 };
 
 export function getWebhookUrl(action: WebhookAction): string {
