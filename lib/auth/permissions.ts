@@ -22,6 +22,7 @@ export const PERMISSION_ACTIONS = [
   "job.create",
   "job.manage",
   "status.manage",
+  "user.impersonate",
 ] as const;
 
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];

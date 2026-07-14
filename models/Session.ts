@@ -16,6 +16,10 @@ const sessionSchema = new Schema(
     lastActiveAt: { type: Date, required: true, default: Date.now },
     expiresAt: { type: Date, required: true, index: true },
     revokedAt: { type: Date },
+    // Set only on a session created via admin impersonation (see
+    // lib/auth/impersonation.ts) — the admin who is "driving" this session.
+    // Never set on a normal login session.
+    impersonatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true },
 );

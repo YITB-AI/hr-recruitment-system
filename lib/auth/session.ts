@@ -70,6 +70,12 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
 
   await sessionRepository.touchLastActive(String(session._id));
 
+  let impersonatedBy: SessionUser["impersonatedBy"] = null;
+  if (session.impersonatedBy) {
+    const admin = await User.findById(session.impersonatedBy).select("name").lean<{ name: string } | null>();
+    if (admin) impersonatedBy = { id: String(session.impersonatedBy), name: admin.name };
+  }
+
   return {
     id: String(user._id),
     companyId: String(user.companyId ?? session.companyId),
@@ -78,6 +84,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     role: user.role,
     avatarUrl: user.avatarUrl ?? null,
     isPlatformAdmin: Boolean(user.isPlatformAdmin),
+    impersonatedBy,
   };
 }
 
@@ -145,6 +152,15 @@ export async function destroyCurrentSession(): Promise<void> {
     }
   }
   cookieStore.delete(SESSION_COOKIE_NAME);
+
+  // If this logout happened mid-impersonation (rather than via "Return to
+  // my account"), the parked admin session would otherwise be left valid
+  // and forgotten — revoke it too rather than leaving a dangling session.
+  const impersonatorToken = cookieStore.get(IMPERSONATOR_COOKIE_NAME)?.value;
+  if (impersonatorToken) {
+    await sessionRepository.revoke(hashSessionToken(impersonatorToken)).catch(() => {});
+    cookieStore.delete(IMPERSONATOR_COOKIE_NAME);
+  }
 }
 
 // Pure DB revocation, no cookie side effect — safe to call for a DIFFERENT
@@ -160,4 +176,74 @@ export async function logoutAllForSelf(userId: string): Promise<number> {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
   return count;
+}
+
+// --- Admin impersonation (Settings > Users & Roles "Impersonate User") ---
+//
+// Two cookies are involved: SESSION_COOKIE_NAME always represents whoever
+// is currently "acting" (the impersonated user, once impersonation starts);
+// IMPERSONATOR_COOKIE_NAME holds the admin's own session token, preserved
+// verbatim (not re-derived) so "Return to my account" restores exactly the
+// session they had — same absolute expiry, no forced re-login. Impersonation
+// sessions themselves are always short-lived (2h) regardless of the
+// target's own "remember me" history, since this is a temporary elevated
+// action, not a normal login.
+const IMPERSONATOR_COOKIE_NAME = "impersonator_session";
+const IMPERSONATION_TTL_MS = 2 * 60 * 60 * 1000; // 2h
+
+export async function startImpersonation(targetUserId: string, targetCompanyId: string): Promise<void> {
+  const cookieStore = await cookies();
+  const currentToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!currentToken) throw new Error("No active session to impersonate from");
+
+  const adminUser = await verifySessionToken(currentToken);
+  if (!adminUser) throw new Error("No active session to impersonate from");
+
+  const token = generateSessionToken();
+  const expiresAt = new Date(Date.now() + IMPERSONATION_TTL_MS);
+  await sessionRepository.create({
+    userId: targetUserId,
+    companyId: targetCompanyId,
+    tokenHash: hashSessionToken(token),
+    expiresAt,
+    impersonatedBy: adminUser.id,
+  });
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+  };
+  cookieStore.set(IMPERSONATOR_COOKIE_NAME, currentToken, { ...cookieOptions, maxAge: IMPERSONATION_TTL_MS / 1000 });
+  cookieStore.set(SESSION_COOKIE_NAME, token, { ...cookieOptions, expires: expiresAt });
+}
+
+export async function isImpersonating(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return Boolean(cookieStore.get(IMPERSONATOR_COOKIE_NAME)?.value);
+}
+
+export async function endImpersonation(): Promise<void> {
+  const cookieStore = await cookies();
+  const currentToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const impersonatorToken = cookieStore.get(IMPERSONATOR_COOKIE_NAME)?.value;
+  if (!impersonatorToken) throw new Error("Not currently impersonating");
+
+  if (currentToken) {
+    await sessionRepository.revoke(hashSessionToken(currentToken)).catch(() => {});
+  }
+
+  await connectDB();
+  const originalSession = await sessionRepository.findByTokenHash(hashSessionToken(impersonatorToken));
+  const expires = originalSession?.expiresAt ?? new Date(Date.now() + ABSOLUTE_TTL_MS);
+
+  cookieStore.set(SESSION_COOKIE_NAME, impersonatorToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    expires,
+  });
+  cookieStore.delete(IMPERSONATOR_COOKIE_NAME);
 }

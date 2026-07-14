@@ -33,6 +33,7 @@ export type CreateSessionInput = {
   userAgent?: string;
   ipAddress?: string;
   expiresAt: Date;
+  impersonatedBy?: string;
 };
 
 export const sessionRepository = {

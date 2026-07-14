@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, MoreVertical, Pencil, Plus, Trash2, Users as UsersIcon } from "lucide-react";
+import { KeyRound, MoreVertical, Pencil, Plus, Trash2, Users as UsersIcon, UserCog } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { adminResetPasswordAction } from "@/actions/auth";
 import { createUserAction, updateUserAction, deleteUserAction } from "@/actions/users";
+import { startImpersonationAction } from "@/actions/impersonation";
 import { USER_ROLES, USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import type { CompanyUserRow } from "@/server/repositories/user.repository";
 
@@ -59,7 +60,7 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
   const [editRole, setEditRole] = useState<UserRole>("recruiter");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  const [isDeleting, startDelete] = useTransition();
+  const [isRowActionPending, startRowAction] = useTransition();
 
   async function handleReset() {
     if (!resetTarget) return;
@@ -113,10 +114,23 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
 
   function handleDelete(user: CompanyUserRow) {
     if (!confirm(`Remove ${user.name} from the team? This can't be undone.`)) return;
-    startDelete(async () => {
+    startRowAction(async () => {
       const result = await deleteUserAction(user._id);
       if (!result.success) toast.error(result.error);
       else toast.success("User removed");
+    });
+  }
+
+  function handleImpersonate(user: CompanyUserRow) {
+    if (!confirm(`View the app as ${user.name}? You can return to your own account at any time.`)) return;
+    startRowAction(async () => {
+      const result = await startImpersonationAction(user._id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      // Hard navigation — see the comment on actions/impersonation.ts for why.
+      window.location.href = "/dashboard";
     });
   }
 
@@ -173,7 +187,7 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isDeleting} />}>
+                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isRowActionPending} />}>
                       <MoreVertical className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -185,6 +199,12 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
                         <KeyRound className="size-4" />
                         Reset Password
                       </DropdownMenuItem>
+                      {user.role !== "admin" && (
+                        <DropdownMenuItem onClick={() => handleImpersonate(user)}>
+                          <UserCog className="size-4" />
+                          Impersonate User
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem variant="destructive" onClick={() => handleDelete(user)}>
                         <Trash2 className="size-4" />

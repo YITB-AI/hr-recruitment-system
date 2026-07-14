@@ -12,4 +12,7 @@ export type SessionUser = {
   // Cross-company platform operator flag — see the comment on
   // models/User.ts's isPlatformAdmin. Distinct from role "admin".
   isPlatformAdmin: boolean;
+  // Set only while an admin is impersonating this user (see
+  // lib/auth/impersonation.ts) — null on every normal session.
+  impersonatedBy: { id: string; name: string } | null;
 };
