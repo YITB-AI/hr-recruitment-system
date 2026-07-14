@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { AuthTabSync } from "@/components/layout/auth-tab-sync";
 import { getCurrentUser } from "@/lib/current-user";
 import { getUnreadCount, getRecentNotifications } from "@/features/notifications/services/notification.service";
 
@@ -14,6 +15,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-muted/30">
+      <AuthTabSync />
       <Sidebar />
       <MobileSidebar />
       <div className="flex min-w-0 flex-1 flex-col">

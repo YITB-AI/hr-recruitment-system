@@ -191,29 +191,36 @@ export async function adminResetPasswordAction(input: unknown): Promise<AdminRes
 export async function logoutAction(): Promise<never> {
   const user = await requireSession();
   await destroyCurrentSession();
-  await activityLogRepository.create({
-    companyId: user.companyId,
-    actorId: user.id,
-    actorName: user.name,
-    action: "auth.logout",
-    entityType: "auth",
-    entityId: user.id,
-    message: `${user.name} logged out`,
-  });
+  // The session is already destroyed at this point — an audit-log failure
+  // (e.g. a transient DB error) must never block the redirect and leave the
+  // user stuck on an authenticated-looking error page.
+  await activityLogRepository
+    .create({
+      companyId: user.companyId,
+      actorId: user.id,
+      actorName: user.name,
+      action: "auth.logout",
+      entityType: "auth",
+      entityId: user.id,
+      message: `${user.name} logged out`,
+    })
+    .catch((error) => console.error("Failed to write logout activity log:", error));
   redirect("/login");
 }
 
 export async function logoutAllAction(): Promise<never> {
   const user = await requireSession();
   await logoutAllForSelf(user.id);
-  await activityLogRepository.create({
-    companyId: user.companyId,
-    actorId: user.id,
-    actorName: user.name,
-    action: "auth.logout_all",
-    entityType: "auth",
-    entityId: user.id,
-    message: `${user.name} logged out of all devices`,
-  });
+  await activityLogRepository
+    .create({
+      companyId: user.companyId,
+      actorId: user.id,
+      actorName: user.name,
+      action: "auth.logout_all",
+      entityType: "auth",
+      entityId: user.id,
+      message: `${user.name} logged out of all devices`,
+    })
+    .catch((error) => console.error("Failed to write logout-all activity log:", error));
   redirect("/login");
 }

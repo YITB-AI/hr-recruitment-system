@@ -134,7 +134,16 @@ export async function createUserSession(input: {
 export async function destroyCurrentSession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (token) await sessionRepository.revoke(hashSessionToken(token));
+  if (token) {
+    try {
+      await sessionRepository.revoke(hashSessionToken(token));
+    } catch (error) {
+      // Fail secure toward "the user is logged out": a DB hiccup here must
+      // never leave the cookie in place. The row still expires on its own
+      // TTL/idle timeout even if this revoke didn't land.
+      console.error("Failed to revoke session during logout:", error);
+    }
+  }
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
 

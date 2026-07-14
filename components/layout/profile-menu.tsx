@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/actions/auth";
+import { LOGOUT_BROADCAST_KEY } from "@/lib/auth/broadcast";
 import type { SessionUser } from "@/types/user";
 
 function initials(name: string) {
@@ -28,6 +29,10 @@ export function ProfileMenu({ user }: { user: SessionUser }) {
   const [isLoggingOut, startLogout] = useTransition();
 
   function handleLogout() {
+    // Written before the redirect fires so every other open tab on this
+    // origin sees the storage event and logs itself out too (see
+    // auth-tab-sync.tsx). The tab that writes it never receives its own event.
+    localStorage.setItem(LOGOUT_BROADCAST_KEY, String(Date.now()));
     startLogout(async () => {
       await logoutAction();
     });

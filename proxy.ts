@@ -28,7 +28,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // Every matched page here is either authenticated or the login form itself
+  // — neither should ever be restorable from the browser's back-forward
+  // cache after logout, which would otherwise show a stale authenticated (or
+  // pre-login) snapshot without a fresh request/redirect check.
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 export const config = {
