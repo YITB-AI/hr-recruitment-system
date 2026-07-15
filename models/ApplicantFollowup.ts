@@ -1,7 +1,7 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { FOLLOWUP_TYPES, FOLLOWUP_STATUSES } from "@/constants/followup";
+import { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES } from "@/constants/followup";
 
-export { FOLLOWUP_TYPES, FOLLOWUP_STATUSES };
+export { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES };
 
 // A lighter, cross-channel companion to EmailLog — one row per outbound
 // AI Call/Email/SMS/WhatsApp attempt, used for the unified applicant
@@ -28,6 +28,16 @@ const applicantFollowupSchema = new Schema(
     retryCount: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     createdByName: { type: String },
+
+    // Call-only fields, populated by the n8n callback (app/api/webhooks/ai-call).
+    // Undefined for email/sms/whatsapp rows, same convention as message/requestedAt above.
+    outcome: { type: String, enum: FOLLOWUP_OUTCOMES },
+    transcript: { type: String },
+    summary: { type: String },
+    recordingUrl: { type: String },
+    startedAt: { type: Date },
+    completedAt: { type: Date },
+    proposedInterviewAt: { type: Date },
   },
   { timestamps: true, collection: "applicant_followup_status" },
 );

@@ -31,3 +31,11 @@ export function getWebhookAuthHeader(): { name: string; value: string } | null {
   const value = process.env.N8N_WEBHOOK_AUTH_HEADER_VALUE;
   return name && value ? { name, value } : null;
 }
+
+// The reverse direction: n8n calling BACK into this app (app/api/webhooks/ai-call)
+// to report call progress/outcome. Separate secret from the outbound auth
+// header above — that one authenticates us to n8n, this one authenticates
+// n8n to us.
+export function getInboundWebhookSecret(): string | null {
+  return process.env.N8N_WEBHOOK_CALLBACK_SECRET || null;
+}

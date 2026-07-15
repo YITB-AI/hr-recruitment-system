@@ -209,4 +209,11 @@ export const userRepository = {
       .lean<Array<{ _id: unknown; email: string }>>();
     return rows.map((row) => ({ _id: String(row._id), email: row.email }));
   },
+  /** Recipients for staff-facing notifications (e.g. an AI call outcome that needs manual review). */
+  async findByRoles(companyId: string, roles: UserRole[]): Promise<Array<{ _id: string; name: string }>> {
+    const rows = await User.find({ companyId, role: { $in: roles } })
+      .select("name")
+      .lean<Array<{ _id: unknown; name: string }>>();
+    return rows.map((row) => ({ _id: String(row._id), name: row.name }));
+  },
 };

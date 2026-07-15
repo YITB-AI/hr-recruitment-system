@@ -1,9 +1,10 @@
 import { Types } from "mongoose";
 import { ApplicantFollowup } from "@/models";
-import type { FollowupType, FollowupStatus } from "@/constants/followup";
+import type { FollowupType, FollowupStatus, FollowupOutcome } from "@/constants/followup";
 
 export type ApplicantFollowupRow = {
   _id: string;
+  companyId: string;
   applicantId: string;
   type: FollowupType;
   source: string;
@@ -15,6 +16,13 @@ export type ApplicantFollowupRow = {
   retryCount: number;
   createdByName: string | null;
   createdAt: Date;
+  outcome: FollowupOutcome | null;
+  transcript: string | null;
+  summary: string | null;
+  recordingUrl: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  proposedInterviewAt: Date | null;
 };
 
 type RawRow = Record<string, unknown> & { _id: unknown; applicantId: unknown };
@@ -22,6 +30,7 @@ type RawRow = Record<string, unknown> & { _id: unknown; applicantId: unknown };
 function serialize(row: RawRow): ApplicantFollowupRow {
   return {
     _id: String(row._id),
+    companyId: row.companyId ? String(row.companyId) : "",
     applicantId: String(row.applicantId),
     type: row.type as FollowupType,
     source: row.source as string,
@@ -33,6 +42,13 @@ function serialize(row: RawRow): ApplicantFollowupRow {
     retryCount: (row.retryCount as number | undefined) ?? 0,
     createdByName: (row.createdByName as string | undefined) ?? null,
     createdAt: row.createdAt as Date,
+    outcome: (row.outcome as FollowupOutcome | undefined) ?? null,
+    transcript: (row.transcript as string | undefined) ?? null,
+    summary: (row.summary as string | undefined) ?? null,
+    recordingUrl: (row.recordingUrl as string | undefined) ?? null,
+    startedAt: (row.startedAt as Date | undefined) ?? null,
+    completedAt: (row.completedAt as Date | undefined) ?? null,
+    proposedInterviewAt: (row.proposedInterviewAt as Date | undefined) ?? null,
   };
 }
 
@@ -53,7 +69,23 @@ export type CreateApplicantFollowupInput = {
 
 export type CommunicationCounts = Record<FollowupType, number> & { pending: number; failed: number };
 
-const ACTIVE_STATUSES: FollowupStatus[] = ["pending", "sent"];
+export type ApplyFollowupEventPatch = Partial<{
+  status: FollowupStatus;
+  outcome: FollowupOutcome;
+  transcript: string;
+  summary: string;
+  recordingUrl: string;
+  response: string;
+  error: string;
+  startedAt: Date;
+  completedAt: Date;
+  proposedInterviewAt: Date;
+}>;
+
+// "in_progress" counts as active for dedup purposes too — otherwise a
+// second AI call can be triggered while one is already ringing, once a
+// call takes longer than the old pending-only window assumed.
+const ACTIVE_STATUSES: FollowupStatus[] = ["pending", "sent", "in_progress"];
 
 // Every function takes companyId first and filters by it — see the
 // tenant-isolation comment in server/repositories/employee.repository.ts.
@@ -68,6 +100,26 @@ export const applicantFollowupRepository = {
       .limit(limit)
       .lean<RawRow[]>();
     return rows.map(serialize);
+  },
+  // Deliberately unscoped — the one legitimate caller is the inbound n8n
+  // webhook (app/api/webhooks/ai-call), which has no tenant context yet.
+  // It must read companyId off the returned row and use THAT as the source
+  // of truth from then on; never trust a client-supplied companyId here.
+  async findByIdUnscoped(id: string): Promise<ApplicantFollowupRow | null> {
+    const row = await ApplicantFollowup.findById(id).lean<RawRow | null>();
+    return row ? serialize(row) : null;
+  },
+  // Once-terminal state machine: a row that already reached "completed" or
+  // "failed" can never be moved again, so a duplicated or out-of-order n8n
+  // callback can't re-apply side effects (e.g. a double status change or a
+  // second Notification). Returns false when the row was already terminal
+  // (or absent) — callers should treat that as a no-op, not an error.
+  async applyEvent(id: string, patch: ApplyFollowupEventPatch): Promise<boolean> {
+    const result = await ApplicantFollowup.updateOne(
+      { _id: id, status: { $nin: ["completed", "failed"] } },
+      { $set: patch },
+    );
+    return result.modifiedCount > 0;
   },
   async countPriorAttempts(companyId: string, applicantId: string, type: FollowupType): Promise<number> {
     return ApplicantFollowup.countDocuments({ companyId, applicantId, type });

@@ -14,6 +14,7 @@ import { FOLLOWUP_TYPE_LABELS } from "@/constants/followup";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { statusRepository } from "@/server/repositories/status.repository";
+import type { SessionUser } from "@/types/user";
 
 export async function getApplicantsPageData(filters: ApplicantListFilters) {
   await connectDB();
@@ -111,9 +112,18 @@ export async function getApplicantHistory(id: string): Promise<ApplicantTimeline
   );
 }
 
-export async function changeApplicantStatus(id: string, status: string): Promise<ApplicantDetailRow> {
+// actorOverride lets trusted system code (the AI-call outcome handler,
+// which runs from the n8n webhook route with no real session — see
+// call-outcome.service.ts) apply a status change under a synthetic actor
+// instead of getCurrentUser(), which would try to read a session cookie
+// that doesn't exist there. Every normal human-triggered caller omits it.
+export async function changeApplicantStatus(
+  id: string,
+  status: string,
+  actorOverride?: SessionUser,
+): Promise<ApplicantDetailRow> {
   await connectDB();
-  const actor = await getCurrentUser();
+  const actor = actorOverride ?? (await getCurrentUser());
   requireRole(actor, "applicant.status.change");
 
   const statusRow = await statusRepository.findByKey(actor.companyId, "applicant", status);

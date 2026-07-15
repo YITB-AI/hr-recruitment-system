@@ -43,7 +43,25 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const company = await companyRepository.findById(actor.companyId);
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
 
+  // Created before the outbound trigger (not after) so its _id can be
+  // included in the payload — n8n echoes followupId back in every
+  // started/completed/failed callback to app/api/webhooks/ai-call, which is
+  // how the app knows which row a later callback refers to.
+  const followup = await applicantFollowupRepository.create({
+    companyId: actor.companyId,
+    applicantId: input.applicantId,
+    type: "call",
+    source: "ai-call",
+    status: "pending",
+    message: input.message,
+    requestedAt: scheduledAt,
+    retryCount,
+    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdByName: actor.name,
+  });
+
   const result = await triggerWebhook("ai-call", {
+    followupId: followup._id,
     applicantId: applicant._id,
     name: input.name,
     phone: input.phone,
@@ -57,22 +75,14 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     createdBy: actor.name,
   });
 
-  await applicantFollowupRepository.create({
-    companyId: actor.companyId,
-    applicantId: input.applicantId,
-    type: "call",
-    source: "ai-call",
-    // A successfully triggered request is "pending" (the call hasn't
-    // happened yet) rather than "sent" — there's no callback wired up yet
-    // to move it to delivered/failed once n8n actually places the call.
-    status: result.ok ? "pending" : "failed",
+  // The row already exists as "pending" — patch it rather than creating a
+  // second row. Only a trigger failure needs to move it here; on success it
+  // stays "pending" until the webhook callback reports "started"/"completed"
+  // (there's no callback-independent way to know the call actually happened).
+  await applicantFollowupRepository.applyEvent(followup._id, {
+    status: result.ok ? undefined : "failed",
     response: result.ok ? summarizeResponse(result.data) : undefined,
     error: result.ok ? undefined : result.error,
-    message: input.message,
-    requestedAt: scheduledAt,
-    retryCount,
-    createdBy: actor.id === "system" ? undefined : actor.id,
-    createdByName: actor.name,
   });
 
   await activityLogRepository.create({

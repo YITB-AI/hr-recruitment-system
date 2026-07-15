@@ -17,3 +17,4 @@ export * from "./SavedView";
 export * from "./EmailLog";
 export * from "./ApplicantFollowup";
 export * from "./Status";
+export * from "./Note";
