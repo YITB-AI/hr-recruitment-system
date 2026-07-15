@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { loginSchema, changePasswordSchema, adminResetPasswordSchema } from "@/validators/auth";
 import { connectDB } from "@/server/db/connect";
 import { User } from "@/models/User";
@@ -175,38 +176,48 @@ export async function adminResetPasswordAction(input: unknown): Promise<AdminRes
 }
 
 export async function logoutAction(): Promise<never> {
-  const user = await requireSession();
-  await destroyCurrentSession();
-  // The session is already destroyed at this point — an audit-log failure
-  // (e.g. a transient DB error) must never block the redirect and leave the
-  // user stuck on an authenticated-looking error page.
-  await activityLogRepository
-    .create({
-      companyId: user.companyId,
-      actorId: user.id,
-      actorName: user.name,
-      action: "auth.logout",
-      entityType: "auth",
-      entityId: user.id,
-      message: `${user.name} logged out`,
-    })
-    .catch((error) => console.error("Failed to write logout activity log:", error));
+  // requireSession() (identity) and destroyCurrentSession() (token revocation)
+  // don't depend on each other's result — destroyCurrentSession reads the raw
+  // cookie token itself, not the resolved user — so run them concurrently
+  // instead of one after another.
+  const [user] = await Promise.all([requireSession(), destroyCurrentSession()]);
+  // The session is already destroyed at this point. Audit logging is
+  // mandatory (see SECURITY_STANDARDS.md) but must never block the redirect
+  // the user is waiting on — after() defers the write until the response has
+  // gone out while still guaranteeing (via Vercel's waitUntil) that it runs
+  // to completion, unlike a bare un-awaited promise that a serverless
+  // function could get torn down before finishing.
+  after(() =>
+    activityLogRepository
+      .create({
+        companyId: user.companyId,
+        actorId: user.id,
+        actorName: user.name,
+        action: "auth.logout",
+        entityType: "auth",
+        entityId: user.id,
+        message: `${user.name} logged out`,
+      })
+      .catch((error) => console.error("Failed to write logout activity log:", error)),
+  );
   redirect("/login");
 }
 
 export async function logoutAllAction(): Promise<never> {
   const user = await requireSession();
   await logoutAllForSelf(user.id);
-  await activityLogRepository
-    .create({
-      companyId: user.companyId,
-      actorId: user.id,
-      actorName: user.name,
-      action: "auth.logout_all",
-      entityType: "auth",
-      entityId: user.id,
-      message: `${user.name} logged out of all devices`,
-    })
-    .catch((error) => console.error("Failed to write logout-all activity log:", error));
+  after(() =>
+    activityLogRepository
+      .create({
+        companyId: user.companyId,
+        actorId: user.id,
+        actorName: user.name,
+        action: "auth.logout_all",
+        entityType: "auth",
+        entityId: user.id,
+        message: `${user.name} logged out of all devices`,
+      })
+      .catch((error) => console.error("Failed to write logout-all activity log:", error)),
+  );
   redirect("/login");
 }

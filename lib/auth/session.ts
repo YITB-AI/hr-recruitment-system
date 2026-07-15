@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { User } from "@/models/User";
 import { sessionRepository } from "@/server/repositories/session.repository";
@@ -68,7 +69,17 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
   if (!user) return null;
   if (user.companyId && String(user.companyId) !== String(session.companyId)) return null;
 
-  await sessionRepository.touchLastActive(String(session._id));
+  // Nothing in this request depends on lastActiveAt being up to date by the
+  // time this function returns — it's only ever read on a *later* request's
+  // idle-timeout check. Deferring it via after() keeps it off the critical
+  // path of every authenticated request/action without dropping it: after()
+  // still runs (backed by Vercel's waitUntil) even once the response/redirect
+  // has already gone out.
+  after(() =>
+    sessionRepository
+      .touchLastActive(String(session._id))
+      .catch((error) => console.error("Failed to touch session lastActiveAt:", error)),
+  );
 
   let impersonatedBy: SessionUser["impersonatedBy"] = null;
   if (session.impersonatedBy) {
@@ -141,26 +152,29 @@ export async function createUserSession(input: {
 export async function destroyCurrentSession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (token) {
-    try {
-      await sessionRepository.revoke(hashSessionToken(token));
-    } catch (error) {
-      // Fail secure toward "the user is logged out": a DB hiccup here must
-      // never leave the cookie in place. The row still expires on its own
-      // TTL/idle timeout even if this revoke didn't land.
-      console.error("Failed to revoke session during logout:", error);
-    }
-  }
-  cookieStore.delete(SESSION_COOKIE_NAME);
-
   // If this logout happened mid-impersonation (rather than via "Return to
   // my account"), the parked admin session would otherwise be left valid
   // and forgotten — revoke it too rather than leaving a dangling session.
   const impersonatorToken = cookieStore.get(IMPERSONATOR_COOKIE_NAME)?.value;
-  if (impersonatorToken) {
-    await sessionRepository.revoke(hashSessionToken(impersonatorToken)).catch(() => {});
-    cookieStore.delete(IMPERSONATOR_COOKIE_NAME);
-  }
+
+  // Neither revoke depends on the other's result, so run them concurrently
+  // instead of one-after-the-other on the critical path.
+  await Promise.all([
+    token
+      ? sessionRepository.revoke(hashSessionToken(token)).catch((error) => {
+          // Fail secure toward "the user is logged out": a DB hiccup here
+          // must never leave the cookie in place. The row still expires on
+          // its own TTL/idle timeout even if this revoke didn't land.
+          console.error("Failed to revoke session during logout:", error);
+        })
+      : undefined,
+    impersonatorToken
+      ? sessionRepository.revoke(hashSessionToken(impersonatorToken)).catch(() => {})
+      : undefined,
+  ]);
+
+  cookieStore.delete(SESSION_COOKIE_NAME);
+  if (impersonatorToken) cookieStore.delete(IMPERSONATOR_COOKIE_NAME);
 }
 
 // Pure DB revocation, no cookie side effect — safe to call for a DIFFERENT
