@@ -10,7 +10,8 @@ import { resumeAnalysisRepository, type ResumeAnalysisRow } from "@/server/repos
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import { emailLogRepository, type EmailLogRow } from "@/server/repositories/email-log.repository";
 import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server/repositories/applicant-followup.repository";
-import { FOLLOWUP_TYPE_LABELS } from "@/constants/followup";
+import { noteRepository, type NoteRow } from "@/server/repositories/note.repository";
+import { FOLLOWUP_TYPE_LABELS, FOLLOWUP_OUTCOME_LABELS } from "@/constants/followup";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { statusRepository } from "@/server/repositories/status.repository";
@@ -51,6 +52,16 @@ export async function getApplicantDocuments(id: string) {
   return generatedDocumentRepository.findByApplicantId(companyId, id);
 }
 
+// Most recent outbound attempt across every channel — powers the small
+// follow-up-status indicator on the applicant detail page (e.g. "AI Call in
+// progress...", "Email sent 2h ago").
+export async function getApplicantLatestFollowup(id: string): Promise<ApplicantFollowupRow | null> {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  const [latest] = await applicantFollowupRepository.findByApplicantId(companyId, id, 1);
+  return latest ?? null;
+}
+
 export type ApplicantTimelineEntry =
   | { kind: "activity"; _id: string; message: string; actorName: string | null; createdAt: Date }
   | { kind: "email"; _id: string; message: string; actorName: string | null; createdAt: Date; email: EmailLogRow }
@@ -61,15 +72,29 @@ export type ApplicantTimelineEntry =
       actorName: string | null;
       createdAt: Date;
       followup: ApplicantFollowupRow;
-    };
+    }
+  | { kind: "note"; _id: string; message: string; actorName: string | null; createdAt: Date; note: NoteRow };
+
+// A call-type row's message depends on where it is in its lifecycle
+// (pending -> in_progress -> completed/failed, see call-outcome.service.ts)
+// — email/sms/whatsapp rows never leave pending/sent/failed since their
+// result is known synchronously.
+function followupMessage(row: ApplicantFollowupRow): string {
+  const label = FOLLOWUP_TYPE_LABELS[row.type];
+  if (row.status === "failed") return `${label} attempt failed`;
+  if (row.status === "in_progress") return `${label} in progress`;
+  if (row.status === "completed" && row.outcome) return `${label} ended: ${FOLLOWUP_OUTCOME_LABELS[row.outcome]}`;
+  return `${label} requested`;
+}
 
 export async function getApplicantHistory(id: string): Promise<ApplicantTimelineEntry[]> {
   await connectDB();
   const { companyId } = await getCurrentUser();
-  const [activity, emails, followups] = await Promise.all([
+  const [activity, emails, followups, notes] = await Promise.all([
     activityLogRepository.findByEntity(companyId, "applicant", id, 50),
     emailLogRepository.findByApplicantId(companyId, id, 50),
     applicantFollowupRepository.findByApplicantId(companyId, id, 50),
+    noteRepository.findByApplicantId(companyId, id, 50),
   ]);
 
   const activityEntries: ApplicantTimelineEntry[] = activity.map((row) => ({
@@ -98,18 +123,57 @@ export async function getApplicantHistory(id: string): Promise<ApplicantTimeline
     .map((row) => ({
       kind: "followup",
       _id: row._id,
-      message:
-        row.status === "failed"
-          ? `${FOLLOWUP_TYPE_LABELS[row.type]} attempt failed`
-          : `${FOLLOWUP_TYPE_LABELS[row.type]} requested`,
+      message: followupMessage(row),
       actorName: row.createdByName,
       createdAt: row.createdAt,
       followup: row,
     }));
+  const noteEntries: ApplicantTimelineEntry[] = notes.map((row) => ({
+    kind: "note",
+    _id: row._id,
+    message: `${row.authorName} added a note`,
+    actorName: row.authorName,
+    createdAt: row.createdAt,
+    note: row,
+  }));
 
-  return [...activityEntries, ...emailEntries, ...followupEntries].sort(
+  return [...activityEntries, ...emailEntries, ...followupEntries, ...noteEntries].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
+}
+
+export type CommunicationEntry =
+  | { channel: "email"; _id: string; createdAt: Date; email: EmailLogRow }
+  | { channel: "call" | "sms" | "whatsapp"; _id: string; createdAt: Date; followup: ApplicantFollowupRow };
+
+// The richer, per-channel-detail companion to getApplicantHistory's terse
+// cross-entity feed above — full email subject/body-template, full call
+// transcript/summary/recording, one merged and sorted list. No new storage:
+// reads the same EmailLog/ApplicantFollowup rows the timeline already uses.
+export async function getApplicantCommunicationHistory(id: string): Promise<CommunicationEntry[]> {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  const [emails, followups] = await Promise.all([
+    emailLogRepository.findByApplicantId(companyId, id, 50),
+    applicantFollowupRepository.findByApplicantId(companyId, id, 50),
+  ]);
+
+  const emailEntries: CommunicationEntry[] = emails.map((row) => ({
+    channel: "email",
+    _id: row._id,
+    createdAt: row.createdAt,
+    email: row,
+  }));
+  const followupEntries: CommunicationEntry[] = followups
+    .filter((row): row is ApplicantFollowupRow & { type: "call" | "sms" | "whatsapp" } => row.type !== "email")
+    .map((row) => ({
+      channel: row.type,
+      _id: row._id,
+      createdAt: row.createdAt,
+      followup: row,
+    }));
+
+  return [...emailEntries, ...followupEntries].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 // actorOverride lets trusted system code (the AI-call outcome handler,

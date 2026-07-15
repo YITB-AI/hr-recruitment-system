@@ -10,13 +10,19 @@ import {
   getApplicantResumeAnalysis,
   getApplicantDocuments,
   getApplicantHistory,
+  getApplicantCommunicationHistory,
+  getApplicantLatestFollowup,
 } from "@/features/applicants/services/applicant.service";
+import { listNotes } from "@/features/applicants/services/note.service";
 import { ApplicantOverview } from "@/features/applicants/components/applicant-overview";
 import { ApplicantProfileCard } from "@/features/applicants/components/applicant-profile-card";
 import { AiAnalysisPanel } from "@/features/applicants/components/ai-analysis-panel";
 import { QuickActionsPanel } from "@/features/applicants/components/quick-actions-panel";
 import { ApplicantDocumentsTab } from "@/features/applicants/components/applicant-documents-tab";
 import { ApplicantHistoryTab } from "@/features/applicants/components/applicant-history-tab";
+import { ApplicantCommunicationHistoryTab } from "@/features/applicants/components/applicant-communication-history-tab";
+import { ApplicantNotesTab } from "@/features/applicants/components/applicant-notes-tab";
+import { FollowupStatusIndicator } from "@/features/applicants/components/followup-status-indicator";
 import { CvViewerTab } from "@/features/applicants/components/cv-viewer-tab";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { interviewRepository } from "@/server/repositories/interview.repository";
@@ -26,23 +32,26 @@ import { getCurrentUser } from "@/lib/current-user";
 export const metadata: Metadata = { title: "Applicant Details" };
 export const dynamic = "force-dynamic";
 
-// "History" means the applicant's full timeline (status changes + emails
-// sent), distinct from the "Documents" tab (generated offer/appointment
-// letters, etc.). "Resume" now has a real CV Viewer (see CvViewerTab) — the
-// remaining placeholders below have no backing data model yet.
+// "Timeline" is the applicant's full cross-entity feed (status changes,
+// comms, notes — one line each); "Communication" is the richer per-channel
+// detail view (full email body, full call transcript/summary); "Documents"
+// is generated offer/appointment letters. Experience/Education still have
+// no backing data model.
 const PLACEHOLDER_TABS = [
   { value: "experience", label: "Experience", description: "Structured work history will appear here." },
   { value: "education", label: "Education", description: "Education history will appear here." },
-  { value: "notes", label: "Notes", description: "Internal notes about this applicant will appear here." },
 ];
 
 export default async function ApplicantDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [applicant, resumeAnalysis, documents, history] = await Promise.all([
+  const [applicant, resumeAnalysis, documents, history, communicationHistory, notes, latestFollowup] = await Promise.all([
     getApplicantDetail(id),
     getApplicantResumeAnalysis(id),
     getApplicantDocuments(id),
     getApplicantHistory(id),
+    getApplicantCommunicationHistory(id),
+    listNotes(id),
+    getApplicantLatestFollowup(id),
   ]);
 
   if (!applicant) notFound();
@@ -69,6 +78,8 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
         <div className="space-y-4">
           <ApplicantProfileCard applicant={applicant} />
 
+          <FollowupStatusIndicator latest={latestFollowup} />
+
           <Card>
             <CardContent className="pt-6">
               <h3 className="mb-3 text-sm font-semibold">Quick Actions</h3>
@@ -93,7 +104,9 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <TabsTrigger value="documents">Documents</TabsTrigger>
                 <TabsTrigger value="resume">Resume</TabsTrigger>
                 <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="communication">Communication</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
                     {tab.label}
@@ -117,8 +130,16 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <AiAnalysisPanel analysis={resumeAnalysis} />
               </TabsContent>
 
-              <TabsContent value="history" className="pt-6">
+              <TabsContent value="timeline" className="pt-6">
                 <ApplicantHistoryTab applicantId={applicant._id} entries={history} />
+              </TabsContent>
+
+              <TabsContent value="communication" className="pt-6">
+                <ApplicantCommunicationHistoryTab entries={communicationHistory} />
+              </TabsContent>
+
+              <TabsContent value="notes" className="pt-6">
+                <ApplicantNotesTab applicantId={applicant._id} notes={notes} />
               </TabsContent>
 
               {PLACEHOLDER_TABS.map((tab) => (

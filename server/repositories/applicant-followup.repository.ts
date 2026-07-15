@@ -67,7 +67,11 @@ export type CreateApplicantFollowupInput = {
   createdByName: string;
 };
 
-export type CommunicationCounts = Record<FollowupType, number> & { pending: number; failed: number };
+export type CommunicationCounts = Record<FollowupType, number> & {
+  pending: number;
+  failed: number;
+  inProgress: number;
+};
 
 export type ApplyFollowupEventPatch = Partial<{
   status: FollowupStatus;
@@ -144,7 +148,7 @@ export const applicantFollowupRepository = {
       { $group: { _id: "$type", count: { $sum: 1 } } },
     ]);
     const pendingRows = await ApplicantFollowup.aggregate<{ _id: FollowupStatus; count: number }>([
-      { $match: { companyId: companyObjectId, status: { $in: ["pending", "failed"] } } },
+      { $match: { companyId: companyObjectId, status: { $in: ["pending", "failed", "in_progress"] } } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
@@ -158,6 +162,7 @@ export const applicantFollowupRepository = {
       whatsapp: byType.get("whatsapp") ?? 0,
       pending: byStatus.get("pending") ?? 0,
       failed: byStatus.get("failed") ?? 0,
+      inProgress: byStatus.get("in_progress") ?? 0,
     };
   },
 };

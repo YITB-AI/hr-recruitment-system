@@ -1,4 +1,4 @@
-import { Phone, Mail, MessageSquareText, Clock, AlertTriangle } from "lucide-react";
+import { Phone, Mail, MessageSquareText, Clock, AlertTriangle, PhoneCall } from "lucide-react";
 import type { CommunicationStats } from "@/types/dashboard";
 
 export function CommunicationStatsRow({ stats }: { stats: CommunicationStats }) {
@@ -12,6 +12,12 @@ export function CommunicationStatsRow({ stats }: { stats: CommunicationStats }) 
       iconClassName: "bg-[var(--status-screening)]/10 text-[var(--status-screening)]",
     },
     {
+      label: "In Progress",
+      value: stats.inProgress,
+      icon: PhoneCall,
+      iconClassName: "bg-primary/10 text-primary",
+    },
+    {
       label: "Pending",
       value: stats.pending,
       icon: Clock,
@@ -21,7 +27,7 @@ export function CommunicationStatsRow({ stats }: { stats: CommunicationStats }) 
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-3 rounded-xl border bg-card p-3">
           <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${item.iconClassName}`}>

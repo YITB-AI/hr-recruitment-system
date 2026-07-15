@@ -5,6 +5,7 @@ import { interviewRepository } from "@/server/repositories/interview.repository"
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { statusRepository } from "@/server/repositories/status.repository";
+import { notificationRepository } from "@/server/repositories/notification.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import { PIPELINE_STATUSES, type ApplicantStatus } from "@/constants/applicant-status";
@@ -12,7 +13,7 @@ import type { DashboardData } from "@/types/dashboard";
 
 export async function getDashboardData(): Promise<DashboardData> {
   await connectDB();
-  const { companyId } = await getCurrentUser();
+  const { companyId, id: userId } = await getCurrentUser();
 
   const { previousStart, currentStart, now } = getWeekWindows(new Date());
 
@@ -34,6 +35,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     upcomingInterviews,
     communicationCounts,
     applicantStatuses,
+    nextActions,
   ] = await Promise.all([
     // Job stays optional-companyId at the schema level (n8n-authored rows
     // may have none — see models/Job.ts), but these counts are scoped to
@@ -56,6 +58,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     interviewRepository.findUpcoming(companyId, 5),
     applicantFollowupRepository.countByType(companyId),
     statusRepository.findAllForModule(companyId, "applicant"),
+    // "Next actions" — unread notifications for the current user, which is
+    // exactly what the AI-call outcome fallback (call-outcome.service.ts)
+    // creates when an outcome needs manual review. Reuses the same
+    // Notification store the topbar bell already reads; no new storage.
+    notificationRepository.findRecent(userId, 10),
   ]);
   const statusByKey = new Map(applicantStatuses.map((s) => [s.key, s]));
 
@@ -123,6 +130,16 @@ export async function getDashboardData(): Promise<DashboardData> {
       messages: communicationCounts.sms + communicationCounts.whatsapp,
       pending: communicationCounts.pending,
       failed: communicationCounts.failed,
+      inProgress: communicationCounts.inProgress,
     },
+    nextActions: nextActions
+      .filter((n) => !n.read)
+      .slice(0, 5)
+      .map((n) => ({
+        id: n._id,
+        title: n.title,
+        message: n.message,
+        createdAt: n.createdAt.toISOString(),
+      })),
   };
 }

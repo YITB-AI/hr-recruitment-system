@@ -6,6 +6,7 @@ import { CommunicationStatsRow } from "@/features/dashboard/components/communica
 import { ApplicantsStatusChart } from "@/features/dashboard/components/applicants-status-chart";
 import { RecentActivity } from "@/features/dashboard/components/recent-activity";
 import { UpcomingInterviews } from "@/features/dashboard/components/upcoming-interviews";
+import { NextActions } from "@/features/dashboard/components/next-actions";
 import {
   Card,
   CardContent,
@@ -37,8 +38,8 @@ export async function DashboardContent() {
         <CommunicationStatsRow stats={data.communication} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Applicants Status</CardTitle>
           </CardHeader>
@@ -47,7 +48,7 @@ export async function DashboardContent() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Recent Activity</CardTitle>
             <ViewAllLink href="/reports" />
@@ -57,13 +58,23 @@ export async function DashboardContent() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Upcoming Interviews</CardTitle>
             <ViewAllLink href="/interviews" />
           </CardHeader>
           <CardContent>
             <UpcomingInterviews items={data.upcomingInterviews} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="text-base">Next Actions</CardTitle>
+            <ViewAllLink href="/notifications" />
+          </CardHeader>
+          <CardContent>
+            <NextActions items={data.nextActions} />
           </CardContent>
         </Card>
       </div>

@@ -2,14 +2,20 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { Clock, Mail, MailWarning, MessageSquareText, Phone, PhoneMissed, RotateCw } from "lucide-react";
+import { Clock, Mail, MailWarning, MessageSquareText, Phone, PhoneCall, PhoneMissed, RotateCw, StickyNote } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { sendApplicantEmailAction } from "@/actions/email";
+import { FOLLOWUP_OUTCOME_LABELS } from "@/constants/followup";
 import type { ApplicantTimelineEntry } from "@/features/applicants/services/applicant.service";
 
 const FOLLOWUP_ICONS = { call: Phone, sms: MessageSquareText, whatsapp: MessageSquareText, email: Mail } as const;
+
+function followupBadgeLabel(followup: Extract<ApplicantTimelineEntry, { kind: "followup" }>["followup"]): string {
+  if (followup.status === "completed" && followup.outcome) return FOLLOWUP_OUTCOME_LABELS[followup.outcome];
+  return followup.status.replace(/_/g, " ");
+}
 
 function formatDateTime(date: Date) {
   return new Date(date).toLocaleString("en-US", {
@@ -51,6 +57,7 @@ export function ApplicantHistoryTab({ applicantId, entries }: { applicantId: str
       {entries.map((entry) => {
         const isFailedEmail = entry.kind === "email" && entry.email.status === "failed";
         const isFailedFollowup = entry.kind === "followup" && entry.followup.status === "failed";
+        const isInProgressFollowup = entry.kind === "followup" && entry.followup.status === "in_progress";
         const isFailed = isFailedEmail || isFailedFollowup;
 
         const Icon =
@@ -61,8 +68,12 @@ export function ApplicantHistoryTab({ applicantId, entries }: { applicantId: str
             : entry.kind === "followup"
               ? isFailedFollowup
                 ? PhoneMissed
-                : FOLLOWUP_ICONS[entry.followup.type]
-              : Clock;
+                : isInProgressFollowup
+                  ? PhoneCall
+                  : FOLLOWUP_ICONS[entry.followup.type]
+              : entry.kind === "note"
+                ? StickyNote
+                : Clock;
 
         return (
           <li key={`${entry.kind}-${entry._id}`} className="flex items-start justify-between gap-3 py-3">
@@ -79,10 +90,14 @@ export function ApplicantHistoryTab({ applicantId, entries }: { applicantId: str
                   <p className="text-sm">{entry.message}</p>
                   {entry.kind === "followup" && (
                     <Badge variant={isFailedFollowup ? "destructive" : "outline"} className="capitalize">
-                      {entry.followup.status}
+                      {followupBadgeLabel(entry.followup)}
                     </Badge>
                   )}
                 </div>
+                {entry.kind === "note" && <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">{entry.note.body}</p>}
+                {entry.kind === "followup" && entry.followup.status === "completed" && entry.followup.summary && (
+                  <p className="mt-1 text-xs text-muted-foreground">{entry.followup.summary}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {formatDateTime(entry.createdAt)}
                   {entry.actorName ? ` · ${entry.actorName}` : ""}

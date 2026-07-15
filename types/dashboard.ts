@@ -48,6 +48,14 @@ export type CommunicationStats = {
   messages: number;
   pending: number;
   failed: number;
+  inProgress: number;
+};
+
+export type NextActionItem = {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
 };
 
 export type DashboardData = {
@@ -56,4 +64,5 @@ export type DashboardData = {
   recentActivity: ActivityFeedItem[];
   upcomingInterviews: UpcomingInterview[];
   communication: CommunicationStats;
+  nextActions: NextActionItem[];
 };
