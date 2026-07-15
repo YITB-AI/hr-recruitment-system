@@ -24,6 +24,7 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
   "document.delete": "Delete documents",
   "applicant.status.change": "Change applicant status",
   "applicant.notify": "Email/SMS/call applicants",
+  "applicant.note.manage": "Add/delete applicant notes",
   "saved_view.manage": "Create/delete saved views",
   "interview.schedule": "Schedule interviews",
   "settings.manage": "Manage company settings",

@@ -7,11 +7,12 @@
  * actually hits over HTTP. Those are:
  *   - POST /api/applicants/{id}/send-email   (Applicant Quick Actions → n8n)
  *   - POST /api/applicants/{id}/send-sms     (Applicant Quick Actions → n8n)
+ *   - POST /api/webhooks/ai-call             (n8n → app: AI call progress/outcome)
  *   - GET  /api/files/{path}                 (stored template/document downloads)
  *   - GET  /api/employees/export             (CSV export)
  *
  * Kept as a plain object (not scanned from JSDoc comments in the route files)
- * because there are only 4 routes — a build-time doc generator would be more
+ * because there are only 5 routes — a build-time doc generator would be more
  * moving parts than value here. If the REST surface grows meaningfully,
  * revisit with `next-swagger-doc` to scan route handlers automatically.
  */
@@ -28,9 +29,20 @@ export const openApiSpec = {
   servers: [{ url: "/", description: "Same origin as the app" }],
   tags: [
     { name: "Applicants", description: "Quick Actions that trigger n8n Cloud webhooks" },
+    { name: "Webhooks", description: "Inbound callbacks from n8n" },
     { name: "Files", description: "Serves uploaded templates and generated documents" },
     { name: "Employees", description: "Data export" },
   ],
+  components: {
+    securitySchemes: {
+      callbackSecret: {
+        type: "apiKey",
+        in: "header",
+        name: "X-Callback-Secret",
+        description: "Shared secret configured via N8N_WEBHOOK_CALLBACK_SECRET, compared with a constant-time check.",
+      },
+    },
+  },
   paths: {
     "/api/applicants/{id}/send-email": {
       post: {
@@ -89,6 +101,86 @@ export const openApiSpec = {
           "404": { description: "Applicant not found" },
           "422": { description: "Applicant has no phone number on file" },
           "502": { description: "n8n webhook unreachable, timed out, or not configured" },
+        },
+      },
+    },
+    "/api/webhooks/ai-call": {
+      post: {
+        tags: ["Webhooks"],
+        summary: "Report AI call progress/outcome back to the app",
+        description:
+          "Called by n8n's AI Call workflow — never by this app. followupId and applicantId are the values " +
+          "originally sent to n8n in the outbound ai-call webhook trigger; the request is rejected if they " +
+          "don't both resolve to the same ApplicantFollowup row (tenant identity is always taken from that " +
+          "row, never trusted from the body). A duplicate or out-of-order event for an already-terminal row " +
+          "(completed/failed) is accepted as a no-op, not an error.",
+        security: [{ callbackSecret: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                oneOf: [
+                  {
+                    type: "object",
+                    required: ["event", "followupId", "applicantId"],
+                    properties: {
+                      event: { type: "string", enum: ["started"] },
+                      followupId: { type: "string" },
+                      applicantId: { type: "string" },
+                    },
+                  },
+                  {
+                    type: "object",
+                    required: ["event", "followupId", "applicantId", "outcome"],
+                    properties: {
+                      event: { type: "string", enum: ["completed"] },
+                      followupId: { type: "string" },
+                      applicantId: { type: "string" },
+                      outcome: {
+                        type: "string",
+                        enum: [
+                          "interview_scheduled",
+                          "reschedule_requested",
+                          "callback_requested",
+                          "not_interested",
+                          "withdrawn",
+                          "rejected",
+                          "accepted",
+                          "no_answer",
+                          "voicemail",
+                          "other",
+                        ],
+                      },
+                      transcript: { type: "string" },
+                      summary: { type: "string" },
+                      recordingUrl: { type: "string", format: "uri" },
+                      proposedInterviewAt: { type: "string", format: "date-time" },
+                      notes: { type: "string" },
+                    },
+                  },
+                  {
+                    type: "object",
+                    required: ["event", "followupId", "applicantId"],
+                    properties: {
+                      event: { type: "string", enum: ["failed"] },
+                      followupId: { type: "string" },
+                      applicantId: { type: "string" },
+                      error: { type: "string" },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Accepted (including duplicate/out-of-order no-ops)" },
+          "400": { description: "Malformed JSON body" },
+          "401": { description: "Missing or incorrect X-Callback-Secret" },
+          "404": { description: "followupId doesn't resolve to any ApplicantFollowup row" },
+          "413": { description: "Body too large" },
+          "422": { description: "Body failed schema validation, or applicantId doesn't match the followupId row" },
         },
       },
     },

@@ -44,7 +44,13 @@ export function ApplicantsKanbanBoard({ initialData }: { initialData: BoardData 
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    // Explicit id: dnd-kit's default falls back to an auto-incrementing
+    // module-level counter for the aria-describedby it generates, which
+    // isn't guaranteed to match between the server render and the client's
+    // hydration render once more than one DndContext has mounted in the
+    // session (e.g. after client-side navigation) — causing a hydration
+    // mismatch warning. A stable explicit id makes it deterministic.
+    <DndContext id="applicants-kanban" onDragEnd={handleDragEnd}>
       <div className="flex gap-3 overflow-x-auto p-4">
         {PIPELINE_STATUSES.map((status) => (
           <KanbanColumn key={status} status={status} applicants={data[status]} />

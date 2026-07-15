@@ -37,8 +37,15 @@ export function ApplicantsStatusChart({ data }: { data: ApplicantStatusSlice[] }
   }
 
   return (
-    <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-      <div className="h-56 w-full shrink-0 sm:w-56">
+    // Always stacked (chart above legend), never side-by-side: this card
+    // sits inside a multi-column dashboard/reports grid, so its available
+    // width has no reliable relationship to the viewport — a `sm:flex-row`
+    // breakpoint here previously assumed otherwise and clipped the chart
+    // and legend text whenever the grid cell was narrower than ~500px
+    // (invisible with 1-2 slices of test data, very visible with a real
+    // multi-status breakdown).
+    <div className="flex flex-col items-center gap-4">
+      <div className="h-40 w-40 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -60,7 +67,7 @@ export function ApplicantsStatusChart({ data }: { data: ApplicantStatusSlice[] }
         </ResponsiveContainer>
       </div>
 
-      <ul className="flex-1 space-y-2.5">
+      <ul className="w-full space-y-2.5">
         {data.map((slice) => (
           <li key={slice.status} className="flex items-center gap-2.5 text-sm">
             <span
