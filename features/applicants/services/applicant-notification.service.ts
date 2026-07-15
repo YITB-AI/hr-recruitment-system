@@ -66,7 +66,31 @@ export async function sendApplicantEmail(
     payload = { ...payload, subject, status: applicant.status };
   }
 
-  const result = await triggerWebhook("send-email", payload);
+  // Created before the outbound trigger (not after) so its _id can be
+  // included in the payload — n8n can use followupId to correlate/update
+  // its own record of this send without having to search by applicantId.
+  // Every communication channel writes a row here (see the header comment
+  // on models/ApplicantFollowup.ts) so the dashboard's communication
+  // counters have one place to count from; the applicant timeline UI still
+  // reads email detail from EmailLog below to avoid showing the same email
+  // twice.
+  const followup = await applicantFollowupRepository.create({
+    companyId: actor.companyId,
+    applicantId: applicant._id,
+    type: "email",
+    source: "send-email",
+    status: "pending",
+    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdByName: actor.name,
+  });
+
+  const result = await triggerWebhook("send-email", { ...payload, followupId: followup._id });
+
+  await applicantFollowupRepository.applyEvent(followup._id, {
+    status: result.ok ? "sent" : "failed",
+    response: result.ok ? summarizeResponse(result.data) : undefined,
+    error: result.ok ? undefined : result.error,
+  });
 
   await emailLogRepository.create({
     companyId: actor.companyId,
@@ -94,23 +118,6 @@ export async function sendApplicantEmail(
       : `Failed to send "${subject}" email to ${applicant.name}: ${result.error}`,
   });
 
-  // Every communication channel also writes here (see
-  // applicant-followup.service comment on models/ApplicantFollowup.ts) so
-  // the dashboard's communication counters have one place to count from.
-  // The applicant timeline UI still reads email detail from EmailLog above
-  // to avoid showing the same email twice.
-  await applicantFollowupRepository.create({
-    companyId: actor.companyId,
-    applicantId: applicant._id,
-    type: "email",
-    source: "send-email",
-    status: result.ok ? "sent" : "failed",
-    response: result.ok ? summarizeResponse(result.data) : undefined,
-    error: result.ok ? undefined : result.error,
-    createdBy: actor.id === "system" ? undefined : actor.id,
-    createdByName: actor.name,
-  });
-
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }
@@ -122,12 +129,31 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
   if (!applicant) return { success: false, error: "Applicant not found" };
   if (!applicant.phone) return { success: false, error: "Applicant has no phone number on file" };
 
+  // Created before the outbound trigger (not after) so its _id can be
+  // included in the payload — same reasoning as sendApplicantEmail above.
+  const followup = await applicantFollowupRepository.create({
+    companyId: actor.companyId,
+    applicantId: applicant._id,
+    type: "sms",
+    source: "send-sms",
+    status: "pending",
+    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdByName: actor.name,
+  });
+
   const result = await triggerWebhook("send-sms", {
+    followupId: followup._id,
     applicantId: applicant._id,
     name: applicant.name,
     phone: applicant.phone,
     jobTitle: applicant.jobId?.title ?? null,
     status: applicant.status,
+  });
+
+  await applicantFollowupRepository.applyEvent(followup._id, {
+    status: result.ok ? "sent" : "failed",
+    response: result.ok ? summarizeResponse(result.data) : undefined,
+    error: result.ok ? undefined : result.error,
   });
 
   await activityLogRepository.create({
@@ -140,18 +166,6 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
     message: result.ok
       ? `SMS sent to ${applicant.name}`
       : `Failed to send SMS to ${applicant.name}: ${result.error}`,
-  });
-
-  await applicantFollowupRepository.create({
-    companyId: actor.companyId,
-    applicantId: applicant._id,
-    type: "sms",
-    source: "send-sms",
-    status: result.ok ? "sent" : "failed",
-    response: result.ok ? summarizeResponse(result.data) : undefined,
-    error: result.ok ? undefined : result.error,
-    createdBy: actor.id === "system" ? undefined : actor.id,
-    createdByName: actor.name,
   });
 
   if (!result.ok) return { success: false, error: result.error };
