@@ -7,6 +7,7 @@ import { companyRepository } from "@/server/repositories/company.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { sendEmail } from "@/lib/email";
+import { otpCodeEmailHtml, emailChangeAdminNoticeHtml } from "@/lib/email-templates";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import type { UpdateProfileInput } from "@/validators/profile";
 import type { ChangePasswordInput } from "@/validators/auth";
@@ -114,18 +115,6 @@ export async function changeOwnPassword(input: ChangePasswordInput): Promise<Pro
   return { success: true };
 }
 
-// Every value interpolated into an email's HTML body (names, emails) is
-// user-controlled — escape it so a name like `<script>` in a profile field
-// can't inject markup into an email rendered by the recipient's client.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function generateVerificationCode(): string {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
@@ -155,15 +144,6 @@ async function checkSendQuota(companyId: string, userId: string): Promise<Profil
     };
   }
   return { success: true };
-}
-
-function verificationCodeEmailHtml(userName: string, code: string): string {
-  return `
-    <p>Hi ${escapeHtml(userName)},</p>
-    <p>Your verification code is:</p>
-    <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${code}</p>
-    <p>This code expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
-  `;
 }
 
 async function notifyAdminsOfEmailChange(
@@ -196,8 +176,8 @@ async function notifyAdminsOfEmailChange(
       admins.map((admin) =>
         sendEmail({
           to: admin.email,
-          subject: `Email change for ${actorName}`,
-          html: `<p><strong>${escapeHtml(actorName)}</strong> changed their login email at ${escapeHtml(companyName)}, from <strong>${escapeHtml(oldEmail)}</strong> to <strong>${escapeHtml(newEmail)}</strong>.</p>`,
+          subject: `🔔 Email change for ${actorName}`,
+          html: emailChangeAdminNoticeHtml({ actorName, companyName, oldEmail, newEmail }),
         }),
       ),
     );
@@ -242,8 +222,8 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
 
   const sendResult = await sendEmail({
     to: normalizedEmail,
-    subject: "Your verification code",
-    html: verificationCodeEmailHtml(actor.name, code),
+    subject: "🔐 Your verification code",
+    html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
   });
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
@@ -286,8 +266,8 @@ export async function resendEmailChangeCode(): Promise<ProfileActionResult> {
 
   const sendResult = await sendEmail({
     to: user.pendingEmail,
-    subject: "Your verification code",
-    html: verificationCodeEmailHtml(actor.name, code),
+    subject: "🔐 Your verification code",
+    html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
   });
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
@@ -376,8 +356,8 @@ export async function requestOwnEmailVerification(): Promise<ProfileActionResult
 
   const sendResult = await sendEmail({
     to: user.email,
-    subject: "Verify your email",
-    html: verificationCodeEmailHtml(actor.name, code),
+    subject: "🔐 Verify your email",
+    html: otpCodeEmailHtml({ userName: actor.name, code }),
   });
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 

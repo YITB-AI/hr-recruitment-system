@@ -236,7 +236,7 @@ export async function createCompanyWithAdmin(input: {
   try {
     const result = await sendEmail({
       to: email,
-      subject: "Welcome to HR Platform — your account details",
+      subject: "🎉 Welcome to HR Platform — your account details",
       html: welcomeEmailHtml({
         recipientName: input.adminName,
         companyName: input.name,

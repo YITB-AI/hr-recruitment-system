@@ -2,13 +2,20 @@ export type WebhookAction =
   | "send-email"
   | "send-sms"
   | "ai-call"
-  | "create-application";
+  | "create-application"
+  | "send-account-email";
 
 const WEBHOOK_ENV_VAR: Record<WebhookAction, string> = {
   "send-email": "N8N_WEBHOOK_SEND_EMAIL",
   "send-sms": "N8N_WEBHOOK_SEND_SMS",
   "ai-call": "N8N_WEBHOOK_AI_CALL",
   "create-application": "N8N_WEBHOOK_CREATE_APPLICATION",
+  // Deliberately separate from "send-email" above — that one carries
+  // applicant-shaped fields (applicantId, jobTitle, template, interview
+  // details) for a totally different n8n workflow. This one is a plain
+  // {to, subject, html} transactional email (OTP codes, welcome emails) —
+  // see lib/email.ts.
+  "send-account-email": "N8N_WEBHOOK_SEND_ACCOUNT_EMAIL",
 };
 
 export function getWebhookUrl(action: WebhookAction): string {

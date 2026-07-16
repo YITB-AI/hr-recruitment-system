@@ -71,14 +71,14 @@ async function main() {
   });
 
   // Best-effort: account creation must succeed regardless of whether the
-  // welcome email actually delivers (e.g. Resend sandbox mode rejecting a
-  // recipient other than the account owner's own address) — the console
-  // output below is the guaranteed fallback delivery path either way.
+  // welcome email actually delivers (e.g. the n8n workflow being
+  // unreachable or misconfigured) — the console output below is the
+  // guaranteed fallback delivery path either way.
   let emailSent = false;
   try {
     const result = await sendEmail({
       to: admin.email,
-      subject: "Welcome to HR Platform — your account details",
+      subject: "🎉 Welcome to HR Platform — your account details",
       html: welcomeEmailHtml({
         recipientName: admin.name,
         companyName: company.name,
