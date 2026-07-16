@@ -1,5 +1,19 @@
+import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { notificationRepository } from "@/server/repositories/notification.repository";
+import { autoRepairResolvableOrphanedNotifications } from "@/features/settings/services/data-repair.service";
+
+// Fire-and-forget, after the response has gone out — see the identical
+// pattern/reasoning in applicant.service.ts's triggerAutoRepairInBackground.
+function triggerAutoRepairInBackground(): void {
+  after(async () => {
+    try {
+      await autoRepairResolvableOrphanedNotifications();
+    } catch (error) {
+      console.error("Auto-repair of orphaned notifications failed:", error);
+    }
+  });
+}
 
 export async function getUnreadCount(userId: string): Promise<number> {
   if (userId === "system") return 0;
@@ -15,6 +29,7 @@ export async function getRecentNotifications(userId: string, limit = 5) {
 
 export async function getNotificationsPageData(userId: string, page: number, pageSize = 15) {
   await connectDB();
+  triggerAutoRepairInBackground();
   return notificationRepository.findAllPaginated(userId, page, pageSize);
 }
 

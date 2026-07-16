@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Notification } from "@/models";
 
 export type NotificationRow = {
@@ -72,5 +73,36 @@ export const notificationRepository = {
   },
   async markAllRead(userId: string): Promise<void> {
     await Notification.updateMany({ userId, read: false }, { $set: { read: true } });
+  },
+
+  // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---
+  // Same class of bug as applicantRepository/resumeAnalysisRepository: a raw
+  // external write could leave userId/companyId as plain strings instead of
+  // ObjectIds, or createdAt/updatedAt missing/malformed — every query above
+  // filters by userId as an ObjectId-cast value, so a string-typed userId
+  // would never match and the notification would just never appear for
+  // anyone. No confirmed occurrence of this yet (unlike Applicant/
+  // ResumeAnalysis), built proactively for parity since notifications are
+  // written by the same class of external-facing code paths.
+  async findOrphaned(): Promise<Array<Record<string, unknown> & { _id: unknown }>> {
+    return Notification.find({
+      $or: [
+        { userId: { $type: "string" } },
+        { companyId: { $type: "string" } },
+        { createdAt: { $exists: false } },
+        { createdAt: { $type: "string" } },
+        { updatedAt: { $exists: false } },
+        { updatedAt: { $type: "string" } },
+      ],
+    }).lean();
+  },
+  // Raw driver, not Model.updateOne() — see the identical comment on
+  // applicantRepository.repairTypes (Mongoose's timestamps option marks
+  // createdAt immutable, blocking any Mongoose-level fix).
+  async repairTypes(
+    id: string,
+    fix: { userId: Types.ObjectId; companyId: Types.ObjectId; createdAt: Date; updatedAt: Date },
+  ): Promise<void> {
+    await Notification.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: fix });
   },
 };

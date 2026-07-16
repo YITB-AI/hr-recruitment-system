@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { ResumeAnalysis } from "@/models";
 
 export type ResumeAnalysisRow = {
@@ -48,5 +49,36 @@ export const resumeAnalysisRepository = {
       summary: row.summary ?? null,
       recommendation: row.recommendation ?? null,
     };
+  },
+
+  // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---
+  // Same class of bug as applicantRepository's orphaned-record handling: a
+  // raw external write (n8n's own MongoDB node) can leave companyId/
+  // applicantId/jobId as plain strings instead of ObjectIds, and
+  // createdAt/updatedAt entirely missing instead of set by Mongoose's
+  // timestamps option — either way, findByApplicantId's ObjectId-cast query
+  // above never matches, so the applicant silently shows no score at all.
+  async findOrphaned(): Promise<Array<Record<string, unknown> & { _id: unknown }>> {
+    return ResumeAnalysis.find({
+      $or: [
+        { companyId: { $type: "string" } },
+        { applicantId: { $type: "string" } },
+        { jobId: { $type: "string" } },
+        { createdAt: { $exists: false } },
+        { createdAt: { $type: "string" } },
+        { updatedAt: { $exists: false } },
+        { updatedAt: { $type: "string" } },
+      ],
+    }).lean();
+  },
+  // Raw driver, not Model.updateOne() — see the identical comment on
+  // applicantRepository.repairTypes: Mongoose's timestamps option marks
+  // createdAt immutable, which silently blocks fixing it through any
+  // Mongoose-level update method.
+  async repairTypes(
+    id: string,
+    fix: { companyId: Types.ObjectId; applicantId: Types.ObjectId; jobId: Types.ObjectId; createdAt: Date; updatedAt: Date },
+  ): Promise<void> {
+    await ResumeAnalysis.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: fix });
   },
 };

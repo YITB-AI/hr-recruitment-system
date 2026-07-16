@@ -6,7 +6,10 @@ import {
   type ApplicantListFilters,
   type ApplicantKanbanFilters,
 } from "@/server/repositories/applicant.repository";
-import { autoRepairResolvableOrphanedApplicants } from "@/features/settings/services/data-repair.service";
+import {
+  autoRepairResolvableOrphanedApplicants,
+  autoRepairResolvableOrphanedResumeAnalyses,
+} from "@/features/settings/services/data-repair.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { resumeAnalysisRepository, type ResumeAnalysisRow } from "@/server/repositories/resume-analysis.repository";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
@@ -27,9 +30,13 @@ import type { SessionUser } from "@/types/user";
 function triggerAutoRepairInBackground(): void {
   after(async () => {
     try {
+      // Applicants first — ResumeAnalysis repair derives companyId/jobId
+      // from the linked Applicant, so an applicant that's still orphaned
+      // itself needs fixing first for its analysis to resolve on this pass.
       await autoRepairResolvableOrphanedApplicants();
+      await autoRepairResolvableOrphanedResumeAnalyses();
     } catch (error) {
-      console.error("Auto-repair of orphaned applicants failed:", error);
+      console.error("Auto-repair of orphaned applicant/resume-analysis records failed:", error);
     }
   });
 }

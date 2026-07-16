@@ -101,6 +101,16 @@ export const userRepository = {
     const row = await User.findOne({ email: email.toLowerCase().trim() }).select("_id").lean<{ _id: unknown } | null>();
     return row ? { _id: String(row._id) } : null;
   },
+  // Deliberately unscoped — for the platform-admin-only orphaned-record
+  // repair tool (features/settings/services/data-repair.service.ts), which
+  // needs to resolve a Notification's companyId from its userId before it
+  // knows which company the record belongs to. Same naming convention as
+  // jobRepository/applicantFollowupRepository's findByIdUnscoped.
+  async findByIdUnscoped(id: string): Promise<{ _id: string; companyId: string | null } | null> {
+    const row = await User.findById(id).select("companyId").lean<{ _id: unknown; companyId?: unknown } | null>();
+    if (!row) return null;
+    return { _id: String(row._id), companyId: row.companyId ? String(row.companyId) : null };
+  },
   countByRole(companyId: string, role: UserRole): Promise<number> {
     return User.countDocuments({ companyId, role });
   },

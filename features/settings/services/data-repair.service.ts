@@ -1,8 +1,11 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/server/db/connect";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
+import { resumeAnalysisRepository } from "@/server/repositories/resume-analysis.repository";
+import { notificationRepository } from "@/server/repositories/notification.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { jobRepository } from "@/server/repositories/job.repository";
+import { userRepository } from "@/server/repositories/user.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
@@ -44,7 +47,7 @@ export async function listOrphanedApplicants(): Promise<OrphanedApplicantRow[]> 
 
       let resolvedCompanyId: string | null = null;
       let resolvedCompanyName: string | null = null;
-      const rawCompanyId = String(row.companyId ?? "");
+      const rawCompanyId = stripQuotes(row.companyId);
       if (Types.ObjectId.isValid(rawCompanyId)) {
         const company = await companyRepository.findById(rawCompanyId);
         if (company) {
@@ -55,7 +58,7 @@ export async function listOrphanedApplicants(): Promise<OrphanedApplicantRow[]> 
 
       let resolvedJobId: string | null = null;
       let resolvedJobTitle: string | null = null;
-      const rawJobId = String(row.jobId ?? "");
+      const rawJobId = stripQuotes(row.jobId);
       if (Types.ObjectId.isValid(rawJobId)) {
         const job = await jobRepository.findByIdUnscoped(rawJobId);
         if (job) {
@@ -79,15 +82,23 @@ export async function listOrphanedApplicants(): Promise<OrphanedApplicantRow[]> 
   );
 }
 
-// Strips a JSON.stringify-style extra quote wrapper (e.g. n8n running a date
-// through JSON.stringify twice: `"\"2026-07-16T19:48:11.389Z\""`) before
-// parsing — falls back to "now" rather than blocking the whole repair over
-// a cosmetic timestamp.
+// Strips a JSON.stringify-style extra quote wrapper — the same external
+// writes that store an ObjectId reference as a plain string sometimes wrap
+// it in a literal extra pair of quote characters too (e.g. n8n running a
+// value through JSON.stringify twice: `'"6a592835ab182f2a1440ed1e"'`,
+// 26 characters including the quotes, which correctly fails
+// Types.ObjectId.isValid on its own). Applied before validating/casting
+// every raw id string in this file, not just dates.
+function stripQuotes(value: unknown): string {
+  return typeof value === "string" ? value.replace(/^"+|"+$/g, "") : String(value ?? "");
+}
+
+// Strips the same wrapper before parsing a date — falls back to "now"
+// rather than blocking the whole repair over a cosmetic timestamp.
 function cleanDate(value: unknown): Date {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === "string") {
-    const stripped = value.replace(/^"+|"+$/g, "");
-    const parsed = new Date(stripped);
+    const parsed = new Date(stripQuotes(value));
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
   return new Date();
@@ -114,8 +125,8 @@ export async function autoRepairResolvableOrphanedApplicants(): Promise<{ repair
   let skipped = 0;
 
   for (const row of rawRows) {
-    const rawCompanyId = String(row.companyId ?? "");
-    const rawJobId = String(row.jobId ?? "");
+    const rawCompanyId = stripQuotes(row.companyId);
+    const rawJobId = stripQuotes(row.jobId);
     if (!Types.ObjectId.isValid(rawCompanyId) || !Types.ObjectId.isValid(rawJobId)) {
       skipped++;
       continue;
@@ -165,7 +176,7 @@ export async function repairOrphanedApplicant(applicantId: string, companyId: st
   const raw = await applicantRepository.findRawById(applicantId);
   if (!raw) throw new Error("Applicant record not found");
 
-  const rawJobId = String(raw.jobId ?? "");
+  const rawJobId = stripQuotes(raw.jobId);
   if (!Types.ObjectId.isValid(rawJobId)) {
     throw new Error("This record's job reference is invalid — it can't be auto-repaired");
   }
@@ -192,4 +203,100 @@ export async function repairOrphanedApplicant(applicantId: string, companyId: st
     entityId: applicantId,
     message: `${actor.name} repaired an orphaned applicant record (${(raw.name as string) ?? "unknown"}) and assigned it to ${company.name}`,
   });
+}
+
+// Same automatic, zero-human-action repair as autoRepairResolvableOrphanedApplicants
+// above, for ResumeAnalysis. companyId/jobId are deliberately derived from
+// the linked Applicant (the source of truth for "which company/job"),
+// never trusted from the ResumeAnalysis record's own possibly-corrupted
+// fields — this also guarantees the analysis ends up tenant-consistent
+// with its applicant. If the linked applicant is itself still orphaned
+// (unresolved), this is skipped for now — it'll resolve on a later pass
+// once that applicant gets fixed first.
+export async function autoRepairResolvableOrphanedResumeAnalyses(): Promise<{ repaired: number; skipped: number }> {
+  await connectDB();
+  const rawRows = await resumeAnalysisRepository.findOrphaned();
+  let repaired = 0;
+  let skipped = 0;
+
+  for (const row of rawRows) {
+    const rawApplicantId = stripQuotes(row.applicantId);
+    if (!Types.ObjectId.isValid(rawApplicantId)) {
+      skipped++;
+      continue;
+    }
+
+    const applicant = await applicantRepository.findRawById(rawApplicantId);
+    const applicantCompanyId = applicant?.companyId;
+    const applicantJobId = applicant?.jobId;
+    if (!(applicantCompanyId instanceof Types.ObjectId) || !(applicantJobId instanceof Types.ObjectId)) {
+      skipped++;
+      continue;
+    }
+
+    const analysisId = String(row._id);
+    await resumeAnalysisRepository.repairTypes(analysisId, {
+      companyId: applicantCompanyId,
+      applicantId: new Types.ObjectId(rawApplicantId),
+      jobId: applicantJobId,
+      createdAt: cleanDate(row.createdAt),
+      updatedAt: cleanDate(row.updatedAt),
+    });
+
+    await activityLogRepository.create({
+      companyId: String(applicantCompanyId),
+      actorName: "Auto-Repair",
+      action: "applicant.repaired",
+      entityType: "applicant",
+      entityId: rawApplicantId,
+      message: `Automatically repaired an orphaned resume analysis record for applicant ${(applicant?.name as string) ?? rawApplicantId}`,
+    });
+    repaired++;
+  }
+
+  return { repaired, skipped };
+}
+
+// Same pattern again for Notification. companyId is derived from the
+// linked User (the source of truth for "which company"), never trusted
+// from the notification's own possibly-corrupted companyId field.
+export async function autoRepairResolvableOrphanedNotifications(): Promise<{ repaired: number; skipped: number }> {
+  await connectDB();
+  const rawRows = await notificationRepository.findOrphaned();
+  let repaired = 0;
+  let skipped = 0;
+
+  for (const row of rawRows) {
+    const rawUserId = stripQuotes(row.userId);
+    if (!Types.ObjectId.isValid(rawUserId)) {
+      skipped++;
+      continue;
+    }
+
+    const user = await userRepository.findByIdUnscoped(rawUserId);
+    if (!user || !user.companyId || !Types.ObjectId.isValid(user.companyId)) {
+      skipped++;
+      continue;
+    }
+
+    const notificationId = String(row._id);
+    await notificationRepository.repairTypes(notificationId, {
+      userId: new Types.ObjectId(rawUserId),
+      companyId: new Types.ObjectId(user.companyId),
+      createdAt: cleanDate(row.createdAt),
+      updatedAt: cleanDate(row.updatedAt),
+    });
+
+    await activityLogRepository.create({
+      companyId: user.companyId,
+      actorName: "Auto-Repair",
+      action: "notification.repaired",
+      entityType: "user",
+      entityId: rawUserId,
+      message: `Automatically repaired an orphaned notification record (id ${notificationId})`,
+    });
+    repaired++;
+  }
+
+  return { repaired, skipped };
 }
