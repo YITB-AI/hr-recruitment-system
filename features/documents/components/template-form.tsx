@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TemplateFieldRow } from "@/features/documents/components/template-field-row";
+import { VariablePicker } from "@/features/documents/components/variable-picker";
 import { detectVariablesAction, createTemplateAction, updateTemplateAction } from "@/actions/document-templates";
 import type { TemplateFieldInput } from "@/validators/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
@@ -171,6 +172,9 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
           For images, use <code>{"{{%field_name}}"}</code> (or <code>{"{{%%field_name}}"}</code> to center) on its own
           line.
         </p>
+        <div>
+          <VariablePicker customKeys={fields.map((f) => f.key)} />
+        </div>
       </div>
 
       <div className="space-y-3">
