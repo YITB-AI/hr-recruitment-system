@@ -27,6 +27,7 @@ const emailLogSchema = new Schema(
 );
 
 emailLogSchema.index({ applicantId: 1, createdAt: -1 });
+emailLogSchema.index({ interviewId: 1, createdAt: -1 });
 
 export type EmailLogDoc = InferSchemaType<typeof emailLogSchema>;
 

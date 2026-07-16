@@ -13,3 +13,8 @@ export const scheduleInterviewSchema = z.object({
 });
 
 export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;
+
+export const rescheduleInterviewSchema = scheduleInterviewSchema.extend({
+  oldInterviewId: z.string().min(1),
+});
+export type RescheduleInterviewInput = z.infer<typeof rescheduleInterviewSchema>;

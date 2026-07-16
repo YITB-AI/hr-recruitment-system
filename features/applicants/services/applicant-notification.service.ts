@@ -45,12 +45,15 @@ export async function sendApplicantEmail(
     template: options.template,
   };
 
-  if (options.template === "interview_invite") {
+  if (options.template === "interview_invite" || options.template === "interview_reminder") {
     if (!options.interviewId) return { success: false, error: "No interview selected" };
     const interview = await interviewRepository.findById(actor.companyId, options.interviewId);
     if (!interview) return { success: false, error: "Interview not found" };
 
-    subject = `Interview scheduled: ${applicant.jobId?.title ?? "your application"}`;
+    subject =
+      options.template === "interview_reminder"
+        ? `Reminder: interview for ${applicant.jobId?.title ?? "your application"}`
+        : `Interview scheduled: ${applicant.jobId?.title ?? "your application"}`;
     payload = {
       ...payload,
       subject,
@@ -117,6 +120,23 @@ export async function sendApplicantEmail(
       ? `${subject} email sent to ${applicant.name}`
       : `Failed to send "${subject}" email to ${applicant.name}: ${result.error}`,
   });
+
+  // Additive second write, alongside the applicant-scoped one above — kept
+  // visually distinct (interview.* vs applicant.*) so an interview's own
+  // activity view isn't confused with the applicant's broader audit trail.
+  if (options.interviewId) {
+    await activityLogRepository.create({
+      companyId: actor.companyId,
+      actorId: actor.id === "system" ? undefined : actor.id,
+      actorName: actor.name,
+      action: options.template === "interview_reminder" ? "interview.reminder_sent" : "interview.email_sent",
+      entityType: "interview",
+      entityId: options.interviewId,
+      message: result.ok
+        ? `${subject} email sent to ${applicant.name}`
+        : `Failed to send "${subject}" email to ${applicant.name}: ${result.error}`,
+    });
+  }
 
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };

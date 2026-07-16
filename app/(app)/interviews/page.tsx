@@ -5,7 +5,10 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { listInterviews } from "@/features/interviews/services/interview.service";
-import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
+import { InterviewActions } from "@/features/interviews/components/interview-actions";
+import { emailLogRepository } from "@/server/repositories/email-log.repository";
+import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Interviews" };
 export const dynamic = "force-dynamic";
@@ -18,7 +21,12 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function InterviewsPage() {
-  const interviews = await listInterviews();
+  const [interviews, { companyId }] = await Promise.all([listInterviews(), getCurrentUser()]);
+  const [latestEmails, activityLists] = await Promise.all([
+    emailLogRepository.findLatestByInterviewIds(companyId, interviews.map((i) => i._id)),
+    Promise.all(interviews.map((i) => activityLogRepository.findByEntity(companyId, "interview", i._id, 20))),
+  ]);
+  const activityByInterview = new Map(interviews.map((i, idx) => [i._id, activityLists[idx]]));
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -72,17 +80,11 @@ export default async function InterviewsPage() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    {interview.applicantId && (
-                      <SendEmailDialog
-                        applicantId={interview.applicantId._id}
-                        applicantEmail={interview.applicantId.email}
-                        template="interview_invite"
-                        interviewId={interview._id}
-                        triggerLabel="Send Email"
-                        triggerVariant="ghost"
-                        triggerClassName="h-8"
-                      />
-                    )}
+                    <InterviewActions
+                      interview={interview}
+                      latestEmail={latestEmails.get(interview._id) ?? null}
+                      activity={activityByInterview.get(interview._id) ?? []}
+                    />
                   </td>
                 </tr>
               ))}

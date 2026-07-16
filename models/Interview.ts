@@ -17,6 +17,10 @@ const interviewSchema = new Schema(
     meetingLink: { type: String },
     notes: { type: String },
     feedback: { type: String },
+    // Soft delete — same convention as models/Status.ts: presence/absence
+    // of this field is the flag, no boolean companion. Every read in
+    // interview.repository.ts filters deletedAt: { $exists: false }.
+    deletedAt: { type: Date },
   },
   { timestamps: true },
 );

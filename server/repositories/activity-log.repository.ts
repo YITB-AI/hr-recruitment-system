@@ -19,36 +19,61 @@ export type CreateActivityLogInput = {
   message: string;
 };
 
+type RawActivityRow = Record<string, unknown> & { _id: unknown };
+
+// .lean() returns a plain object but leaves _id as a real ObjectId
+// instance, not a string — harmless when a row is only ever read within a
+// Server Component, but Next.js rejects passing a raw ObjectId as a prop
+// into a Client Component ("only plain objects can be passed..."). This was
+// a latent bug in every method below (the ActivityLogRow type claimed
+// `_id: string` without anything actually enforcing it) that only surfaced
+// once findByEntity's result was first passed into a Client Component.
+function serialize(row: RawActivityRow): ActivityLogRow {
+  return {
+    _id: String(row._id),
+    message: row.message as string,
+    actorName: (row.actorName as string | undefined) ?? null,
+    createdAt: row.createdAt as Date,
+  };
+}
+
 export const activityLogRepository = {
-  findRecent(companyId: string, limit: number) {
-    return ActivityLog.find({ companyId })
+  async findRecent(companyId: string, limit: number): Promise<ActivityLogRow[]> {
+    const rows = await ActivityLog.find({ companyId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .select("message actorName createdAt")
-      .lean<ActivityLogRow[]>();
+      .lean<RawActivityRow[]>();
+    return rows.map(serialize);
   },
   async findAllPaginated(
     companyId: string,
     page: number,
     pageSize: number,
   ): Promise<{ data: ActivityLogRow[]; total: number }> {
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       ActivityLog.find({ companyId })
         .sort({ createdAt: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize)
         .select("message actorName createdAt")
-        .lean<ActivityLogRow[]>(),
+        .lean<RawActivityRow[]>(),
       ActivityLog.countDocuments({ companyId }),
     ]);
-    return { data, total };
+    return { data: rows.map(serialize), total };
   },
-  findByEntity(companyId: string, entityType: (typeof ACTIVITY_ENTITY_TYPES)[number], entityId: string, limit: number) {
-    return ActivityLog.find({ companyId, entityType, entityId })
+  async findByEntity(
+    companyId: string,
+    entityType: (typeof ACTIVITY_ENTITY_TYPES)[number],
+    entityId: string,
+    limit: number,
+  ): Promise<ActivityLogRow[]> {
+    const rows = await ActivityLog.find({ companyId, entityType, entityId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .select("action message actorName createdAt")
-      .lean<Array<ActivityLogRow & { action: string }>>();
+      .lean<RawActivityRow[]>();
+    return rows.map(serialize);
   },
   // Duplicate-submit guard for fire-and-forget webhook triggers with no
   // domain record of their own to check against (e.g. Create Application,

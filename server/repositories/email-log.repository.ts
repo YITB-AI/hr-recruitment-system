@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { EmailLog } from "@/models";
 import type { EmailTemplate, EmailLogStatus } from "@/constants/email";
 
@@ -78,5 +79,19 @@ export const emailLogRepository = {
       createdAt: { $gte: new Date(Date.now() - RECENT_SEND_WINDOW_MS) },
     });
     return count > 0;
+  },
+  // Batch lookup (avoid N+1) — one row per interview, whichever was sent
+  // most recently, for the "Sent" status badge on interview lists.
+  async findLatestByInterviewIds(companyId: string, interviewIds: string[]): Promise<Map<string, EmailLogRow>> {
+    if (interviewIds.length === 0) return new Map();
+    const validIds = interviewIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+    const rows = await EmailLog.aggregate<{ _id: unknown; doc: RawRow }>([
+      { $match: { companyId: new Types.ObjectId(companyId), interviewId: { $in: validIds } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$interviewId", doc: { $first: "$$ROOT" } } },
+    ]);
+    const map = new Map<string, EmailLogRow>();
+    for (const row of rows) map.set(String(row._id), serialize(row.doc));
+    return map;
   },
 };

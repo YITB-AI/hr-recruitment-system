@@ -17,8 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { scheduleInterviewSchema, type ScheduleInterviewInput } from "@/validators/interview";
-import { scheduleInterviewAction } from "@/actions/interviews";
-import { INTERVIEW_TYPES } from "@/constants/interview";
+import { scheduleInterviewAction, rescheduleInterviewAction } from "@/actions/interviews";
+import { INTERVIEW_TYPES, type InterviewType } from "@/constants/interview";
 import type { UserRow } from "@/server/repositories/user.repository";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,12 +36,26 @@ const DURATIONS = [30, 45, 60, 90, 120];
 const INTERVIEW_TYPE_ITEMS = INTERVIEW_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }));
 const DURATION_ITEMS = DURATIONS.map((d) => ({ value: String(d), label: `${d} Minutes` }));
 
+export type RescheduleSeed = {
+  oldInterviewId: string;
+  type: InterviewType;
+  interviewerIds: string[];
+  durationMinutes: number;
+  meetingLink: string;
+  notes: string;
+};
+
 export function ScheduleInterviewForm({
   applicantId,
   interviewers,
+  reschedule,
 }: {
   applicantId: string;
   interviewers: UserRow[];
+  /** When set, the form is in reschedule mode — pre-filled from the old
+   * interview (date/time left blank for the user to pick) and submits to
+   * rescheduleInterviewAction instead of scheduleInterviewAction. */
+  reschedule?: RescheduleSeed;
 }) {
   const router = useRouter();
   const {
@@ -53,18 +67,20 @@ export function ScheduleInterviewForm({
     resolver: zodResolver(scheduleInterviewSchema),
     defaultValues: {
       applicantId,
-      type: "technical",
-      interviewerIds: [],
-      durationMinutes: 60,
-      meetingLink: "",
-      notes: "",
+      type: reschedule?.type ?? "technical",
+      interviewerIds: reschedule?.interviewerIds ?? [],
+      durationMinutes: reschedule?.durationMinutes ?? 60,
+      meetingLink: reschedule?.meetingLink ?? "",
+      notes: reschedule?.notes ?? "",
     },
   });
 
   async function onSubmit(values: ScheduleInterviewInput) {
-    const result = await scheduleInterviewAction(values);
+    const result = reschedule
+      ? await rescheduleInterviewAction({ ...values, oldInterviewId: reschedule.oldInterviewId })
+      : await scheduleInterviewAction(values);
     if (result.success) {
-      toast.success("Interview scheduled");
+      toast.success(reschedule ? "Interview rescheduled" : "Interview scheduled");
       router.push(`/applicants/${applicantId}`);
       router.refresh();
     } else {
@@ -194,7 +210,7 @@ export function ScheduleInterviewForm({
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Scheduling..." : "Schedule Interview"}
+          {isSubmitting ? "Saving..." : reschedule ? "Reschedule Interview" : "Schedule Interview"}
         </Button>
       </div>
     </form>
