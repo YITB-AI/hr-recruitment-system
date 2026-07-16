@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import {
   applicantRepository,
@@ -5,6 +6,7 @@ import {
   type ApplicantListFilters,
   type ApplicantKanbanFilters,
 } from "@/server/repositories/applicant.repository";
+import { autoRepairResolvableOrphanedApplicants } from "@/features/settings/services/data-repair.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { resumeAnalysisRepository, type ResumeAnalysisRow } from "@/server/repositories/resume-analysis.repository";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
@@ -17,15 +19,32 @@ import { requireRole } from "@/lib/auth/permissions";
 import { statusRepository } from "@/server/repositories/status.repository";
 import type { SessionUser } from "@/types/user";
 
+// Fire-and-forget, after the response has gone out — self-heals any
+// orphaned records left by a raw external insert (see
+// data-repair.service.ts) with zero human action needed. Never awaited and
+// never allowed to throw, so a repair failure can't break or slow down a
+// real page load; the next page load just tries again.
+function triggerAutoRepairInBackground(): void {
+  after(async () => {
+    try {
+      await autoRepairResolvableOrphanedApplicants();
+    } catch (error) {
+      console.error("Auto-repair of orphaned applicants failed:", error);
+    }
+  });
+}
+
 export async function getApplicantsPageData(filters: ApplicantListFilters) {
   await connectDB();
   const { companyId } = await getCurrentUser();
+  triggerAutoRepairInBackground();
   return applicantRepository.findAllPaginated(companyId, filters);
 }
 
 export async function getApplicantsKanbanData(filters: ApplicantKanbanFilters) {
   await connectDB();
   const { companyId } = await getCurrentUser();
+  triggerAutoRepairInBackground();
   return applicantRepository.findAllForKanban(companyId, filters);
 }
 

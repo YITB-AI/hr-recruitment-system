@@ -293,4 +293,48 @@ export const applicantRepository = {
     ]);
     return rows.map((row) => ({ status: row._id, count: row.count }));
   },
+
+  // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---
+  // A raw external insert (e.g. an n8n workflow's own MongoDB node, bypassing
+  // this app's Mongoose layer entirely) can write companyId/jobId as plain
+  // strings instead of ObjectIds, or createdAt/updatedAt as strings instead
+  // of dates. A string-typed companyId never matches any of this file's
+  // `new Types.ObjectId(companyId)` tenant-scoped queries, so the record
+  // becomes permanently invisible to the app — not crashing, just orphaned.
+  // $type queries below deliberately bypass every other method's companyId
+  // scoping, since finding these records at all requires a cross-tenant
+  // read (platform-admin-only, same trust boundary as jobRepository.findUnmapped).
+  async findOrphaned(): Promise<Array<Record<string, unknown> & { _id: unknown }>> {
+    return Applicant.find({
+      $or: [
+        { companyId: { $type: "string" } },
+        { jobId: { $type: "string" } },
+        { createdAt: { $type: "string" } },
+        { updatedAt: { $type: "string" } },
+      ],
+    }).lean();
+  },
+  // .lean() bypasses Mongoose's schema-cast/hydration on read, so this is
+  // safe even though the stored companyId/jobId/dates don't match the
+  // schema's declared types — hydrating a full Document instance (e.g. via
+  // findById().exec() without .lean()) would throw a CastError instead.
+  async findRawById(id: string): Promise<(Record<string, unknown> & { _id: unknown }) | null> {
+    return Applicant.findById(id).lean();
+  },
+  // Uses the raw MongoDB driver, not Model.updateOne() — Mongoose's
+  // `timestamps: true` schema option automatically marks createdAt as
+  // `immutable: true`, which silently strips it from any $set on every
+  // update method Mongoose itself exposes (confirmed: even passing
+  // { timestamps: false } as a query option didn't help, since that only
+  // controls auto-management, not the separate immutable-path protection).
+  // Going through the native collection bypasses Mongoose's schema layer
+  // entirely, which is exactly what's needed to overwrite a field that's
+  // stuck in the wrong BSON type because an external write bypassed that
+  // same schema layer in the first place.
+  async repairTypes(
+    id: string,
+    fix: { companyId: Types.ObjectId; jobId: Types.ObjectId; createdAt: Date; updatedAt: Date; appliedAt: Date },
+  ): Promise<void> {
+    await Applicant.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: fix });
+  },
 };

@@ -12,6 +12,7 @@ import {
   updateAppearanceSettings,
 } from "@/features/settings/services/settings.service";
 import { assignJobToCompany } from "@/features/settings/services/job-mapping.service";
+import { repairOrphanedApplicant } from "@/features/settings/services/data-repair.service";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -67,6 +68,19 @@ export async function assignJobToCompanyAction(jobId: string, companyId: string)
     await assignJobToCompany(jobId, companyId);
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to assign job" };
+  }
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+export async function repairOrphanedApplicantAction(applicantId: string, companyId: string): Promise<ActionResult> {
+  if (!applicantId || !companyId) return { success: false, error: "Select a company" };
+
+  try {
+    await repairOrphanedApplicant(applicantId, companyId);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to repair record" };
   }
 
   revalidatePath("/settings");

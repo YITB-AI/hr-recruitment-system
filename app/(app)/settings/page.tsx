@@ -7,6 +7,7 @@ import { NotificationSettingsForm } from "@/features/settings/components/notific
 import { AppearanceSettingsForm } from "@/features/settings/components/appearance-settings-form";
 import { UsersTable } from "@/features/settings/components/users-table";
 import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-table";
+import { OrphanedApplicantsTable } from "@/features/settings/components/orphaned-applicants-table";
 import { CompaniesTable } from "@/features/settings/components/companies-table";
 import { TenantInfoCard } from "@/features/settings/components/tenant-info-card";
 import { StatusManagementPanel } from "@/features/settings/components/status-management-panel";
@@ -14,6 +15,7 @@ import { PermissionsPanel } from "@/features/settings/components/permissions-pan
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
 import { listUnmappedJobs, listCompaniesForMapping } from "@/features/settings/services/job-mapping.service";
+import { listOrphanedApplicants } from "@/features/settings/services/data-repair.service";
 import { listCompanies } from "@/features/settings/services/company-management.service";
 import { listStatuses } from "@/features/settings/services/status-management.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
@@ -43,6 +45,7 @@ export default async function SettingsPage() {
     applicantStatuses,
     employeeStatuses,
     roleSummaries,
+    orphanedApplicants,
   ] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
@@ -54,6 +57,7 @@ export default async function SettingsPage() {
     isAdmin ? listStatuses("applicant") : Promise.resolve(null),
     isAdmin ? listStatuses("employee") : Promise.resolve(null),
     isAdmin ? listRoleSummaries() : Promise.resolve(null),
+    isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
   ]);
   const allPermissionActions = getAllPermissionActions();
 
@@ -75,6 +79,7 @@ export default async function SettingsPage() {
                   {isAdmin && <TabsTrigger value="statuses">Statuses</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="companies">Companies</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
+                  {isPlatformAdmin && <TabsTrigger value="orphaned-applicants">Orphaned Applicants</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="general" className="pt-6">
@@ -116,6 +121,12 @@ export default async function SettingsPage() {
                 {isPlatformAdmin && unmappedJobs && companiesForMapping && (
                   <TabsContent value="unmapped-jobs" className="pt-6">
                     <UnmappedJobsTable jobs={unmappedJobs} companies={companiesForMapping} />
+                  </TabsContent>
+                )}
+
+                {isPlatformAdmin && orphanedApplicants && companiesForMapping && (
+                  <TabsContent value="orphaned-applicants" className="pt-6">
+                    <OrphanedApplicantsTable applicants={orphanedApplicants} companies={companiesForMapping} />
                   </TabsContent>
                 )}
               </Tabs>

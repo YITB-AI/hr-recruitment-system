@@ -126,6 +126,15 @@ export const jobRepository = {
     const row = await Job.findOne({ _id: id, companyId }).lean<RawJobRow | null>();
     return row ? serializeJobRow(row) : null;
   },
+  // Deliberately unscoped — for the platform-admin-only orphaned-record repair
+  // tool (features/settings/services/data-repair.service.ts), which doesn't
+  // yet know a record's correct companyId at the point it needs to look up
+  // the job it references. Same naming convention as
+  // applicantFollowupRepository.findByIdUnscoped.
+  async findByIdUnscoped(id: string): Promise<JobRow | null> {
+    const row = await Job.findById(id).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
   async update(companyId: string, id: string, input: UpdateJobInput): Promise<JobRow | null> {
     const row = await Job.findOneAndUpdate(
       { _id: id, companyId },
