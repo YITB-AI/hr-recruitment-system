@@ -12,5 +12,11 @@ export const requestAiCallSchema = z.object({
   callDate: z.string().min(1, "Call date is required"),
   callTime: z.string().min(1, "Call time is required"),
   message: z.string().min(1, "Message/prompt is required").max(2000, "Message is too long"),
+  // Comma-separated in the form/schema; split into a real string[] in
+  // ai-call.service.ts (kept out of the schema itself, since a .transform()
+  // here would make the resolver's output type diverge from useForm's input
+  // type in ai-call-dialog.tsx — react-hook-form/zodResolver don't like that).
+  interviewerNames: z.string().min(1, "At least one interviewer name is required"),
+  meetingLink: z.url({ message: "Enter a valid URL" }),
 });
 export type RequestAiCallInput = z.infer<typeof requestAiCallSchema>;

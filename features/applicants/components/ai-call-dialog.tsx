@@ -57,6 +57,8 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
       callDate: defaultDate(),
       callTime: defaultTime(),
       message: "",
+      interviewerNames: "",
+      meetingLink: "",
     },
   });
 
@@ -121,6 +123,21 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
             <Label htmlFor="message">Message / Prompt</Label>
             <Textarea id="message" rows={4} placeholder="What should the AI say on this call?" {...register("message")} />
             {errors.message && <p className="text-xs text-destructive">{errors.message.message}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="interviewerNames">Interviewer Name(s)</Label>
+            <Input
+              id="interviewerNames"
+              placeholder="e.g. Jane Doe, John Smith"
+              {...register("interviewerNames")}
+            />
+            <p className="text-xs text-muted-foreground">Separate multiple names with commas.</p>
+            {errors.interviewerNames && <p className="text-xs text-destructive">{errors.interviewerNames.message}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meetingLink">Meeting Link</Label>
+            <Input id="meetingLink" placeholder="https://meet.google.com/..." {...register("meetingLink")} />
+            {errors.meetingLink && <p className="text-xs text-destructive">{errors.meetingLink.message}</p>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>

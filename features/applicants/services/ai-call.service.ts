@@ -40,6 +40,12 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const scheduledAt = new Date(`${input.callDate}T${input.callTime}:00`);
   if (Number.isNaN(scheduledAt.getTime())) return { success: false, error: "Invalid call date/time" };
 
+  const interviewerNames = input.interviewerNames
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (interviewerNames.length === 0) return { success: false, error: "At least one interviewer name is required" };
+
   const company = await companyRepository.findById(actor.companyId);
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
 
@@ -55,6 +61,8 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     status: "pending",
     message: input.message,
     requestedAt: scheduledAt,
+    interviewerNames,
+    meetingLink: input.meetingLink,
     retryCount,
     createdBy: actor.id === "system" ? undefined : actor.id,
     createdByName: actor.name,
@@ -71,6 +79,8 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     date: input.callDate,
     time: input.callTime,
     message: input.message,
+    interviewerNames,
+    meetingLink: input.meetingLink,
     userId: actor.id === "system" ? null : actor.id,
     createdBy: actor.name,
   });

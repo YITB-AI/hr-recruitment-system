@@ -25,6 +25,9 @@ const applicantFollowupSchema = new Schema(
     message: { type: String },
     // The requested call date/time, when applicable.
     requestedAt: { type: Date },
+    // AI Call only, same convention as message/requestedAt above.
+    interviewerNames: [{ type: String }],
+    meetingLink: { type: String },
     retryCount: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     createdByName: { type: String },
