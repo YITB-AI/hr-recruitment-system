@@ -7,6 +7,7 @@ import { ApplicantsStatusChart } from "@/features/dashboard/components/applicant
 import { RecentActivity } from "@/features/dashboard/components/recent-activity";
 import { UpcomingInterviews } from "@/features/dashboard/components/upcoming-interviews";
 import { NextActions } from "@/features/dashboard/components/next-actions";
+import { UpcomingEmployeeActions } from "@/features/dashboard/components/upcoming-employee-actions";
 import {
   Card,
   CardContent,
@@ -75,6 +76,19 @@ export async function DashboardContent() {
           </CardHeader>
           <CardContent>
             <NextActions items={data.nextActions} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="text-base">Upcoming Employee Actions</CardTitle>
+            <ViewAllLink href="/employees" />
+          </CardHeader>
+          <CardContent>
+            <UpcomingEmployeeActions
+              today={data.upcomingEmployeeActions.today}
+              upcoming={data.upcomingEmployeeActions.upcoming}
+            />
           </CardContent>
         </Card>
       </div>

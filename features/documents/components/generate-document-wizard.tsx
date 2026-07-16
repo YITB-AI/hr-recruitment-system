@@ -32,6 +32,7 @@ type GenerateDocumentWizardProps = {
   employees: EmployeeRow[];
   applicants: ApplicantPickerRow[];
   initialTemplateId?: string;
+  initialEmployeeId?: string;
 };
 
 type SelectedRecipient = { type: "employee" | "applicant"; id: string; name: string };
@@ -100,10 +101,16 @@ function formatFieldValueForPreview(field: { type: string }, value: FieldValue |
   return typeof value === "string" && value ? value : "—";
 }
 
-export function GenerateDocumentWizard({ templates, employees, applicants, initialTemplateId }: GenerateDocumentWizardProps) {
+export function GenerateDocumentWizard({
+  templates,
+  employees,
+  applicants,
+  initialTemplateId,
+  initialEmployeeId,
+}: GenerateDocumentWizardProps) {
   const [step, setStep] = useState(1);
   const [templateId, setTemplateId] = useState(initialTemplateId ?? "");
-  const [employeeId, setEmployeeId] = useState("");
+  const [employeeId, setEmployeeId] = useState(initialEmployeeId ?? "");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<SelectedRecipient[]>([]);
   const [recipientFilter, setRecipientFilter] = useState("");

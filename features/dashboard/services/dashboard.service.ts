@@ -4,12 +4,16 @@ import { applicantRepository } from "@/server/repositories/applicant.repository"
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
+import { employeeRepository } from "@/server/repositories/employee.repository";
 import { statusRepository } from "@/server/repositories/status.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
+import { buildUpcomingEmployeeActions } from "@/lib/employee-milestones";
 import { PIPELINE_STATUSES, type ApplicantStatus } from "@/constants/applicant-status";
 import type { DashboardData } from "@/types/dashboard";
+
+const UPCOMING_EMPLOYEE_ACTIONS_WINDOW_DAYS = 30;
 
 export async function getDashboardData(): Promise<DashboardData> {
   await connectDB();
@@ -36,6 +40,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     communicationCounts,
     applicantStatuses,
     nextActions,
+    employeesForMilestones,
   ] = await Promise.all([
     // Job stays optional-companyId at the schema level (n8n-authored rows
     // may have none — see models/Job.ts), but these counts are scoped to
@@ -63,7 +68,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     // creates when an outcome needs manual review. Reuses the same
     // Notification store the topbar bell already reads; no new storage.
     notificationRepository.findRecent(userId, 10),
+    employeeRepository.findActiveForMilestones(companyId),
   ]);
+
+  const { today: employeeActionsToday, upcoming: employeeActionsUpcoming } = buildUpcomingEmployeeActions(
+    employeesForMilestones,
+    now,
+    UPCOMING_EMPLOYEE_ACTIONS_WINDOW_DAYS,
+  );
   const statusByKey = new Map(applicantStatuses.map((s) => [s.key, s]));
 
   const countsByStatus = new Map<ApplicantStatus, number>(
@@ -141,5 +153,23 @@ export async function getDashboardData(): Promise<DashboardData> {
         message: n.message,
         createdAt: n.createdAt.toISOString(),
       })),
+    upcomingEmployeeActions: {
+      today: employeeActionsToday.map((item) => ({
+        employeeId: item.employeeId,
+        employeeName: item.employeeName,
+        department: item.department,
+        designation: item.designation,
+        action: item.action,
+        dueDate: item.dueDate.toISOString(),
+      })),
+      upcoming: employeeActionsUpcoming.map((item) => ({
+        employeeId: item.employeeId,
+        employeeName: item.employeeName,
+        department: item.department,
+        designation: item.designation,
+        action: item.action,
+        dueDate: item.dueDate.toISOString(),
+      })),
+    },
   };
 }

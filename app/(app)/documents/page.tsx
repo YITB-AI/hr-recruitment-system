@@ -20,9 +20,9 @@ export const dynamic = "force-dynamic";
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ templateId?: string }>;
+  searchParams: Promise<{ templateId?: string; employeeId?: string }>;
 }) {
-  const { templateId } = await searchParams;
+  const { templateId, employeeId } = await searchParams;
   const [templates, employees, applicants, recentDocuments] = await Promise.all([
     listTemplatesForPicker(),
     listEmployeesForPicker(),
@@ -50,11 +50,12 @@ export default async function DocumentsPage({
           </CardHeader>
           <CardContent>
             <GenerateDocumentWizard
-              key={templateId ?? "default"}
+              key={`${templateId ?? "default"}-${employeeId ?? "default"}`}
               templates={templates}
               employees={employees}
               applicants={applicants}
               initialTemplateId={templateId}
+              initialEmployeeId={employeeId}
             />
           </CardContent>
         </Card>

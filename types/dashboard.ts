@@ -58,6 +58,15 @@ export type NextActionItem = {
   createdAt: string;
 };
 
+export type UpcomingEmployeeActionItem = {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  designation: string;
+  action: string;
+  dueDate: string;
+};
+
 export type DashboardData = {
   stats: DashboardStats;
   applicantsByStatus: ApplicantStatusSlice[];
@@ -65,4 +74,8 @@ export type DashboardData = {
   upcomingInterviews: UpcomingInterview[];
   communication: CommunicationStats;
   nextActions: NextActionItem[];
+  upcomingEmployeeActions: {
+    today: UpcomingEmployeeActionItem[];
+    upcoming: UpcomingEmployeeActionItem[];
+  };
 };

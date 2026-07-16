@@ -110,7 +110,40 @@ function serializeDetailRow(row: RawDetailRow): EmployeeDetailRow {
 
 const LIST_FIELDS = "employeeCode name email phone department designation employmentStatus joiningDate";
 
+// The default seed statuses that represent an employee no longer working
+// here — see constants/employee.ts. employmentStatus is a free-form
+// per-company custom string (via the Status collection), with no built-in
+// "is this a terminal/still-employed state" flag, so this denylist is a
+// known limitation: a company that renamed/removed these default keys
+// won't be filtered correctly. Denylisting (vs. allowlisting "active")
+// deliberately still includes "probation"/"on_leave"/"notice_period" —
+// exactly who's likely to have an imminent milestone.
+const TERMINAL_EMPLOYMENT_STATUSES = ["resigned", "terminated", "inactive"];
+
+export type EmployeeMilestoneRow = {
+  _id: string;
+  name: string;
+  department: string;
+  designation: string;
+  joiningDate: Date;
+  employmentType: string;
+};
+
 export const employeeRepository = {
+  /** For the dashboard's "Upcoming Employee Actions" widget — see lib/employee-milestones.ts. */
+  async findActiveForMilestones(companyId: string): Promise<EmployeeMilestoneRow[]> {
+    const rows = await Employee.find({ companyId, employmentStatus: { $nin: TERMINAL_EMPLOYMENT_STATUSES } })
+      .select("name department designation joiningDate employmentType")
+      .lean<Array<Record<string, unknown> & { _id: unknown }>>();
+    return rows.map((row) => ({
+      _id: String(row._id),
+      name: row.name as string,
+      department: row.department as string,
+      designation: row.designation as string,
+      joiningDate: row.joiningDate as Date,
+      employmentType: row.employmentType as string,
+    }));
+  },
   /** Real HR staff picker — keeps the interview-scheduling/document-generation flows unaffected by this module's richer shapes. */
   async findAllForPicker(companyId: string): Promise<EmployeeRow[]> {
     const rows = await Employee.find({ companyId })

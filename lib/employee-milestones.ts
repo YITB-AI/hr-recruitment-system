@@ -46,6 +46,68 @@ export function getNextOccurrence(anniversaryDate: Date, from: Date = new Date()
   return next;
 }
 
+export type EmployeeActionItem = {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  designation: string;
+  action: string;
+  dueDate: Date;
+};
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Powers the dashboard's "Upcoming Employee Actions" widget — pure
+// computation over active employees, no stored reminders/cron job needed
+// since every date is deterministic from joiningDate.
+export function buildUpcomingEmployeeActions(
+  employees: Array<{ _id: string; name: string; department: string; designation: string; joiningDate: Date; employmentType: string }>,
+  now: Date,
+  upcomingWindowDays: number,
+): { today: EmployeeActionItem[]; upcoming: EmployeeActionItem[] } {
+  const today: EmployeeActionItem[] = [];
+  const upcoming: EmployeeActionItem[] = [];
+  const windowEnd = new Date(now.getTime() + upcomingWindowDays * 24 * 60 * 60 * 1000);
+
+  for (const employee of employees) {
+    if (!employee.joiningDate) continue;
+    const milestones = getEmployeeMilestones(employee.joiningDate, employee.employmentType);
+
+    const candidates: Array<{ action: string; date: Date; recurring: boolean }> = [
+      { action: "Probation Ending", date: milestones.probationEndDate, recurring: false },
+      { action: "Confirmation Due", date: milestones.confirmationDate, recurring: false },
+      { action: "Increment Due", date: milestones.incrementEligibilityDate, recurring: true },
+    ];
+    if (milestones.contractRenewalDate) {
+      candidates.push({ action: "Contract Renewal Due", date: milestones.contractRenewalDate, recurring: true });
+    }
+
+    for (const candidate of candidates) {
+      const dueDate = candidate.recurring ? getNextOccurrence(candidate.date, now) : candidate.date;
+      // A one-time milestone (probation/confirmation) that already passed
+      // and isn't today is simply over — nothing to surface.
+      if (dueDate.getTime() < now.getTime() && !isSameDay(dueDate, now)) continue;
+
+      const item: EmployeeActionItem = {
+        employeeId: employee._id,
+        employeeName: employee.name,
+        department: employee.department,
+        designation: employee.designation,
+        action: candidate.action,
+        dueDate,
+      };
+      if (isSameDay(dueDate, now)) today.push(item);
+      else if (dueDate.getTime() <= windowEnd.getTime()) upcoming.push(item);
+    }
+  }
+
+  today.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  upcoming.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  return { today, upcoming };
+}
+
 // Shared by generate-document.service.ts (server) and
 // generate-document-wizard.tsx (client preview) so a milestone date is
 // never formatted differently in the wizard's preview than in the actual
