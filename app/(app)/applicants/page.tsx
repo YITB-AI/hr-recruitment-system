@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ApplicantFilters } from "@/features/applicants/components/applicant-filters";
 import { ApplicantsListView } from "@/features/applicants/components/applicants-list-view";
 import { ApplicantsKanbanBoard } from "@/features/applicants/components/applicants-kanban-board";
+import { CreateApplicationDialog } from "@/features/applicants/components/create-application-dialog";
 import { getApplicantsPageData, getApplicantsKanbanData } from "@/features/applicants/services/applicant.service";
 import { listSavedViews } from "@/features/applicants/services/saved-view.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
@@ -114,25 +115,28 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
         title="Applicants"
         description="Manage and review all applicants."
         actions={
-          <div className="flex items-center gap-1 rounded-lg border p-1">
-            <Button
-              variant={isKanban ? "ghost" : "secondary"}
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`/applicants?${tableViewQuery.toString()}`} />}
-            >
-              <Table2 className="size-4" />
-              Table
-            </Button>
-            <Button
-              variant={isKanban ? "secondary" : "ghost"}
-              size="sm"
-              nativeButton={false}
-              render={<Link href={`/applicants?${kanbanViewQuery.toString()}`} />}
-            >
-              <LayoutGrid className="size-4" />
-              Kanban
-            </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border p-1">
+              <Button
+                variant={isKanban ? "ghost" : "secondary"}
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/applicants?${tableViewQuery.toString()}`} />}
+              >
+                <Table2 className="size-4" />
+                Table
+              </Button>
+              <Button
+                variant={isKanban ? "secondary" : "ghost"}
+                size="sm"
+                nativeButton={false}
+                render={<Link href={`/applicants?${kanbanViewQuery.toString()}`} />}
+              >
+                <LayoutGrid className="size-4" />
+                Kanban
+              </Button>
+            </div>
+            <CreateApplicationDialog jobs={jobs} />
           </div>
         }
       />

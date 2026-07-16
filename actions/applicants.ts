@@ -8,6 +8,8 @@ import {
   changeApplicantStatus,
 } from "@/features/applicants/services/applicant.service";
 import { sendApplicantEmail, sendApplicantSms } from "@/features/applicants/services/applicant-notification.service";
+import { requestApplicationCreate } from "@/features/applicants/services/create-application.service";
+import { createApplicationSchema } from "@/validators/create-application";
 import type { ApplicantStatus } from "@/constants/applicant-status";
 
 export type ApplicantActionResult = { success: true } | { success: false; error: string };
@@ -90,4 +92,24 @@ export async function bulkSendEmailAction(applicantIds: string[]): Promise<BulkA
 
 export async function bulkSendSmsAction(applicantIds: string[]): Promise<BulkActionResult> {
   return bulkNotify(applicantIds, sendApplicantSms);
+}
+
+export async function createApplicationAction(formData: FormData): Promise<ApplicantActionResult> {
+  const parsed = createApplicationSchema.safeParse({ jobId: formData.get("jobId") });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, error: "Choose a CV file first" };
+  }
+
+  try {
+    const result = await requestApplicationCreate(parsed.data.jobId, file);
+    revalidatePath("/applicants");
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to submit the application" };
+  }
 }

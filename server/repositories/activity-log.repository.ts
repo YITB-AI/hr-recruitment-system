@@ -50,6 +50,27 @@ export const activityLogRepository = {
       .select("action message actorName createdAt")
       .lean<Array<ActivityLogRow & { action: string }>>();
   },
+  // Duplicate-submit guard for fire-and-forget webhook triggers with no
+  // domain record of their own to check against (e.g. Create Application,
+  // which has no pre-existing Applicant row — n8n creates it). Mirrors the
+  // spirit of applicantFollowupRepository.existsRecentActive, just scoped to
+  // the audit trail since that's the only record this action produces.
+  async existsRecentByActorAndEntity(
+    companyId: string,
+    actorId: string,
+    action: string,
+    entityId: string,
+    windowMs: number,
+  ): Promise<boolean> {
+    const count = await ActivityLog.countDocuments({
+      companyId,
+      actorId,
+      action,
+      entityId,
+      createdAt: { $gte: new Date(Date.now() - windowMs) },
+    });
+    return count > 0;
+  },
   create(input: CreateActivityLogInput) {
     return ActivityLog.create(input);
   },

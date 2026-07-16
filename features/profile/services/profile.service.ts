@@ -6,7 +6,7 @@ import { userRepository, type OwnProfileRow } from "@/server/repositories/user.r
 import { companyRepository } from "@/server/repositories/company.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { triggerWebhook } from "@/lib/webhook";
+import { sendEmail } from "@/lib/email";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import type { UpdateProfileInput } from "@/validators/profile";
 import type { ChangePasswordInput } from "@/validators/auth";
@@ -109,12 +109,40 @@ export async function changeOwnPassword(input: ChangePasswordInput): Promise<Pro
   return { success: true };
 }
 
+// Every value interpolated into an email's HTML body (names, emails) is
+// user-controlled — escape it so a name like `<script>` in a profile field
+// can't inject markup into an email rendered by the recipient's client.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function generateVerificationCode(): string {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
+// HMAC, not a plain hash: a 6-digit code only has 1,000,000 possible values,
+// so an unkeyed hash is trivially precomputable by anyone with DB read
+// access (unlike hashSessionToken in lib/auth/session.ts, which hashes a
+// 256-bit random token where precomputation is infeasible). Keying with a
+// server-only secret closes that specific gap.
 function hashCode(code: string): string {
-  return crypto.createHash("sha256").update(code).digest("hex");
+  const secret = process.env.OTP_HASH_SECRET;
+  if (!secret) throw new Error("OTP_HASH_SECRET is not set. Add a random secret to .env.local.");
+  return crypto.createHmac("sha256", secret).update(code).digest("hex");
+}
+
+function verificationCodeEmailHtml(userName: string, code: string): string {
+  return `
+    <p>Hi ${escapeHtml(userName)},</p>
+    <p>Your verification code is:</p>
+    <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${code}</p>
+    <p>This code expires in 15 minutes. If you didn't request this, you can ignore this email.</p>
+  `;
 }
 
 async function notifyAdminsOfEmailChange(
@@ -142,14 +170,16 @@ async function notifyAdminsOfEmailChange(
       })),
     );
 
-    await triggerWebhook("notify-admin-email-change", {
-      adminEmails: admins.map((admin) => admin.email),
-      userName: actorName,
-      oldEmail,
-      newEmail,
-      companyName: company?.name ?? null,
-      changedAt: new Date().toISOString(),
-    });
+    const companyName = company?.name ?? "your company";
+    await Promise.all(
+      admins.map((admin) =>
+        sendEmail({
+          to: admin.email,
+          subject: `Email change for ${actorName}`,
+          html: `<p><strong>${escapeHtml(actorName)}</strong> changed their login email at ${escapeHtml(companyName)}, from <strong>${escapeHtml(oldEmail)}</strong> to <strong>${escapeHtml(newEmail)}</strong>.</p>`,
+        }),
+      ),
+    );
   } catch (error) {
     console.error("Failed to notify admins of email change:", error);
   }
@@ -170,6 +200,15 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
     return { success: false, error: "That email is already in use" };
   }
 
+  // Gap fix: this used to unconditionally reset emailVerificationSentAt on
+  // every call, which let a caller who knows the password loop this action
+  // to bypass resendEmailChangeCode's 60s cooldown entirely. Apply the same
+  // cooldown here whenever a change is already pending.
+  const existingSentAt = user.emailVerificationSentAt as Date | undefined;
+  if (user.pendingEmail && existingSentAt && Date.now() - existingSentAt.getTime() < RESEND_COOLDOWN_MS) {
+    return { success: false, error: "Please wait a moment before requesting another code" };
+  }
+
   const code = generateVerificationCode();
   await userRepository.setPendingEmailChange(actor.companyId, actor.id, {
     pendingEmail: normalizedEmail,
@@ -177,10 +216,10 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
     expiresAt: new Date(Date.now() + CODE_TTL_MS),
   });
 
-  const sendResult = await triggerWebhook("send-verification-email", {
+  const sendResult = await sendEmail({
     to: normalizedEmail,
-    code,
-    userName: actor.name,
+    subject: "Your verification code",
+    html: verificationCodeEmailHtml(actor.name, code),
   });
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
@@ -218,10 +257,10 @@ export async function resendEmailChangeCode(): Promise<ProfileActionResult> {
     new Date(Date.now() + CODE_TTL_MS),
   );
 
-  const sendResult = await triggerWebhook("send-verification-email", {
+  const sendResult = await sendEmail({
     to: user.pendingEmail,
-    code,
-    userName: actor.name,
+    subject: "Your verification code",
+    html: verificationCodeEmailHtml(actor.name, code),
   });
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
