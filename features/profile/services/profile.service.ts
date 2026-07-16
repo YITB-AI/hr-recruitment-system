@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/server/db/connect";
 import { requireSession } from "@/lib/auth/session";
@@ -15,6 +15,11 @@ const AVATAR_FOLDER = "avatars";
 const CODE_TTL_MS = 15 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_VERIFICATION_ATTEMPTS = 5;
+// Separate from the 60s cooldown above (which only throttles rapid-fire
+// requests) — caps how many codes can be sent in a rolling 24h window,
+// regardless of how spaced out the requests are.
+const MAX_VERIFICATION_SENDS_PER_WINDOW = 3;
+const SEND_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type OwnProfile = OwnProfileRow & { companyName: string };
 
@@ -136,6 +141,22 @@ function hashCode(code: string): string {
   return crypto.createHmac("sha256", secret).update(code).digest("hex");
 }
 
+async function checkSendQuota(companyId: string, userId: string): Promise<ProfileActionResult> {
+  const { allowed } = await userRepository.consumeEmailVerificationSendQuota(
+    companyId,
+    userId,
+    MAX_VERIFICATION_SENDS_PER_WINDOW,
+    SEND_QUOTA_WINDOW_MS,
+  );
+  if (!allowed) {
+    return {
+      success: false,
+      error: `You've reached the maximum of ${MAX_VERIFICATION_SENDS_PER_WINDOW} verification emails allowed in 24 hours. Please try again later.`,
+    };
+  }
+  return { success: true };
+}
+
 function verificationCodeEmailHtml(userName: string, code: string): string {
   return `
     <p>Hi ${escapeHtml(userName)},</p>
@@ -209,6 +230,9 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
     return { success: false, error: "Please wait a moment before requesting another code" };
   }
 
+  const quota = await checkSendQuota(actor.companyId, actor.id);
+  if (!quota.success) return quota;
+
   const code = generateVerificationCode();
   await userRepository.setPendingEmailChange(actor.companyId, actor.id, {
     pendingEmail: normalizedEmail,
@@ -248,6 +272,9 @@ export async function resendEmailChangeCode(): Promise<ProfileActionResult> {
   if (sentAt && Date.now() - sentAt.getTime() < RESEND_COOLDOWN_MS) {
     return { success: false, error: "Please wait a moment before requesting another code" };
   }
+
+  const quota = await checkSendQuota(actor.companyId, actor.id);
+  if (!quota.success) return quota;
 
   const code = generateVerificationCode();
   await userRepository.touchEmailVerificationResend(
@@ -316,3 +343,87 @@ export async function confirmEmailChange(code: string): Promise<ConfirmEmailChan
 
   return { success: true, newEmail: pendingEmail };
 }
+
+// Self-serve verification of the CURRENT email address (no change involved)
+// — for accounts that start unverified (freshly provisioned, see
+// userRepository.create/scripts/create-company.ts). Reuses the same
+// code-storage fields as the email-change flow above; safe because the two
+// flows are mutually exclusive (this one only runs when pendingEmail is
+// unset) and clearPendingEmailChange's $unset of an absent field is a no-op.
+export async function requestOwnEmailVerification(): Promise<ProfileActionResult> {
+  const actor = await requireSession();
+  await connectDB();
+  const user = await userRepository.findWithPasswordHash(actor.companyId, actor.id);
+  if (!user) return { success: false, error: "User not found" };
+  if (user.pendingEmail) return { success: false, error: "Finish your pending email change first" };
+  if (user.emailVerified) return { success: false, error: "Your email is already verified" };
+
+  const sentAt = user.emailVerificationSentAt as Date | undefined;
+  if (sentAt && Date.now() - sentAt.getTime() < RESEND_COOLDOWN_MS) {
+    return { success: false, error: "Please wait a moment before requesting another code" };
+  }
+
+  const quota = await checkSendQuota(actor.companyId, actor.id);
+  if (!quota.success) return quota;
+
+  const code = generateVerificationCode();
+  await userRepository.touchEmailVerificationResend(
+    actor.companyId,
+    actor.id,
+    hashCode(code),
+    new Date(Date.now() + CODE_TTL_MS),
+  );
+
+  const sendResult = await sendEmail({
+    to: user.email,
+    subject: "Verify your email",
+    html: verificationCodeEmailHtml(actor.name, code),
+  });
+  if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
+
+  return { success: true };
+}
+
+export async function confirmOwnEmailVerification(code: string): Promise<ProfileActionResult> {
+  const actor = await requireSession();
+  await connectDB();
+  const user = await userRepository.findWithPasswordHash(actor.companyId, actor.id);
+  if (!user) return { success: false, error: "User not found" };
+  if (user.pendingEmail) return { success: false, error: "Finish your pending email change first" };
+  if (user.emailVerified) return { success: true };
+
+  const expiresAt = user.emailVerificationExpiresAt as Date | undefined;
+  if (!expiresAt || expiresAt.getTime() < Date.now()) {
+    await userRepository.clearPendingEmailChange(actor.companyId, actor.id);
+    return { success: false, error: "This code has expired. Request a new one." };
+  }
+
+  const attempts = (user.emailVerificationAttempts as number | undefined) ?? 0;
+  if (attempts >= MAX_VERIFICATION_ATTEMPTS) {
+    await userRepository.clearPendingEmailChange(actor.companyId, actor.id);
+    return { success: false, error: "Too many incorrect attempts. Request a new code." };
+  }
+
+  const providedHash = Buffer.from(hashCode(code));
+  const storedHash = Buffer.from((user.emailVerificationCodeHash as string | undefined) ?? "");
+  const isMatch = providedHash.length === storedHash.length && crypto.timingSafeEqual(providedHash, storedHash);
+  if (!isMatch) {
+    await userRepository.incrementEmailVerificationAttempts(actor.companyId, actor.id);
+    return { success: false, error: "Invalid or expired code" };
+  }
+
+  await userRepository.confirmOwnEmailVerification(actor.companyId, actor.id);
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id,
+    actorName: actor.name,
+    action: "auth.email_verified",
+    entityType: "auth",
+    entityId: actor.id,
+    message: `${actor.name} verified their email address`,
+  });
+
+  return { success: true };
+}
+

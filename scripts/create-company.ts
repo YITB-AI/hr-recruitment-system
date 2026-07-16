@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/server/db/connect";
 import { Company } from "@/models/Company";
 import { User } from "@/models/User";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmailHtml } from "@/lib/email-templates";
 
 // Run when onboarding a new client company (internal/admin-provisioned —
 // there is no public signup in this app). Creates the Company row and its
@@ -63,7 +65,33 @@ async function main() {
     passwordHash,
     role: "admin",
     mustChangePassword: true,
+    // Nobody has proven ownership of this inbox yet — starts unverified,
+    // same as every other freshly created account (userRepository.create).
+    emailVerified: false,
   });
+
+  // Best-effort: account creation must succeed regardless of whether the
+  // welcome email actually delivers (e.g. Resend sandbox mode rejecting a
+  // recipient other than the account owner's own address) — the console
+  // output below is the guaranteed fallback delivery path either way.
+  let emailSent = false;
+  try {
+    const result = await sendEmail({
+      to: admin.email,
+      subject: "Welcome to HR Platform — your account details",
+      html: welcomeEmailHtml({
+        recipientName: admin.name,
+        companyName: company.name,
+        companySlug: company.slug,
+        email: admin.email,
+        tempPassword,
+      }),
+    });
+    emailSent = result.ok;
+    if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
+  } catch (error) {
+    console.error("Welcome email failed to send:", error);
+  }
 
   console.log("\n=== Company created ===");
   console.log(`Name:       ${company.name}`);
@@ -72,7 +100,8 @@ async function main() {
   console.log(`Name:     ${admin.name}`);
   console.log(`Email:    ${admin.email}`);
   console.log(`Password: ${tempPassword}`);
-  console.log("\nShare the Company ID, email, and password with the admin over a secure channel (not plain email/Slack).");
+  console.log(`\nWelcome email: ${emailSent ? "sent" : "FAILED to send — share the credentials below manually"}`);
+  console.log("Share the Company ID, email, and password with the admin over a secure channel (not plain email/Slack).");
   console.log("They will be required to set their own password on first login.\n");
 
   process.exit(0);

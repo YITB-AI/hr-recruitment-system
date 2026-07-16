@@ -2,10 +2,13 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { connectDB } from "@/server/db/connect";
 import { userRepository, type CompanyUserRow } from "@/server/repositories/user.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { revokeAllSessionsForUser } from "@/lib/auth/session";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmailHtml } from "@/lib/email-templates";
 import type { CreateUserInput, UpdateUserInput } from "@/validators/user-management";
 
 function generateTempPassword(): string {
@@ -49,6 +52,26 @@ export async function createCompanyUser(input: CreateUserInput): Promise<CreateC
     entityId: user._id,
     message: `${actor.name} added ${user.name} (${user.role}) to the team`,
   });
+
+  // Best-effort — the credentials are still returned below regardless, so
+  // whoever added this user can always relay them manually if delivery fails.
+  try {
+    const company = await companyRepository.findById(actor.companyId);
+    const result = await sendEmail({
+      to: email,
+      subject: "Welcome to HR Platform — your account details",
+      html: welcomeEmailHtml({
+        recipientName: user.name,
+        companyName: company?.name ?? "your company",
+        companySlug: company?.slug ?? "",
+        email,
+        tempPassword,
+      }),
+    });
+    if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
+  } catch (error) {
+    console.error("Welcome email failed to send:", error);
+  }
 
   return { user, tempPassword };
 }

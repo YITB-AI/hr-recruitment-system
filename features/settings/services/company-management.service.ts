@@ -10,6 +10,8 @@ import { activityLogRepository, type ActivityLogRow } from "@/server/repositorie
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { getCurrentUser } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmailHtml } from "@/lib/email-templates";
 import type { CompanyStatus } from "@/models/Company";
 
 // Platform-admin-only — see the isPlatformAdmin comment on models/User.ts.
@@ -216,6 +218,7 @@ export async function createCompanyWithAdmin(input: {
     passwordHash,
     role: "admin",
     mustChangePassword: true,
+    emailVerified: false,
   });
 
   await activityLogRepository.create({
@@ -227,6 +230,25 @@ export async function createCompanyWithAdmin(input: {
     entityId: companyDoc._id,
     message: `${actor.name} created company "${input.name}"`,
   });
+
+  // Best-effort — the credentials are still returned below regardless, so
+  // the platform admin can always relay them manually if delivery fails.
+  try {
+    const result = await sendEmail({
+      to: email,
+      subject: "Welcome to HR Platform — your account details",
+      html: welcomeEmailHtml({
+        recipientName: input.adminName,
+        companyName: input.name,
+        companySlug: slug,
+        email,
+        tempPassword,
+      }),
+    });
+    if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
+  } catch (error) {
+    console.error("Welcome email failed to send:", error);
+  }
 
   const company = await companyRepository.findById(String(companyDoc._id));
   return { company: company!, adminEmail: email, tempPassword };

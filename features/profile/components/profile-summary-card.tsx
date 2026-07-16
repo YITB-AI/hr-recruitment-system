@@ -2,6 +2,7 @@ import { Building2, Calendar, Clock, Mail, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { USER_ROLE_LABELS, type UserRole } from "@/constants/user";
+import { VerifyEmailAction } from "@/features/profile/components/verify-email-action";
 import type { OwnProfile } from "@/features/profile/services/profile.service";
 
 function initials(name: string) {
@@ -55,6 +56,7 @@ export function ProfileSummaryCard({ profile }: { profile: OwnProfile }) {
             {profile.emailVerified ? "Email verified" : "Email unverified"}
           </Badge>
         </div>
+        {!profile.emailVerified && !profile.pendingEmail && <VerifyEmailAction />}
       </div>
       <dl className="space-y-3 text-sm">
         {rows.map((row) => (

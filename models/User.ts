@@ -35,6 +35,12 @@ const userSchema = new Schema(
     emailVerificationExpiresAt: { type: Date },
     emailVerificationAttempts: { type: Number, default: 0 },
     emailVerificationSentAt: { type: Date },
+    // Rolling 24h send-quota (separate from the 60s resend cooldown above):
+    // caps how many verification codes can be *requested* in a day, not how
+    // many times one can be guessed — see MAX_VERIFICATION_SENDS_PER_WINDOW
+    // in features/profile/services/profile.service.ts.
+    emailVerificationSendCount: { type: Number, default: 0 },
+    emailVerificationSendWindowStartAt: { type: Date },
     // Brute-force protection: incremented on each failed login, reset to 0
     // on success. lockedUntil is set once failedLoginAttempts crosses the
     // threshold (see lib/auth/session.ts) and checked before a password

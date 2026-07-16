@@ -10,6 +10,8 @@ import {
   requestEmailChange,
   resendEmailChangeCode,
   confirmEmailChange,
+  requestOwnEmailVerification,
+  confirmOwnEmailVerification,
   type ProfileActionResult,
   type ConfirmEmailChangeResult,
 } from "@/features/profile/services/profile.service";
@@ -82,6 +84,29 @@ export async function confirmEmailChangeAction(input: unknown): Promise<ConfirmE
 
   try {
     const result = await confirmEmailChange(parsed.data.code);
+    revalidatePath("/profile");
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to verify email" };
+  }
+}
+
+export async function requestOwnEmailVerificationAction(): Promise<ProfileActionResult> {
+  try {
+    const result = await requestOwnEmailVerification();
+    revalidatePath("/profile");
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to send verification email" };
+  }
+}
+
+export async function confirmOwnEmailVerificationAction(input: unknown): Promise<ProfileActionResult> {
+  const parsed = verifyEmailChangeSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  try {
+    const result = await confirmOwnEmailVerification(parsed.data.code);
     revalidatePath("/profile");
     return result;
   } catch (error) {

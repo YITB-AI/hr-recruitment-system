@@ -112,6 +112,10 @@ export const userRepository = {
       role: input.role,
       passwordHash: input.passwordHash,
       mustChangePassword: input.mustChangePassword,
+      // Nobody has proven ownership of this inbox yet — unlike the schema
+      // default (true, for pre-existing rows), freshly created accounts
+      // start unverified and use the self-serve "Verify Email" flow.
+      emailVerified: false,
     });
     return serializeCompanyUser(doc.toObject());
   },
@@ -202,6 +206,60 @@ export const userRepository = {
         emailVerificationAttempts: 0,
       },
     );
+  },
+  /** Same as confirmEmailChange but for verifying the CURRENT email (no pendingEmail to promote). */
+  async confirmOwnEmailVerification(companyId: string, id: string): Promise<void> {
+    await User.updateOne(
+      { _id: id, companyId },
+      {
+        emailVerified: true,
+        $unset: {
+          emailVerificationCodeHash: "",
+          emailVerificationExpiresAt: "",
+          emailVerificationSentAt: "",
+        },
+        emailVerificationAttempts: 0,
+      },
+    );
+  },
+  /**
+   * Rolling-window send quota for verification codes (independent of the 60s
+   * resend cooldown, which only throttles rapid-fire requests, not a daily
+   * total). Two atomic conditional updates: try to increment within an
+   * active window under the cap, else try to start a fresh window — if
+   * neither matches, the caller is at the cap within an active window.
+   */
+  async consumeEmailVerificationSendQuota(
+    companyId: string,
+    id: string,
+    maxSends: number,
+    windowMs: number,
+  ): Promise<{ allowed: boolean }> {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - windowMs);
+
+    const incremented = await User.findOneAndUpdate(
+      {
+        _id: id,
+        companyId,
+        emailVerificationSendWindowStartAt: { $gte: windowStart },
+        emailVerificationSendCount: { $lt: maxSends },
+      },
+      { $inc: { emailVerificationSendCount: 1 } },
+    );
+    if (incremented) return { allowed: true };
+
+    const reset = await User.findOneAndUpdate(
+      {
+        _id: id,
+        companyId,
+        $or: [{ emailVerificationSendWindowStartAt: { $exists: false } }, { emailVerificationSendWindowStartAt: { $lt: windowStart } }],
+      },
+      { emailVerificationSendCount: 1, emailVerificationSendWindowStartAt: now },
+    );
+    if (reset) return { allowed: true };
+
+    return { allowed: false };
   },
   async findAdminsForCompany(companyId: string, excludeUserId: string): Promise<Array<{ _id: string; email: string }>> {
     const rows = await User.find({ companyId, role: "admin", _id: { $ne: excludeUserId } })
