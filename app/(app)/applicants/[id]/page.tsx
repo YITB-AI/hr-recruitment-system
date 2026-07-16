@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles, CalendarClock, History } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -25,7 +25,10 @@ import { ApplicantNotesTab } from "@/features/applicants/components/applicant-no
 import { FollowupStatusIndicator } from "@/features/applicants/components/followup-status-indicator";
 import { CvViewerTab } from "@/features/applicants/components/cv-viewer-tab";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
+import { InterviewActions } from "@/features/interviews/components/interview-actions";
 import { interviewRepository } from "@/server/repositories/interview.repository";
+import { emailLogRepository } from "@/server/repositories/email-log.repository";
+import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { getCurrentUser } from "@/lib/current-user";
 
@@ -57,11 +60,17 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   if (!applicant) notFound();
 
   const { companyId } = await getCurrentUser();
-  const [interviews, applicantStatuses] = await Promise.all([
-    interviewRepository.findByApplicantId(companyId, id, 1),
+  const [interviews, applicantStatuses, applicantActivity] = await Promise.all([
+    interviewRepository.findByApplicantId(companyId, id),
     listActiveStatuses("applicant"),
+    activityLogRepository.findByEntity(companyId, "applicant", id, 50),
   ]);
   const latestInterviewId = interviews[0]?._id ?? null;
+  const [latestEmails, interviewActivityLists] = await Promise.all([
+    emailLogRepository.findLatestByInterviewIds(companyId, interviews.map((i) => i._id)),
+    Promise.all(interviews.map((i) => activityLogRepository.findByEntity(companyId, "interview", i._id, 20))),
+  ]);
+  const interviewActivityById = new Map(interviews.map((i, idx) => [i._id, interviewActivityLists[idx]]));
 
   return (
     <StatusConfigProvider statuses={applicantStatuses}>
@@ -101,12 +110,14 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
             <Tabs defaultValue="overview">
               <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-                <TabsTrigger value="resume">Resume</TabsTrigger>
                 <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="communication">Communication</TabsTrigger>
-                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="resume">Resume</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
                     {tab.label}
@@ -118,16 +129,76 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <ApplicantOverview applicant={applicant} />
               </TabsContent>
 
+              <TabsContent value="ai-analysis" className="pt-6">
+                <AiAnalysisPanel analysis={resumeAnalysis} />
+              </TabsContent>
+
               <TabsContent value="documents" className="pt-6">
                 <ApplicantDocumentsTab documents={documents} />
               </TabsContent>
 
-              <TabsContent value="resume" className="pt-6">
-                <CvViewerTab resumeUrl={applicant.resumeUrl} />
+              <TabsContent value="interviews" className="pt-6">
+                {interviews.length === 0 ? (
+                  <EmptyState
+                    icon={CalendarClock}
+                    title="No interviews scheduled"
+                    description="Interviews scheduled for this applicant will show up here."
+                  />
+                ) : (
+                  <ul className="divide-y">
+                    {interviews.map((interview) => (
+                      <li key={interview._id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                        <div>
+                          <p className="text-sm font-medium capitalize">{interview.type} Interview</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(interview.scheduledAt).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                            {" · "}
+                            <span className="capitalize">{interview.status}</span>
+                          </p>
+                        </div>
+                        <InterviewActions
+                          interview={interview}
+                          latestEmail={latestEmails.get(interview._id) ?? null}
+                          activity={interviewActivityById.get(interview._id) ?? []}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </TabsContent>
 
-              <TabsContent value="ai-analysis" className="pt-6">
-                <AiAnalysisPanel analysis={resumeAnalysis} />
+              <TabsContent value="notes" className="pt-6">
+                <ApplicantNotesTab applicantId={applicant._id} notes={notes} />
+              </TabsContent>
+
+              <TabsContent value="activity" className="pt-6">
+                {applicantActivity.length === 0 ? (
+                  <EmptyState icon={History} title="No activity yet" description="Changes to this applicant will show up here." />
+                ) : (
+                  <ul className="divide-y">
+                    {applicantActivity.map((entry) => (
+                      <li key={entry._id} className="py-3">
+                        <p className="text-sm">{entry.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(entry.createdAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                          {entry.actorName ? ` · ${entry.actorName}` : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </TabsContent>
 
               <TabsContent value="timeline" className="pt-6">
@@ -138,8 +209,8 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <ApplicantCommunicationHistoryTab entries={communicationHistory} />
               </TabsContent>
 
-              <TabsContent value="notes" className="pt-6">
-                <ApplicantNotesTab applicantId={applicant._id} notes={notes} />
+              <TabsContent value="resume" className="pt-6">
+                <CvViewerTab resumeUrl={applicant.resumeUrl} />
               </TabsContent>
 
               {PLACEHOLDER_TABS.map((tab) => (
