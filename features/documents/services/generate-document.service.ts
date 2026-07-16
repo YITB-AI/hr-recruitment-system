@@ -11,6 +11,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
+import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { SessionUser } from "@/types/user";
@@ -30,6 +31,10 @@ type RecipientRecord = {
   currentPosition?: string | null;
   basicSalary?: number | null;
   grossSalary?: number | null;
+  // Only present on employee recipients (EmployeeDetailRow) — absent for
+  // applicants, which naturally excludes them from the milestone-date keys.
+  joiningDate?: Date | null;
+  employmentType?: string | null;
 };
 
 // Mirrors the client-side autofill convenience in generate-document-wizard.tsx,
@@ -57,6 +62,25 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord): string | 
       return record.basicSalary != null ? String(record.basicSalary) : undefined;
     case "gross_salary":
       return record.grossSalary != null ? String(record.grossSalary) : undefined;
+    case "probation_end_date":
+    case "confirmation_date":
+    case "increment_eligibility_date":
+    case "contract_renewal_date": {
+      if (!record.joiningDate) return undefined;
+      const milestones = getEmployeeMilestones(record.joiningDate, record.employmentType ?? "");
+      switch (key.toLowerCase()) {
+        case "probation_end_date":
+          return formatMilestoneDate(milestones.probationEndDate);
+        case "confirmation_date":
+          return formatMilestoneDate(milestones.confirmationDate);
+        case "increment_eligibility_date":
+          return formatMilestoneDate(milestones.incrementEligibilityDate);
+        case "contract_renewal_date":
+          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate) : undefined;
+        default:
+          return undefined;
+      }
+    }
     default:
       return undefined;
   }

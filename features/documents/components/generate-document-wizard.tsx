@@ -19,6 +19,7 @@ import { TemplateFieldRenderer, type FieldValue } from "@/features/documents/com
 import { BulkGenerateResults } from "@/features/documents/components/bulk-generate-results";
 import { generateDocumentAction, generateDocumentsBulkAction } from "@/actions/documents";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
+import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { CALCULATION_TYPE_LABELS } from "@/constants/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import type { EmployeeRow } from "@/server/repositories/employee.repository";
@@ -59,6 +60,25 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow): string | unde
       return String(employee.basicSalary);
     case "gross_salary":
       return String(employee.grossSalary);
+    case "probation_end_date":
+    case "confirmation_date":
+    case "increment_eligibility_date":
+    case "contract_renewal_date": {
+      if (!employee.joiningDate) return undefined;
+      const milestones = getEmployeeMilestones(new Date(employee.joiningDate), employee.employmentType);
+      switch (key.toLowerCase()) {
+        case "probation_end_date":
+          return formatMilestoneDate(milestones.probationEndDate);
+        case "confirmation_date":
+          return formatMilestoneDate(milestones.confirmationDate);
+        case "increment_eligibility_date":
+          return formatMilestoneDate(milestones.incrementEligibilityDate);
+        case "contract_renewal_date":
+          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate) : undefined;
+        default:
+          return undefined;
+      }
+    }
     default:
       return undefined;
   }

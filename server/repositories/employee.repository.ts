@@ -42,6 +42,11 @@ export type EmployeeRow = {
   designation: string;
   basicSalary: number;
   grossSalary: number;
+  // Needed so the document-generation wizard's client-side preview can
+  // compute the same milestone dates generateOne() resolves server-side —
+  // see lib/employee-milestones.ts.
+  joiningDate: Date;
+  employmentType: string;
 };
 
 export type EmployeeListFilters = {
@@ -109,7 +114,7 @@ export const employeeRepository = {
   /** Real HR staff picker — keeps the interview-scheduling/document-generation flows unaffected by this module's richer shapes. */
   async findAllForPicker(companyId: string): Promise<EmployeeRow[]> {
     const rows = await Employee.find({ companyId })
-      .select("name email department designation basicSalary grossSalary")
+      .select("name email department designation basicSalary grossSalary joiningDate employmentType")
       .lean<Array<Record<string, unknown> & { _id: unknown }>>();
     return rows.map((row) => ({
       _id: String(row._id),
@@ -119,6 +124,8 @@ export const employeeRepository = {
       designation: row.designation as string,
       basicSalary: row.basicSalary as number,
       grossSalary: row.grossSalary as number,
+      joiningDate: row.joiningDate as Date,
+      employmentType: row.employmentType as string,
     }));
   },
 
