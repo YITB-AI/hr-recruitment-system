@@ -12,8 +12,20 @@ const employeeSchema = new Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
+    // Free-string legacy field, kept in sync with departmentId's resolved
+    // name by employee.service.ts on every create/update so every existing
+    // read path (filters, document variables, CSV export) keeps working
+    // unchanged even for employees created before the Department master
+    // existed. Never written directly from user input anymore.
     department: { type: String, required: true, trim: true },
+    departmentId: { type: Schema.Types.ObjectId, ref: "Department", index: true },
     designation: { type: String, required: true, trim: true },
+    // Purely additive — a new position/role-level master (see
+    // models/EmployeeType.ts), separate from and independent of
+    // employmentType below. Optional: existing employees have none, and
+    // this doesn't gate managerId selection (structural/informational only,
+    // per the plan).
+    employeeTypeId: { type: Schema.Types.ObjectId, ref: "EmployeeType", index: true },
     managerId: { type: Schema.Types.ObjectId, ref: "Employee" },
     joiningDate: { type: Date, required: true },
     employmentType: { type: String, enum: EMPLOYMENT_TYPES, default: "full_time" },

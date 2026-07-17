@@ -9,6 +9,7 @@ import { extractTemplateVariables, type DetectedTemplateVariables } from "@/lib/
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { DocumentTemplateInput } from "@/validators/document-template";
+import type { TemplateMilestoneType } from "@/constants/document-template";
 
 const TEMPLATE_FOLDER = "templates";
 
@@ -28,6 +29,12 @@ export function detectVariablesFromUpload(buffer: Buffer): DetectedTemplateVaria
   return extractTemplateVariables(buffer);
 }
 
+// Used by dashboard.service.ts's "Upcoming Employee Actions" widget to
+// resolve which template (if any) to preselect for a given milestone.
+export async function findTemplateForMilestone(companyId: string, milestoneType: TemplateMilestoneType) {
+  return documentTemplateRepository.findByMilestoneType(companyId, milestoneType);
+}
+
 export async function createTemplate(
   input: DocumentTemplateInput,
   file: { buffer: Buffer; originalName: string },
@@ -45,6 +52,7 @@ export async function createTemplate(
     fileName: file.originalName,
     fileUrl: `/api/files/${storageKey}`,
     fields: input.fields,
+    milestoneType: input.milestoneType,
   });
 
   await activityLogRepository.create({
@@ -84,6 +92,7 @@ export async function updateTemplate(
     category: input.category,
     description: input.description,
     fields: input.fields,
+    milestoneType: input.milestoneType,
     ...fileFields,
   });
 

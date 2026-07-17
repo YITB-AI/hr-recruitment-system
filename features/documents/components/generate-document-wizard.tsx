@@ -20,6 +20,7 @@ import { BulkGenerateResults } from "@/features/documents/components/bulk-genera
 import { generateDocumentAction, generateDocumentsBulkAction } from "@/actions/documents";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
+import { formatDateWithPreset } from "@/lib/date-format";
 import { CALCULATION_TYPE_LABELS } from "@/constants/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import type { EmployeeRow } from "@/server/repositories/employee.repository";
@@ -42,7 +43,10 @@ type SelectedRecipient = { type: "employee" | "applicant"; id: string; name: str
 // types values that aren't already on file (termination date, reason, etc).
 // (Bulk mode does the equivalent per-recipient server-side — see
 // resolveKnownFieldValue in generate-document.service.ts.)
-function autoFillFromEmployee(key: string, employee: EmployeeRow): string | undefined {
+// dateFormat is the field's own override (only meaningful for a "date"-type
+// field) — omitted for every other field, which keeps the original
+// hardcoded long-form milestone preview unchanged.
+function autoFillFromEmployee(key: string, employee: EmployeeRow, dateFormat?: string): string | undefined {
   switch (key.toLowerCase()) {
     case "employee_name":
     case "name":
@@ -53,6 +57,7 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow): string | unde
       return employee.designation;
     case "department":
     case "dept":
+    case "department_name":
       return employee.department;
     case "email":
     case "employee_email":
@@ -61,6 +66,8 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow): string | unde
       return String(employee.basicSalary);
     case "gross_salary":
       return String(employee.grossSalary);
+    case "joining_date":
+      return employee.joiningDate ? formatDateWithPreset(new Date(employee.joiningDate), dateFormat) : undefined;
     case "probation_end_date":
     case "confirmation_date":
     case "increment_eligibility_date":
@@ -69,13 +76,13 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow): string | unde
       const milestones = getEmployeeMilestones(new Date(employee.joiningDate), employee.employmentType);
       switch (key.toLowerCase()) {
         case "probation_end_date":
-          return formatMilestoneDate(milestones.probationEndDate);
+          return formatMilestoneDate(milestones.probationEndDate, dateFormat);
         case "confirmation_date":
-          return formatMilestoneDate(milestones.confirmationDate);
+          return formatMilestoneDate(milestones.confirmationDate, dateFormat);
         case "increment_eligibility_date":
-          return formatMilestoneDate(milestones.incrementEligibilityDate);
+          return formatMilestoneDate(milestones.incrementEligibilityDate, dateFormat);
         case "contract_renewal_date":
-          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate) : undefined;
+          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, dateFormat) : undefined;
         default:
           return undefined;
       }
@@ -182,7 +189,8 @@ export function GenerateDocumentWizard({
       } else if (field.type === "conditional") {
         next[field.key] = false;
       } else {
-        next[field.key] = bulkMode ? "" : (selectedEmployee && autoFillFromEmployee(field.key, selectedEmployee)) ?? "";
+        next[field.key] =
+          bulkMode ? "" : (selectedEmployee && autoFillFromEmployee(field.key, selectedEmployee, field.dateFormat)) ?? "";
       }
     }
     setValues(next);

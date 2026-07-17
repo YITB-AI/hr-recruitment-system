@@ -19,17 +19,27 @@ import { createEmployeeAction, updateEmployeeAction } from "@/actions/employees"
 import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS } from "@/constants/employee";
 import type { EmployeeRow, EmployeeDetailRow } from "@/server/repositories/employee.repository";
 import type { StatusRow } from "@/server/repositories/status.repository";
+import type { DepartmentRow } from "@/server/repositories/department.repository";
+import type { EmployeeTypeRow } from "@/server/repositories/employee-type.repository";
 
 const TYPE_ITEMS = EMPLOYMENT_TYPES.map((t) => ({ value: t, label: EMPLOYMENT_TYPE_LABELS[t] }));
+const NO_EMPLOYEE_TYPE = "";
 
 type EmployeeFormProps = {
   managers: EmployeeRow[];
   statuses: StatusRow[];
+  departments: DepartmentRow[];
+  employeeTypes: EmployeeTypeRow[];
   existing?: EmployeeDetailRow;
 };
 
-export function EmployeeForm({ managers, statuses, existing }: EmployeeFormProps) {
+export function EmployeeForm({ managers, statuses, departments, employeeTypes, existing }: EmployeeFormProps) {
   const statusItems = statuses.map((s) => ({ value: s.key, label: s.name }));
+  const departmentItems = departments.map((d) => ({ value: d._id, label: d.name }));
+  const employeeTypeItems = [
+    { value: NO_EMPLOYEE_TYPE, label: "None" },
+    ...employeeTypes.map((t) => ({ value: t._id, label: t.name })),
+  ];
   const router = useRouter();
   const {
     register,
@@ -42,7 +52,8 @@ export function EmployeeForm({ managers, statuses, existing }: EmployeeFormProps
       name: existing?.name ?? "",
       email: existing?.email ?? "",
       phone: existing?.phone ?? "",
-      department: existing?.department ?? "",
+      departmentId: existing?.departmentId ?? "",
+      employeeTypeId: existing?.employeeType?._id ?? NO_EMPLOYEE_TYPE,
       designation: existing?.designation ?? "",
       managerId: existing?.manager?._id ?? "",
       joiningDate: existing ? new Date(existing.joiningDate).toISOString().slice(0, 10) : "",
@@ -94,13 +105,30 @@ export function EmployeeForm({ managers, statuses, existing }: EmployeeFormProps
           <Input id="phone" {...register("phone")} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="department">Department</Label>
-          <Input id="department" {...register("department")} />
-          {errors.department && <p className="text-xs text-destructive">{errors.department.message}</p>}
+          <Label>Department</Label>
+          <Controller
+            control={control}
+            name="departmentId"
+            render={({ field }) => (
+              <Select items={departmentItems} value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departmentItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.departmentId && <p className="text-xs text-destructive">{errors.departmentId.message}</p>}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="designation">Designation</Label>
           <Input id="designation" {...register("designation")} />
@@ -118,6 +146,27 @@ export function EmployeeForm({ managers, statuses, existing }: EmployeeFormProps
                 </SelectTrigger>
                 <SelectContent>
                   {managerItems.map((item) => (
+                    <SelectItem key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Employee Type</Label>
+          <Controller
+            control={control}
+            name="employeeTypeId"
+            render={({ field }) => (
+              <Select items={employeeTypeItems} value={field.value ?? NO_EMPLOYEE_TYPE} onValueChange={(v) => field.onChange(v ?? NO_EMPLOYEE_TYPE)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employeeTypeItems.map((item) => (
                     <SelectItem key={item.value || "none"} value={item.value}>
                       {item.label}
                     </SelectItem>

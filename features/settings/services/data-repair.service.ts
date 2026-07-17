@@ -10,6 +10,7 @@ import { userRepository } from "@/server/repositories/user.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
+import { notifyStaffForReview } from "@/lib/staff-notify";
 
 // Same trust boundary as job-mapping.service.ts's Unmapped Jobs tool —
 // finding/fixing a record whose companyId isn't a valid ObjectId requires a
@@ -160,6 +161,19 @@ export async function autoRepairResolvableOrphanedApplicants(): Promise<{ repair
       entityId: applicantId,
       message: `Automatically repaired an orphaned applicant record (${(row.name as string) ?? "unknown"}) for ${company.name}`,
     });
+
+    // This is the point a raw n8n-inserted applicant first becomes visible/
+    // usable to the tenant — staff had no way to know it existed until now,
+    // so notify here rather than in autoRepairIncompleteApplicants below
+    // (which only backfills fields on an already-visible record — a second
+    // notification there would just be noise for the same applicant).
+    const applicantName = (row.name as string) ?? "A new applicant";
+    await notifyStaffForReview(
+      rawCompanyId,
+      "New applicant added",
+      `${applicantName} applied via automation for ${job.title}.`,
+    );
+
     repaired++;
   }
 

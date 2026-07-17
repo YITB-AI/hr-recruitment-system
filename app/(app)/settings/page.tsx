@@ -11,6 +11,8 @@ import { OrphanedApplicantsTable } from "@/features/settings/components/orphaned
 import { CompaniesTable } from "@/features/settings/components/companies-table";
 import { TenantInfoCard } from "@/features/settings/components/tenant-info-card";
 import { StatusManagementPanel } from "@/features/settings/components/status-management-panel";
+import { DepartmentManagementPanel } from "@/features/settings/components/department-management-panel";
+import { EmployeeTypeManagementPanel } from "@/features/settings/components/employee-type-management-panel";
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
@@ -18,6 +20,8 @@ import { listUnmappedJobs, listCompaniesForMapping } from "@/features/settings/s
 import { listOrphanedApplicants } from "@/features/settings/services/data-repair.service";
 import { listCompanies } from "@/features/settings/services/company-management.service";
 import { listStatuses } from "@/features/settings/services/status-management.service";
+import { listDepartments } from "@/features/settings/services/department.service";
+import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { userRepository } from "@/server/repositories/user.repository";
@@ -46,6 +50,8 @@ export default async function SettingsPage() {
     employeeStatuses,
     roleSummaries,
     orphanedApplicants,
+    departments,
+    employeeTypes,
   ] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
@@ -58,6 +64,8 @@ export default async function SettingsPage() {
     isAdmin ? listStatuses("employee") : Promise.resolve(null),
     isAdmin ? listRoleSummaries() : Promise.resolve(null),
     isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
+    isAdmin ? listDepartments() : Promise.resolve(null),
+    isAdmin ? listEmployeeTypes() : Promise.resolve(null),
   ]);
   const allPermissionActions = getAllPermissionActions();
 
@@ -77,6 +85,8 @@ export default async function SettingsPage() {
                   {isAdmin && <TabsTrigger value="users">Users & Roles</TabsTrigger>}
                   {isAdmin && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
                   {isAdmin && <TabsTrigger value="statuses">Statuses</TabsTrigger>}
+                  {isAdmin && <TabsTrigger value="departments">Departments</TabsTrigger>}
+                  {isAdmin && <TabsTrigger value="employee-types">Employee Types</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="companies">Companies</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
                   {isPlatformAdmin && <TabsTrigger value="orphaned-applicants">Orphaned Applicants</TabsTrigger>}
@@ -103,6 +113,18 @@ export default async function SettingsPage() {
                 {isAdmin && applicantStatuses && employeeStatuses && (
                   <TabsContent value="statuses" className="pt-6">
                     <StatusManagementPanel statusesByModule={{ applicant: applicantStatuses, employee: employeeStatuses }} />
+                  </TabsContent>
+                )}
+
+                {isAdmin && departments && (
+                  <TabsContent value="departments" className="pt-6">
+                    <DepartmentManagementPanel departments={departments} />
+                  </TabsContent>
+                )}
+
+                {isAdmin && employeeTypes && (
+                  <TabsContent value="employee-types" className="pt-6">
+                    <EmployeeTypeManagementPanel employeeTypes={employeeTypes} />
                   </TabsContent>
                 )}
 

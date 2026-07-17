@@ -10,7 +10,13 @@ export const employeeFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.email("Enter a valid email"),
   phone: z.string().optional(),
-  department: z.string().min(1, "Department is required"),
+  // References a real Department master row (see models/Department.ts) —
+  // the free-text era is over; employee.service.ts resolves this to the
+  // department's name and writes both fields on every create/update.
+  departmentId: z.string().min(1, "Department is required"),
+  // New position/role-level master (see models/EmployeeType.ts) — optional,
+  // independent of employmentType below.
+  employeeTypeId: z.string().optional(),
   designation: z.string().min(1, "Designation is required"),
   managerId: z.string().optional(),
   joiningDate: z.string().min(1, "Joining date is required"),

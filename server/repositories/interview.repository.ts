@@ -106,6 +106,26 @@ export const interviewRepository = {
   create(companyId: string, input: CreateInterviewInput) {
     return Interview.create({ ...input, companyId, status: "scheduled" });
   },
+  // Most recent non-cancelled, non-soft-deleted Interview for this
+  // applicant, of ANY type — used by requestAiCall
+  // (features/applicants/services/ai-call.service.ts) to decide whether an
+  // AI call can reuse an existing Interview record or must create a new
+  // "ai_screening"-typed one. Deliberately not restricted to prior
+  // ai_screening rows — "check whether an interview already exists" is
+  // read literally here.
+  async findActiveForApplicant(companyId: string, applicantId: string): Promise<InterviewRow | null> {
+    const row = await Interview.findOne({
+      companyId,
+      applicantId,
+      status: { $ne: "cancelled" },
+      deletedAt: { $exists: false },
+    })
+      .sort({ createdAt: -1 })
+      .populate("applicantId", "name email")
+      .populate("jobId", "title")
+      .lean<RawRow | null>();
+    return row ? serialize(row) : null;
+  },
   async update(companyId: string, id: string, input: UpdateInterviewInput): Promise<InterviewRow | null> {
     const row = await Interview.findOneAndUpdate({ _id: id, companyId, deletedAt: { $exists: false } }, input, {
       returnDocument: "after",

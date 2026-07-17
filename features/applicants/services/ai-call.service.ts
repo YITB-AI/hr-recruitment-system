@@ -1,12 +1,15 @@
 import { connectDB } from "@/server/db/connect";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
+import { interviewRepository } from "@/server/repositories/interview.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 import type { RequestAiCallInput } from "@/validators/ai-call";
+
+const AI_SCREENING_DURATION_MINUTES = 15;
 
 export type AiCallResult = { success: true } | { success: false; error: string };
 
@@ -49,6 +52,23 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const company = await companyRepository.findById(actor.companyId);
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
 
+  // Reuse an existing, still-active Interview for this applicant if one
+  // exists (of any type — "check whether an interview already exists" is
+  // taken literally); otherwise auto-create a lightweight "ai_screening"
+  // one so this AI call always has a real Interview record backing it.
+  const existingInterview = await interviewRepository.findActiveForApplicant(actor.companyId, input.applicantId);
+  const interview =
+    existingInterview ??
+    (await interviewRepository.create(actor.companyId, {
+      applicantId: input.applicantId,
+      jobId: applicant.jobId?._id ?? "",
+      interviewerIds: [],
+      type: "ai_screening",
+      scheduledAt: new Date(),
+      durationMinutes: AI_SCREENING_DURATION_MINUTES,
+    }));
+  const interviewId = String(interview._id);
+
   // Created before the outbound trigger (not after) so its _id can be
   // included in the payload — n8n echoes followupId back in every
   // started/completed/failed callback to app/api/webhooks/ai-call, which is
@@ -56,6 +76,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const followup = await applicantFollowupRepository.create({
     companyId: actor.companyId,
     applicantId: input.applicantId,
+    interviewId,
     type: "call",
     source: "ai-call",
     status: "pending",
@@ -70,6 +91,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
 
   const result = await triggerWebhook("ai-call", {
     followupId: followup._id,
+    interviewId,
     applicantId: applicant._id,
     name: input.name,
     phone: input.phone,

@@ -1,3 +1,6 @@
+import { formatDateWithPreset } from "@/lib/date-format";
+import type { TemplateMilestoneType } from "@/constants/document-template";
+
 // Employment milestone dates, derived purely from joiningDate + policy
 // durations — parallel to lib/salary-calculation.ts, but these have no
 // per-template configuration (they're always the same offset), so they're
@@ -52,6 +55,7 @@ export type EmployeeActionItem = {
   department: string;
   designation: string;
   action: string;
+  milestoneType: TemplateMilestoneType;
   dueDate: Date;
 };
 
@@ -75,13 +79,18 @@ export function buildUpcomingEmployeeActions(
     if (!employee.joiningDate) continue;
     const milestones = getEmployeeMilestones(employee.joiningDate, employee.employmentType);
 
-    const candidates: Array<{ action: string; date: Date; recurring: boolean }> = [
-      { action: "Probation Ending", date: milestones.probationEndDate, recurring: false },
-      { action: "Confirmation Due", date: milestones.confirmationDate, recurring: false },
-      { action: "Increment Due", date: milestones.incrementEligibilityDate, recurring: true },
+    const candidates: Array<{ action: string; milestoneType: TemplateMilestoneType; date: Date; recurring: boolean }> = [
+      { action: "Probation Ending", milestoneType: "probation", date: milestones.probationEndDate, recurring: false },
+      { action: "Confirmation Due", milestoneType: "confirmation", date: milestones.confirmationDate, recurring: false },
+      { action: "Increment Due", milestoneType: "increment_eligibility", date: milestones.incrementEligibilityDate, recurring: true },
     ];
     if (milestones.contractRenewalDate) {
-      candidates.push({ action: "Contract Renewal Due", date: milestones.contractRenewalDate, recurring: true });
+      candidates.push({
+        action: "Contract Renewal Due",
+        milestoneType: "contract_renewal",
+        date: milestones.contractRenewalDate,
+        recurring: true,
+      });
     }
 
     for (const candidate of candidates) {
@@ -96,6 +105,7 @@ export function buildUpcomingEmployeeActions(
         department: employee.department,
         designation: employee.designation,
         action: candidate.action,
+        milestoneType: candidate.milestoneType,
         dueDate,
       };
       if (isSameDay(dueDate, now)) today.push(item);
@@ -111,7 +121,10 @@ export function buildUpcomingEmployeeActions(
 // Shared by generate-document.service.ts (server) and
 // generate-document-wizard.tsx (client preview) so a milestone date is
 // never formatted differently in the wizard's preview than in the actual
-// generated document.
-export function formatMilestoneDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+// generated document. `preset` is the effective date format (a template
+// field's own override, or the company-wide Setting.dateFormat default) —
+// omitting it keeps the original hardcoded long-form behavior, so every
+// existing caller that predates this option is unaffected.
+export function formatMilestoneDate(date: Date, preset?: string): string {
+  return formatDateWithPreset(date, preset);
 }

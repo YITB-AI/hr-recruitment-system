@@ -18,3 +18,5 @@ export * from "./EmailLog";
 export * from "./ApplicantFollowup";
 export * from "./Status";
 export * from "./Note";
+export * from "./Department";
+export * from "./EmployeeType";

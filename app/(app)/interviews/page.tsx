@@ -18,6 +18,7 @@ const TYPE_LABELS: Record<string, string> = {
   hr: "HR",
   managerial: "Managerial",
   final: "Final",
+  ai_screening: "AI Screening",
 };
 
 export default async function InterviewsPage() {

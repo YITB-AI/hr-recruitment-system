@@ -28,12 +28,18 @@ const TYPE_LABELS: Record<string, string> = {
   final: "Final Interview",
 };
 
+// "ai_screening" is excluded here — it's only ever auto-created/reused by
+// requestAiCall (features/applicants/services/ai-call.service.ts) to back
+// an AI phone screening call, never something a human picks manually from
+// this form.
+const MANUALLY_SCHEDULABLE_TYPES = INTERVIEW_TYPES.filter((type) => type !== "ai_screening");
+
 const DURATIONS = [30, 45, 60, 90, 120];
 
 // Base UI's <Select.Value> renders the raw value unless the Root is given an
 // `items` lookup — without these, these selects showed raw values like
 // "technical" or "60" instead of their labels.
-const INTERVIEW_TYPE_ITEMS = INTERVIEW_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }));
+const INTERVIEW_TYPE_ITEMS = MANUALLY_SCHEDULABLE_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }));
 const DURATION_ITEMS = DURATIONS.map((d) => ({ value: String(d), label: `${d} Minutes` }));
 
 export type RescheduleSeed = {
@@ -101,7 +107,7 @@ export function ScheduleInterviewForm({
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                {INTERVIEW_TYPES.map((type) => (
+                {MANUALLY_SCHEDULABLE_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
                     {TYPE_LABELS[type]}
                   </SelectItem>

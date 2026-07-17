@@ -17,6 +17,7 @@ import {
   CALCULATION_TYPES,
   CALCULATION_TYPE_LABELS,
 } from "@/constants/document-template";
+import { TEMPLATE_DATE_FORMAT_PRESETS, TIME_FORMAT_PRESETS } from "@/lib/date-format";
 import type { TemplateFieldInput } from "@/validators/document-template";
 
 // Base UI's <Select.Value> renders the raw value unless the Root is given an
@@ -24,6 +25,12 @@ import type { TemplateFieldInput } from "@/validators/document-template";
 // "percentage_of_basic" instead of their labels.
 const FIELD_TYPE_ITEMS = FIELD_TYPES.map((type) => ({ value: type, label: FIELD_TYPE_LABELS[type] }));
 const CALCULATION_TYPE_ITEMS = CALCULATION_TYPES.map((type) => ({ value: type, label: CALCULATION_TYPE_LABELS[type] }));
+const DATE_FORMAT_ITEMS = TEMPLATE_DATE_FORMAT_PRESETS.map((preset) => ({ value: preset, label: preset }));
+const NO_TIME_FORMAT = "__none__";
+const TIME_FORMAT_ITEMS = [
+  { value: NO_TIME_FORMAT, label: "No time" },
+  ...TIME_FORMAT_PRESETS.map((preset) => ({ value: preset, label: preset })),
+];
 
 type TemplateFieldRowProps = {
   field: TemplateFieldInput;
@@ -68,6 +75,8 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
               columns: type === "table" ? field.columns ?? [{ key: "", label: "" }] : undefined,
               imageWidth: type === "image" ? field.imageWidth ?? 150 : undefined,
               imageHeight: type === "image" ? field.imageHeight ?? 150 : undefined,
+              dateFormat: type === "date" ? field.dateFormat ?? "long" : undefined,
+              timeFormat: type === "date" ? field.timeFormat : undefined,
             })
           }
         >
@@ -160,6 +169,54 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
               value={field.imageHeight ?? 150}
               onChange={(e) => onChange({ ...field, imageHeight: Number(e.target.value) || 150 })}
             />
+          </div>
+        </div>
+      )}
+
+      {field.type === "date" && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Date format</p>
+            <Select
+              items={DATE_FORMAT_ITEMS}
+              value={field.dateFormat ?? "long"}
+              onValueChange={(preset) => onChange({ ...field, dateFormat: preset as TemplateFieldInput["dateFormat"] })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_FORMAT_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Time format (optional)</p>
+            <Select
+              items={TIME_FORMAT_ITEMS}
+              value={field.timeFormat ?? NO_TIME_FORMAT}
+              onValueChange={(preset) =>
+                onChange({
+                  ...field,
+                  timeFormat: preset === NO_TIME_FORMAT ? undefined : (preset as TemplateFieldInput["timeFormat"]),
+                })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_FORMAT_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}

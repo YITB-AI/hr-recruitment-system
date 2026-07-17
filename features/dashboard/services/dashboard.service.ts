@@ -7,18 +7,21 @@ import { applicantFollowupRepository } from "@/server/repositories/applicant-fol
 import { employeeRepository } from "@/server/repositories/employee.repository";
 import { statusRepository } from "@/server/repositories/status.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
+import { findTemplateForMilestone } from "@/features/documents/services/document-template.service";
 import { getCurrentUser } from "@/lib/current-user";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
-import { buildUpcomingEmployeeActions } from "@/lib/employee-milestones";
+import { buildUpcomingEmployeeActions, type EmployeeActionItem } from "@/lib/employee-milestones";
 import { PIPELINE_STATUSES, type ApplicantStatus } from "@/constants/applicant-status";
-import type { DashboardData } from "@/types/dashboard";
+import { TEMPLATE_MILESTONE_TYPES } from "@/constants/document-template";
+import type { DashboardData, UpcomingEmployeeActionItem } from "@/types/dashboard";
 
 const UPCOMING_EMPLOYEE_ACTIONS_WINDOW_DAYS = 30;
 
-export async function getDashboardData(): Promise<DashboardData> {
-  await connectDB();
-  const { companyId, id: userId } = await getCurrentUser();
-
+// The cheap, frequently-changing subset of the dashboard — split out so the
+// live-refresh polling (see actions/dashboard.ts) can re-fetch just this
+// every ~30s without recomputing recentActivity/upcomingInterviews/
+// nextActions/upcomingEmployeeActions on every tick.
+async function computeCounters(companyId: string) {
   const { previousStart, currentStart, now } = getWeekWindows(new Date());
 
   const [
@@ -35,12 +38,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     hiredThisWeek,
     hiredPrevWeek,
     statusBreakdown,
-    recentActivity,
-    upcomingInterviews,
     communicationCounts,
     applicantStatuses,
-    nextActions,
-    employeesForMilestones,
   ] = await Promise.all([
     // Job stays optional-companyId at the schema level (n8n-authored rows
     // may have none — see models/Job.ts), but these counts are scoped to
@@ -59,23 +58,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     applicantRepository.countByStatusUpdatedBetween(companyId, "hired", currentStart, now),
     applicantRepository.countByStatusUpdatedBetween(companyId, "hired", previousStart, currentStart),
     applicantRepository.groupByStatus(companyId),
-    activityLogRepository.findRecent(companyId, 6),
-    interviewRepository.findUpcoming(companyId, 5),
     applicantFollowupRepository.countByType(companyId),
     statusRepository.findAllForModule(companyId, "applicant"),
-    // "Next actions" — unread notifications for the current user, which is
-    // exactly what the AI-call outcome fallback (call-outcome.service.ts)
-    // creates when an outcome needs manual review. Reuses the same
-    // Notification store the topbar bell already reads; no new storage.
-    notificationRepository.findRecent(userId, 10),
-    employeeRepository.findActiveForMilestones(companyId),
   ]);
 
-  const { today: employeeActionsToday, upcoming: employeeActionsUpcoming } = buildUpcomingEmployeeActions(
-    employeesForMilestones,
-    now,
-    UPCOMING_EMPLOYEE_ACTIONS_WINDOW_DAYS,
-  );
   const statusByKey = new Map(applicantStatuses.map((s) => [s.key, s]));
 
   const countsByStatus = new Map<ApplicantStatus, number>(
@@ -124,6 +110,76 @@ export async function getDashboardData(): Promise<DashboardData> {
       },
     },
     applicantsByStatus,
+    communication: {
+      calls: communicationCounts.call,
+      emails: communicationCounts.email,
+      messages: communicationCounts.sms + communicationCounts.whatsapp,
+      pending: communicationCounts.pending,
+      failed: communicationCounts.failed,
+      inProgress: communicationCounts.inProgress,
+    },
+  };
+}
+
+// Polled every ~30s by the client (features/dashboard/components/dashboard-live-refresh.tsx)
+// via getDashboardCountersAction — kept separate from getDashboardData so a
+// tick never re-runs the more expensive recentActivity/upcomingInterviews/
+// nextActions/upcomingEmployeeActions queries.
+export async function getDashboardCounters() {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  return computeCounters(companyId);
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  await connectDB();
+  const { companyId, id: userId } = await getCurrentUser();
+
+  const { now } = getWeekWindows(new Date());
+
+  const [counters, recentActivity, upcomingInterviews, nextActions, employeesForMilestones] = await Promise.all([
+    computeCounters(companyId),
+    activityLogRepository.findRecent(companyId, 6),
+    interviewRepository.findUpcoming(companyId, 5),
+    // "Next actions" — unread notifications for the current user, which is
+    // exactly what the AI-call outcome fallback (call-outcome.service.ts)
+    // creates when an outcome needs manual review. Reuses the same
+    // Notification store the topbar bell already reads; no new storage.
+    notificationRepository.findRecent(userId, 10),
+    employeeRepository.findActiveForMilestones(companyId),
+  ]);
+
+  const { today: employeeActionsToday, upcoming: employeeActionsUpcoming } = buildUpcomingEmployeeActions(
+    employeesForMilestones,
+    now,
+    UPCOMING_EMPLOYEE_ACTIONS_WINDOW_DAYS,
+  );
+
+  // Resolve at most 4 templates (one per milestone type), not one per
+  // employee-action item — cheap even with many upcoming actions.
+  const templateIdByMilestone = new Map<string, string | null>(
+    await Promise.all(
+      TEMPLATE_MILESTONE_TYPES.map(
+        async (type) => [type, (await findTemplateForMilestone(companyId, type))?._id ?? null] as const,
+      ),
+    ),
+  );
+  function toUpcomingActionItem(item: EmployeeActionItem): UpcomingEmployeeActionItem {
+    return {
+      employeeId: item.employeeId,
+      employeeName: item.employeeName,
+      department: item.department,
+      designation: item.designation,
+      action: item.action,
+      milestoneType: item.milestoneType,
+      templateId: templateIdByMilestone.get(item.milestoneType) ?? null,
+      dueDate: item.dueDate.toISOString(),
+    };
+  }
+
+  return {
+    stats: counters.stats,
+    applicantsByStatus: counters.applicantsByStatus,
     recentActivity: recentActivity.map((entry) => ({
       id: String(entry._id),
       message: entry.message,
@@ -136,14 +192,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       jobTitle: entry.jobId?.title ?? "Unknown role",
       scheduledAt: entry.scheduledAt.toISOString(),
     })),
-    communication: {
-      calls: communicationCounts.call,
-      emails: communicationCounts.email,
-      messages: communicationCounts.sms + communicationCounts.whatsapp,
-      pending: communicationCounts.pending,
-      failed: communicationCounts.failed,
-      inProgress: communicationCounts.inProgress,
-    },
+    communication: counters.communication,
     nextActions: nextActions
       .filter((n) => !n.read)
       .slice(0, 5)
@@ -154,22 +203,8 @@ export async function getDashboardData(): Promise<DashboardData> {
         createdAt: n.createdAt.toISOString(),
       })),
     upcomingEmployeeActions: {
-      today: employeeActionsToday.map((item) => ({
-        employeeId: item.employeeId,
-        employeeName: item.employeeName,
-        department: item.department,
-        designation: item.designation,
-        action: item.action,
-        dueDate: item.dueDate.toISOString(),
-      })),
-      upcoming: employeeActionsUpcoming.map((item) => ({
-        employeeId: item.employeeId,
-        employeeName: item.employeeName,
-        department: item.department,
-        designation: item.designation,
-        action: item.action,
-        dueDate: item.dueDate.toISOString(),
-      })),
+      today: employeeActionsToday.map(toUpcomingActionItem),
+      upcoming: employeeActionsUpcoming.map(toUpcomingActionItem),
     },
   };
 }

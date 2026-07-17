@@ -1,4 +1,5 @@
 import type { ApplicantStatus } from "@/constants/applicant-status";
+import type { TemplateMilestoneType } from "@/constants/document-template";
 
 export type TrendDirection = "up" | "down" | "flat";
 
@@ -64,6 +65,11 @@ export type UpcomingEmployeeActionItem = {
   department: string;
   designation: string;
   action: string;
+  milestoneType: TemplateMilestoneType;
+  // Resolved template tagged for this milestone, if any — see
+  // findTemplateForMilestone in document-template.service.ts. Null when no
+  // template has been tagged yet for this milestone type.
+  templateId: string | null;
   dueDate: string;
 };
 

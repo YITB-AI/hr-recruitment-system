@@ -13,6 +13,7 @@ export type ApplicantFollowupRow = {
   error: string | null;
   message: string | null;
   requestedAt: Date | null;
+  interviewId: string | null;
   interviewerNames: string[];
   meetingLink: string | null;
   retryCount: number;
@@ -41,6 +42,7 @@ function serialize(row: RawRow): ApplicantFollowupRow {
     error: (row.error as string | undefined) ?? null,
     message: (row.message as string | undefined) ?? null,
     requestedAt: (row.requestedAt as Date | undefined) ?? null,
+    interviewId: row.interviewId ? String(row.interviewId) : null,
     interviewerNames: (row.interviewerNames as string[] | undefined) ?? [],
     meetingLink: (row.meetingLink as string | undefined) ?? null,
     retryCount: (row.retryCount as number | undefined) ?? 0,
@@ -66,6 +68,7 @@ export type CreateApplicantFollowupInput = {
   error?: string;
   message?: string;
   requestedAt?: Date;
+  interviewId?: string;
   interviewerNames?: string[];
   meetingLink?: string;
   retryCount?: number;

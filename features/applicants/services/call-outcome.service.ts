@@ -1,10 +1,10 @@
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server/repositories/applicant-followup.repository";
+import { interviewRepository } from "@/server/repositories/interview.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { notificationRepository } from "@/server/repositories/notification.repository";
-import { userRepository } from "@/server/repositories/user.repository";
 import { isValidStatusKey } from "@/features/settings/services/status-management.service";
 import { changeApplicantStatus } from "@/features/applicants/services/applicant.service";
+import { notifyStaffForReview } from "@/lib/staff-notify";
 import { FOLLOWUP_OUTCOME_LABELS, type FollowupOutcome } from "@/constants/followup";
 import type { SessionUser } from "@/types/user";
 import type { AiCallWebhookInput } from "@/validators/ai-call-webhook";
@@ -30,16 +30,6 @@ function systemActorFor(companyId: string): SessionUser {
     isPlatformAdmin: false,
     impersonatedBy: null,
   };
-}
-
-const NOTIFY_ROLES = ["admin", "hr", "recruiter"] as const;
-
-async function notifyStaffForReview(companyId: string, title: string, message: string): Promise<void> {
-  const recipients = await userRepository.findByRoles(companyId, [...NOTIFY_ROLES]);
-  if (recipients.length === 0) return;
-  await notificationRepository.createMany(
-    recipients.map((recipient) => ({ companyId, userId: recipient._id, title, message })),
-  );
 }
 
 async function logCallEvent(companyId: string, applicantId: string, action: string, message: string): Promise<void> {
@@ -111,13 +101,24 @@ async function tryStatusChangeOrNotify(
 // handlers only own the status-change/notification side effects.
 const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise<void>> = {
   interview_scheduled: async (ctx) => {
-    // Only the status flips automatically — an actual Interview document
-    // still needs a human to pick an interviewer/duration via the real
-    // scheduling UI (scheduleInterview() requires both and an AI call has
-    // no way to supply either).
     await changeApplicantStatus(ctx.followup.applicantId, "interview", ctx.actor).catch((error) => {
       console.error("Failed to apply AI-call status change:", error);
     });
+    // The AI call always has a real ("ai_screening"-typed) Interview record
+    // backing it (see requestAiCall) — if the call proposed a real time,
+    // push it onto that same row now. This upgrades a placeholder time into
+    // a real one; it's not a reschedule-into-a-new-row (nothing prior is
+    // being superseded), so it doesn't conflict with rescheduleInterview's
+    // never-overwrite semantics. A human still needs to assign a real
+    // interviewer/type via the Interviews page — an AI call has no way to
+    // supply either — so staff are notified either way.
+    if (ctx.followup.interviewId && ctx.body.proposedInterviewAt) {
+      await interviewRepository
+        .update(ctx.followup.companyId, ctx.followup.interviewId, { scheduledAt: new Date(ctx.body.proposedInterviewAt) })
+        .catch((error) => {
+          console.error("Failed to update the AI-screening interview's scheduled time:", error);
+        });
+    }
     const when = ctx.body.proposedInterviewAt ? ` around ${new Date(ctx.body.proposedInterviewAt).toLocaleString()}` : "";
     await notifyStaffForReview(
       ctx.followup.companyId,

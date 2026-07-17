@@ -39,7 +39,15 @@ function ActionList({ items }: { items: UpcomingEmployeeActionItem[] }) {
               size="sm"
               className="h-7 text-xs"
               nativeButton={false}
-              render={<Link href={`/documents?employeeId=${item.employeeId}`} />}
+              render={
+                <Link
+                  href={
+                    item.templateId
+                      ? `/documents?employeeId=${item.employeeId}&templateId=${item.templateId}`
+                      : `/documents?employeeId=${item.employeeId}`
+                  }
+                />
+              }
             >
               Generate Letter
             </Button>

@@ -37,6 +37,7 @@ function parseTemplateForm(formData: FormData) {
     category: String(formData.get("category") ?? ""),
     description: String(formData.get("description") ?? "") || undefined,
     fields: JSON.parse(String(formData.get("fields") ?? "[]")),
+    milestoneType: String(formData.get("milestoneType") ?? "") || undefined,
   };
   return documentTemplateSchema.safeParse(raw);
 }

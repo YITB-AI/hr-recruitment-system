@@ -12,6 +12,8 @@ export const PERMISSION_MODULE_LABELS: Record<string, string> = {
   user: "Users & Roles",
   job: "Jobs",
   status: "Statuses",
+  department: "Departments",
+  employee_type: "Employee Types",
 };
 
 export const PERMISSION_ACTION_LABELS: Record<string, string> = {
@@ -34,6 +36,8 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
   "job.create": "Create jobs",
   "job.manage": "Update/archive/delete jobs",
   "status.manage": "Manage applicant/employee statuses",
+  "department.manage": "Manage departments",
+  "employee_type.manage": "Manage employee types",
 };
 
 export function permissionModule(action: string): string {

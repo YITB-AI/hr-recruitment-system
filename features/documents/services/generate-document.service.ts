@@ -3,6 +3,8 @@ import { connectDB } from "@/server/db/connect";
 import { documentTemplateRepository, type DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import { employeeRepository } from "@/server/repositories/employee.repository";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
+import { settingRepository } from "@/server/repositories/setting.repository";
 import {
   generatedDocumentRepository,
   type GeneratedDocumentRow,
@@ -12,6 +14,9 @@ import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
+import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue } from "@/lib/date-format";
+import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
+import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { SessionUser } from "@/types/user";
@@ -35,13 +40,34 @@ type RecipientRecord = {
   // applicants, which naturally excludes them from the milestone-date keys.
   joiningDate?: Date | null;
   employmentType?: string | null;
+  // Employee-only, all absent on an applicant recipient.
+  employeeCode?: string | null;
+  phone?: string | null;
+  manager?: { name: string } | null;
+  employmentStatus?: string | null;
+  employeeType?: { name: string } | null;
+  // Applicant-only, all absent on an employee recipient.
+  jobId?: { title: string } | null;
+  status?: string | null;
+  source?: string | null;
+  appliedAt?: Date | null;
+  location?: string | null;
+  experienceYears?: number | null;
+  skills?: string[] | null;
+  resumeUrl?: string | null;
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  portfolioUrl?: string | null;
 };
 
 // Mirrors the client-side autofill convenience in generate-document-wizard.tsx,
 // but as a fallback only: an explicitly-provided value in `values` always wins
 // (see generateOne below) — this only fills gaps, e.g. for bulk generation
 // where one shared values map can't hold a different name per recipient.
-function resolveKnownFieldValue(key: string, record: RecipientRecord): string | undefined {
+// `dateFormat` is the effective format for this field (its own override, or
+// the company-wide Setting.dateFormat default) — only the milestone-date
+// keys use it, since every other value here is already a plain string.
+function resolveKnownFieldValue(key: string, record: RecipientRecord, dateFormat?: string): string | undefined {
   switch (key.toLowerCase()) {
     case "employee_name":
     case "applicant_name":
@@ -50,9 +76,10 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord): string | 
     case "designation":
     case "job_title":
     case "position":
-      return record.designation ?? record.currentPosition ?? undefined;
+      return record.designation ?? record.currentPosition ?? record.jobId?.title ?? undefined;
     case "department":
     case "dept":
+    case "department_name":
       return record.department ?? undefined;
     case "email":
     case "employee_email":
@@ -70,17 +97,81 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord): string | 
       const milestones = getEmployeeMilestones(record.joiningDate, record.employmentType ?? "");
       switch (key.toLowerCase()) {
         case "probation_end_date":
-          return formatMilestoneDate(milestones.probationEndDate);
+          return formatMilestoneDate(milestones.probationEndDate, dateFormat);
         case "confirmation_date":
-          return formatMilestoneDate(milestones.confirmationDate);
+          return formatMilestoneDate(milestones.confirmationDate, dateFormat);
         case "increment_eligibility_date":
-          return formatMilestoneDate(milestones.incrementEligibilityDate);
+          return formatMilestoneDate(milestones.incrementEligibilityDate, dateFormat);
         case "contract_renewal_date":
-          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate) : undefined;
+          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, dateFormat) : undefined;
         default:
           return undefined;
       }
     }
+    case "employee_code":
+      return record.employeeCode ?? undefined;
+    case "phone":
+    case "applicant_phone":
+      return record.phone ?? undefined;
+    case "manager_name":
+      return record.manager?.name ?? undefined;
+    case "employment_type":
+      return record.employmentType
+        ? EMPLOYMENT_TYPE_LABELS[record.employmentType as EmploymentType] ?? record.employmentType
+        : undefined;
+    case "employment_status":
+      return record.employmentStatus ?? undefined;
+    case "employee_type_name":
+      return record.employeeType?.name ?? undefined;
+    case "joining_date":
+      return record.joiningDate ? formatDateWithPreset(record.joiningDate, dateFormat) : undefined;
+    case "applicant_status":
+      return record.status ?? undefined;
+    case "source":
+      return record.source ? APPLICANT_SOURCE_LABELS[record.source as ApplicantSource] ?? record.source : undefined;
+    case "applied_date":
+      return record.appliedAt ? formatDateWithPreset(record.appliedAt, dateFormat) : undefined;
+    case "location":
+      return record.location ?? undefined;
+    case "experience_years":
+      return record.experienceYears != null ? String(record.experienceYears) : undefined;
+    case "skills":
+      return record.skills && record.skills.length > 0 ? record.skills.join(", ") : undefined;
+    case "resume_url":
+      return record.resumeUrl ?? undefined;
+    case "linkedin_url":
+      return record.linkedinUrl ?? undefined;
+    case "github_url":
+      return record.githubUrl ?? undefined;
+    case "portfolio_url":
+      return record.portfolioUrl ?? undefined;
+    default:
+      return undefined;
+  }
+}
+
+// Company/System variables don't come from the recipient record at all —
+// Company is fetched once per generate call (see generateOne's callers) and
+// System values are computed at generation time.
+function resolveCompanyFieldValue(key: string, company: { name: string; logoUrl: string | null }): string | undefined {
+  switch (key.toLowerCase()) {
+    case "company_name":
+      return company.name;
+    case "company_logo_url":
+      return company.logoUrl ?? undefined;
+    default:
+      return undefined;
+  }
+}
+
+function resolveSystemFieldValue(key: string, generatedByName: string, dateFormat?: string, timeFormat?: string): string | undefined {
+  switch (key.toLowerCase()) {
+    case "current_date":
+      return formatDateWithPreset(new Date(), dateFormat);
+    case "current_time":
+      return formatTimeWithPreset(new Date(), timeFormat ?? "h:mm A");
+    case "generated_by":
+      return generatedByName;
     default:
       return undefined;
   }
@@ -94,6 +185,8 @@ async function generateOne(
   recipient: DocumentRecipient,
   values: FieldValueMap,
   batchId: string,
+  company: { name: string; logoUrl: string | null },
+  companyDateFormat: string,
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
@@ -136,10 +229,27 @@ async function generateOne(
         resolvedValues[field.key] = "";
         if (field.required) missing.push(field.label);
       }
+    } else if (field.type === "date") {
+      const raw = values[field.key];
+      const provided = typeof raw === "string" ? raw.trim() : "";
+      const effectiveDateFormat = field.dateFormat ?? companyDateFormat;
+      const value = provided
+        ? formatProvidedDateValue(provided, effectiveDateFormat, field.timeFormat)
+        : resolveSystemFieldValue(field.key, actor.name, effectiveDateFormat, field.timeFormat) ||
+          resolveCompanyFieldValue(field.key, company) ||
+          resolveKnownFieldValue(field.key, recipientRecord, effectiveDateFormat) ||
+          "";
+      resolvedValues[field.key] = value;
+      if (field.required && value.trim() === "") missing.push(field.label);
     } else {
       const raw = values[field.key];
       const provided = typeof raw === "string" ? raw.trim() : "";
-      const value = provided || resolveKnownFieldValue(field.key, recipientRecord) || "";
+      const value =
+        provided ||
+        resolveSystemFieldValue(field.key, actor.name, companyDateFormat) ||
+        resolveCompanyFieldValue(field.key, company) ||
+        resolveKnownFieldValue(field.key, recipientRecord, companyDateFormat) ||
+        "";
       resolvedValues[field.key] = value;
       if (field.required && value.trim() === "") missing.push(field.label);
     }
@@ -226,10 +336,17 @@ export async function generateDocument(
   const actor = await getCurrentUser();
   requireRole(actor, "document.generate");
 
-  const template = await documentTemplateRepository.findById(actor.companyId, templateId);
+  const [template, company, setting] = await Promise.all([
+    documentTemplateRepository.findById(actor.companyId, templateId),
+    companyRepository.findById(actor.companyId),
+    settingRepository.get(actor.companyId),
+  ]);
   if (!template) throw new Error("Template not found");
 
-  return generateOne(actor, template, recipient, values, randomUUID());
+  return generateOne(actor, template, recipient, values, randomUUID(), {
+    name: company?.name ?? "",
+    logoUrl: company?.logoUrl ?? null,
+  }, setting.dateFormat);
 }
 
 export type BulkGenerateResultItem =
@@ -245,15 +362,20 @@ export async function generateDocumentsBulk(
   const actor = await getCurrentUser();
   requireRole(actor, "document.generate");
 
-  const template = await documentTemplateRepository.findById(actor.companyId, templateId);
+  const [template, company, setting] = await Promise.all([
+    documentTemplateRepository.findById(actor.companyId, templateId),
+    companyRepository.findById(actor.companyId),
+    settingRepository.get(actor.companyId),
+  ]);
   if (!template) throw new Error("Template not found");
 
   const batchId = randomUUID();
+  const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
 
   // allSettled, not all — one bad recipient (missing record, missing
   // required field) must not sink the rest of the batch.
   const settled = await Promise.allSettled(
-    recipients.map((recipient) => generateOne(actor, template, recipient, values, batchId)),
+    recipients.map((recipient) => generateOne(actor, template, recipient, values, batchId, companyInfo, setting.dateFormat)),
   );
 
   const results: BulkGenerateResultItem[] = settled.map((outcome, index) => {

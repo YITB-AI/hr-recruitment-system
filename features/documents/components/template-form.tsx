@@ -7,11 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TemplateFieldRow } from "@/features/documents/components/template-field-row";
 import { VariablePicker } from "@/features/documents/components/variable-picker";
 import { detectVariablesAction, createTemplateAction, updateTemplateAction } from "@/actions/document-templates";
+import { TEMPLATE_MILESTONE_TYPES, TEMPLATE_MILESTONE_TYPE_LABELS } from "@/constants/document-template";
 import type { TemplateFieldInput } from "@/validators/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
+
+const NO_MILESTONE = "__none__";
+const MILESTONE_ITEMS = [
+  { value: NO_MILESTONE, label: "Not linked to a milestone" },
+  ...TEMPLATE_MILESTONE_TYPES.map((type) => ({ value: type, label: TEMPLATE_MILESTONE_TYPE_LABELS[type] })),
+];
 
 function prettifyKey(key: string) {
   return key
@@ -25,6 +33,7 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
   const [description, setDescription] = useState(existing?.description ?? "");
   const [fields, setFields] = useState<TemplateFieldInput[]>(existing?.fields ?? []);
   const [fileName, setFileName] = useState<string | null>(existing?.fileName ?? null);
+  const [milestoneType, setMilestoneType] = useState<string>(existing?.milestoneType ?? NO_MILESTONE);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isDetecting, startDetecting] = useTransition();
@@ -119,6 +128,7 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
     formData.set("category", category);
     formData.set("description", description);
     formData.set("fields", JSON.stringify(fields));
+    if (milestoneType !== NO_MILESTONE) formData.set("milestoneType", milestoneType);
     const file = fileInputRef.current?.files?.[0];
     if (file) formData.set("file", file);
 
@@ -155,6 +165,26 @@ export function TemplateForm({ existing }: { existing?: DocumentTemplateRow }) {
       <div className="space-y-1.5">
         <Label htmlFor="description">Description</Label>
         <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Link to milestone (optional)</Label>
+        <Select items={MILESTONE_ITEMS} value={milestoneType} onValueChange={(v) => setMilestoneType(v ?? NO_MILESTONE)}>
+          <SelectTrigger className="w-full sm:w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MILESTONE_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          When set, the dashboard&apos;s Upcoming Employee Actions widget will offer this template pre-selected for
+          that milestone.
+        </p>
       </div>
 
       <div className="space-y-1.5">

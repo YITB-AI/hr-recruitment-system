@@ -1,5 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { FIELD_TYPES, CALCULATION_TYPES } from "@/constants/document-template";
+import { FIELD_TYPES, CALCULATION_TYPES, TEMPLATE_MILESTONE_TYPES } from "@/constants/document-template";
 
 const calculationSchema = new Schema(
   {
@@ -34,6 +34,11 @@ const templateFieldSchema = new Schema(
     // admin uploads.
     imageWidth: { type: Number, default: undefined },
     imageHeight: { type: Number, default: undefined },
+    // "date" fields only: per-field override of the company-wide
+    // Setting.dateFormat default — see lib/date-format.ts. timeFormat is
+    // optional even on a date field (most letters only need a date).
+    dateFormat: { type: String, default: undefined },
+    timeFormat: { type: String, default: undefined },
   },
   { _id: false },
 );
@@ -49,6 +54,9 @@ const documentTemplateSchema = new Schema(
     fileUrl: { type: String, required: true },
     fields: { type: [templateFieldSchema], default: [] },
     isActive: { type: Boolean, default: true },
+    // Optional tag linking this whole template to an employee milestone —
+    // see the comment on TEMPLATE_MILESTONE_TYPES.
+    milestoneType: { type: String, enum: TEMPLATE_MILESTONE_TYPES, default: undefined },
   },
   { timestamps: true },
 );

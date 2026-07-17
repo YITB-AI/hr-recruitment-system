@@ -11,6 +11,7 @@ export function StatsGrid({ stats }: { stats: DashboardStats }) {
         trend={stats.totalJobs.trend}
         icon={Briefcase}
         iconClassName="bg-[var(--status-new)]/10 text-[var(--status-new)]"
+        href="/jobs"
       />
       <StatCard
         label={stats.totalApplicants.label}
@@ -18,6 +19,7 @@ export function StatsGrid({ stats }: { stats: DashboardStats }) {
         trend={stats.totalApplicants.trend}
         icon={Users}
         iconClassName="bg-[var(--status-interview)]/10 text-[var(--status-interview)]"
+        href="/applicants"
       />
       <StatCard
         label={stats.shortlisted.label}
@@ -25,6 +27,7 @@ export function StatsGrid({ stats }: { stats: DashboardStats }) {
         trend={stats.shortlisted.trend}
         icon={ListChecks}
         iconClassName="bg-[var(--status-shortlisted)]/10 text-[var(--status-shortlisted)]"
+        href="/applicants?status=shortlisted"
       />
       <StatCard
         label={stats.hired.label}
@@ -32,6 +35,7 @@ export function StatsGrid({ stats }: { stats: DashboardStats }) {
         trend={stats.hired.trend}
         icon={UserCheck}
         iconClassName="bg-[var(--status-screening)]/10 text-[var(--status-screening)]"
+        href="/applicants?status=hired"
       />
     </div>
   );

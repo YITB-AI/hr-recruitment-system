@@ -25,6 +25,8 @@ export const PERMISSION_ACTIONS = [
   "job.create",
   "job.manage",
   "status.manage",
+  "department.manage",
+  "employee_type.manage",
   "user.impersonate",
 ] as const;
 

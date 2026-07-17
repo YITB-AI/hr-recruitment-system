@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,10 @@ type StatCardProps = {
   icon: LucideIcon;
   iconClassName?: string;
   trend?: StatTrend;
+  // Optional — renders the card as a link to a pre-filtered page when
+  // provided; every existing caller that doesn't pass one keeps rendering
+  // a plain, non-interactive div exactly as before.
+  href?: string;
 };
 
 const TREND_STYLES: Record<StatTrend["direction"], string> = {
@@ -23,11 +28,15 @@ const TREND_ICON: Record<StatTrend["direction"], LucideIcon> = {
   flat: Minus,
 };
 
-export function StatCard({ label, value, icon: Icon, iconClassName, trend }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, iconClassName, trend, href }: StatCardProps) {
   const TrendIcon = trend ? TREND_ICON[trend.direction] : null;
+  const cardClassName = cn(
+    "rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md",
+    href && "block cursor-pointer",
+  );
 
-  return (
-    <div className="rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+  const content = (
+    <>
       <div className="flex items-start justify-between">
         <div
           className={cn(
@@ -57,6 +66,16 @@ export function StatCard({ label, value, icon: Icon, iconClassName, trend }: Sta
           last week
         </p>
       )}
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={cardClassName}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={cardClassName}>{content}</div>;
 }

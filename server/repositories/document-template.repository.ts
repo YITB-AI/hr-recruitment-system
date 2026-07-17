@@ -1,5 +1,6 @@
 import { DocumentTemplate } from "@/models";
 import type { TemplateFieldInput } from "@/validators/document-template";
+import type { TemplateMilestoneType } from "@/constants/document-template";
 
 export type DocumentTemplateRow = {
   _id: string;
@@ -10,6 +11,7 @@ export type DocumentTemplateRow = {
   fileUrl: string;
   fields: TemplateFieldInput[];
   isActive: boolean;
+  milestoneType: TemplateMilestoneType | null;
   createdAt: Date;
 };
 
@@ -25,6 +27,7 @@ function serialize(row: RawRow): DocumentTemplateRow {
     fileUrl: row.fileUrl as string,
     fields: (row.fields as TemplateFieldInput[]) ?? [],
     isActive: row.isActive as boolean,
+    milestoneType: (row.milestoneType as TemplateMilestoneType | undefined) ?? null,
     createdAt: row.createdAt as Date,
   };
 }
@@ -36,6 +39,7 @@ export type CreateTemplateInput = {
   fileName: string;
   fileUrl: string;
   fields: TemplateFieldInput[];
+  milestoneType?: TemplateMilestoneType;
 };
 
 export type UpdateTemplateInput = Partial<CreateTemplateInput> & { isActive?: boolean };
@@ -49,6 +53,15 @@ export const documentTemplateRepository = {
   },
   async findById(companyId: string, id: string): Promise<DocumentTemplateRow | null> {
     const row = await DocumentTemplate.findOne({ _id: id, companyId }).lean<RawRow | null>();
+    return row ? serialize(row) : null;
+  },
+  // First active template tagged with this milestone — if two are tagged,
+  // first-created wins (oldest _id). A known simplification, not silently
+  // ambiguous: documented here rather than picking arbitrarily elsewhere.
+  async findByMilestoneType(companyId: string, milestoneType: TemplateMilestoneType): Promise<DocumentTemplateRow | null> {
+    const row = await DocumentTemplate.findOne({ companyId, milestoneType, isActive: true })
+      .sort({ createdAt: 1 })
+      .lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
   async create(companyId: string, input: CreateTemplateInput): Promise<DocumentTemplateRow> {

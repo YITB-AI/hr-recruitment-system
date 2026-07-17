@@ -149,7 +149,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                     {interviews.map((interview) => (
                       <li key={interview._id} className="flex flex-wrap items-center justify-between gap-3 py-4">
                         <div>
-                          <p className="text-sm font-medium capitalize">{interview.type} Interview</p>
+                          <p className="text-sm font-medium capitalize">{interview.type.replace("_", " ")} Interview</p>
                           <p className="text-sm text-muted-foreground">
                             {new Date(interview.scheduledAt).toLocaleString("en-US", {
                               month: "short",

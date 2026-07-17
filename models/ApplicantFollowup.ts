@@ -14,6 +14,12 @@ const applicantFollowupSchema = new Schema(
     // Optional for now — see the companyId comment in models/User.ts.
     companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant", required: true, index: true },
+    // Links an AI-call attempt (type:"call") to the real Interview record
+    // backing it — see requestAiCall in features/applicants/services/ai-call.service.ts,
+    // which reuses an existing non-cancelled Interview for the applicant if
+    // one exists, or auto-creates an "ai_screening"-typed one. Undefined for
+    // email/sms/whatsapp rows, same convention as message/requestedAt below.
+    interviewId: { type: Schema.Types.ObjectId, ref: "Interview" },
     type: { type: String, enum: FOLLOWUP_TYPES, required: true, index: true },
     // The webhook action (or "manual") that produced this row — traceability
     // for which integration actually sent it.

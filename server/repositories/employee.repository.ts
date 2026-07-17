@@ -30,6 +30,8 @@ export type EmployeeDetailRow = EmployeeListRow & {
   basicSalary: number;
   grossSalary: number;
   manager: { _id: string; name: string } | null;
+  departmentId: string | null;
+  employeeType: { _id: string; name: string } | null;
   createdAt: Date;
 };
 
@@ -68,6 +70,8 @@ export type CreateEmployeeInput = {
   email: string;
   phone?: string;
   department: string;
+  departmentId?: string;
+  employeeTypeId?: string;
   designation: string;
   managerId?: string;
   joiningDate: Date;
@@ -81,7 +85,10 @@ export type CreateEmployeeInput = {
 export type UpdateEmployeeInput = Partial<Omit<CreateEmployeeInput, "employeeCode">>;
 
 type RawListRow = Record<string, unknown> & { _id: unknown };
-type RawDetailRow = RawListRow & { managerId: { _id: unknown; name: string } | null };
+type RawDetailRow = RawListRow & {
+  managerId: { _id: unknown; name: string } | null;
+  employeeTypeId: { _id: unknown; name: string } | null;
+};
 
 function serializeListRow(row: RawListRow): EmployeeListRow {
   return {
@@ -104,6 +111,8 @@ function serializeDetailRow(row: RawDetailRow): EmployeeDetailRow {
     basicSalary: row.basicSalary as number,
     grossSalary: row.grossSalary as number,
     manager: row.managerId ? { _id: String(row.managerId._id), name: row.managerId.name } : null,
+    departmentId: row.departmentId ? String(row.departmentId) : null,
+    employeeType: row.employeeTypeId ? { _id: String(row.employeeTypeId._id), name: row.employeeTypeId.name } : null,
     createdAt: row.createdAt as Date,
   };
 }
@@ -188,7 +197,7 @@ export const employeeRepository = {
   // another company must resolve to "not found", never leak the document
   // (the IDOR case: guessing/enumerating another tenant's employee id).
   async findById(companyId: string, id: string): Promise<EmployeeDetailRow | null> {
-    const row = await Employee.findOne({ _id: id, companyId }).populate("managerId", "name").lean<RawDetailRow | null>();
+    const row = await Employee.findOne({ _id: id, companyId }).populate("managerId", "name").populate("employeeTypeId", "name").lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },
 
@@ -228,13 +237,13 @@ export const employeeRepository = {
 
   async create(companyId: string, input: CreateEmployeeInput): Promise<EmployeeDetailRow> {
     const doc = await Employee.create({ ...input, companyId });
-    const populated = await Employee.findById(doc._id).populate("managerId", "name").lean<RawDetailRow>();
+    const populated = await Employee.findById(doc._id).populate("managerId", "name").populate("employeeTypeId", "name").lean<RawDetailRow>();
     return serializeDetailRow(populated!);
   },
 
   async update(companyId: string, id: string, input: UpdateEmployeeInput): Promise<EmployeeDetailRow | null> {
     const row = await Employee.findOneAndUpdate({ _id: id, companyId }, input, { returnDocument: "after" })
-      .populate("managerId", "name")
+      .populate("managerId", "name").populate("employeeTypeId", "name")
       .lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },

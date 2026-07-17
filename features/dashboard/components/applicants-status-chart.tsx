@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { ApplicantStatusSlice } from "@/types/dashboard";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -26,6 +27,12 @@ function ChartTooltip({
 }
 
 export function ApplicantsStatusChart({ data }: { data: ApplicantStatusSlice[] }) {
+  const router = useRouter();
+
+  function goToStatus(status: string) {
+    router.push(`/applicants?status=${encodeURIComponent(status)}`);
+  }
+
   if (data.length === 0) {
     return (
       <EmptyState
@@ -59,7 +66,12 @@ export function ApplicantsStatusChart({ data }: { data: ApplicantStatusSlice[] }
               strokeWidth={2}
             >
               {data.map((slice) => (
-                <Cell key={slice.status} fill={slice.colorVar} />
+                <Cell
+                  key={slice.status}
+                  fill={slice.colorVar}
+                  className="cursor-pointer"
+                  onClick={() => goToStatus(slice.status)}
+                />
               ))}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
@@ -69,16 +81,22 @@ export function ApplicantsStatusChart({ data }: { data: ApplicantStatusSlice[] }
 
       <ul className="w-full space-y-2.5">
         {data.map((slice) => (
-          <li key={slice.status} className="flex items-center gap-2.5 text-sm">
-            <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: slice.colorVar }}
-            />
-            <span className="flex-1 truncate text-foreground/80">{slice.label}</span>
-            <span className="font-medium tabular-nums">{slice.count}</span>
-            <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">
-              {slice.percentage}%
-            </span>
+          <li key={slice.status}>
+            <button
+              type="button"
+              onClick={() => goToStatus(slice.status)}
+              className="flex w-full items-center gap-2.5 rounded-md text-left text-sm hover:bg-muted/60"
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: slice.colorVar }}
+              />
+              <span className="flex-1 truncate text-foreground/80">{slice.label}</span>
+              <span className="font-medium tabular-nums">{slice.count}</span>
+              <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">
+                {slice.percentage}%
+              </span>
+            </button>
           </li>
         ))}
       </ul>
