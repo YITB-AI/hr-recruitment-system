@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/server/db/connect";
+import { APPLICANT_SOURCES } from "@/constants/applicant-source";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { resumeAnalysisRepository } from "@/server/repositories/resume-analysis.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
@@ -255,6 +256,49 @@ export async function autoRepairResolvableOrphanedResumeAnalyses(): Promise<{ re
   }
 
   return { repaired, skipped };
+}
+
+// Same automatic, zero-human-action repair as the type-fix functions above,
+// but for fields a raw external write skips entirely rather than mistypes
+// — no Mongoose default ever ran on that write, so source/tags/status can
+// be genuinely absent (or status can land as an empty string). These are
+// exactly the same default values the schema itself would have applied on
+// a normal create — this closes the gap that let a record pass the
+// type-repair above yet still crash the UI on render (e.g. `.replace()` on
+// a missing source) because it was never actually complete.
+export async function autoRepairIncompleteApplicants(): Promise<{ repaired: number }> {
+  await connectDB();
+  const rawRows = await applicantRepository.findIncomplete();
+  let repaired = 0;
+
+  for (const row of rawRows) {
+    const fix: { source?: string; tags?: string[]; status?: string } = {};
+    if (!row.source || !(APPLICANT_SOURCES as readonly string[]).includes(row.source as string)) {
+      fix.source = "website";
+    }
+    if (!Array.isArray(row.tags)) {
+      fix.tags = [];
+    }
+    if (!row.status) {
+      fix.status = "new";
+    }
+    if (Object.keys(fix).length === 0) continue;
+
+    const applicantId = String(row._id);
+    await applicantRepository.repairCompleteness(applicantId, fix);
+
+    await activityLogRepository.create({
+      companyId: String(row.companyId),
+      actorName: "Auto-Repair",
+      action: "applicant.repaired",
+      entityType: "applicant",
+      entityId: applicantId,
+      message: `Automatically filled in missing fields (${Object.keys(fix).join(", ")}) on an applicant record (${(row.name as string) ?? "unknown"})`,
+    });
+    repaired++;
+  }
+
+  return { repaired };
 }
 
 // Same pattern again for Notification. companyId is derived from the

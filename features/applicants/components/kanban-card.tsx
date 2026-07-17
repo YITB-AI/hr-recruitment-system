@@ -31,7 +31,7 @@ export function KanbanCard({ applicant }: { applicant: ApplicantListRow }) {
         <ScoreBadge score={applicant.score} />
       </div>
       <p className="truncate text-xs text-muted-foreground">{applicant.jobId?.title ?? "—"}</p>
-      <p className="text-xs capitalize text-muted-foreground">{applicant.source.replace("_", " ")}</p>
+      <p className="text-xs capitalize text-muted-foreground">{(applicant.source || "unknown").replace("_", " ")}</p>
     </div>
   );
 }

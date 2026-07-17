@@ -8,6 +8,7 @@ import {
 } from "@/server/repositories/applicant.repository";
 import {
   autoRepairResolvableOrphanedApplicants,
+  autoRepairIncompleteApplicants,
   autoRepairResolvableOrphanedResumeAnalyses,
 } from "@/features/settings/services/data-repair.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
@@ -34,6 +35,7 @@ function triggerAutoRepairInBackground(): void {
       // from the linked Applicant, so an applicant that's still orphaned
       // itself needs fixing first for its analysis to resolve on this pass.
       await autoRepairResolvableOrphanedApplicants();
+      await autoRepairIncompleteApplicants();
       await autoRepairResolvableOrphanedResumeAnalyses();
     } catch (error) {
       console.error("Auto-repair of orphaned applicant/resume-analysis records failed:", error);

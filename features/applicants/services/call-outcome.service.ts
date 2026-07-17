@@ -155,14 +155,34 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
       `${ctx.applicantName} indicated acceptance during the AI call — please review and update their status.`,
     );
   },
-  // No status change, no notification — just "keep the follow-up updated"
-  // without over-acting. The centralized ActivityLog entry in
-  // handleCallCompleted is enough to surface these in the timeline.
-  reschedule_requested: async () => {},
-  callback_requested: async () => {},
-  no_answer: async () => {},
-  voicemail: async () => {},
-  other: async () => {},
+  // No status change — these outcomes don't warrant flipping the pipeline
+  // stage. But leaving them completely silent meant a completed AI call
+  // with one of these outcomes never showed up anywhere staff would
+  // actually notice (the ActivityLog entry only surfaces on the applicant's
+  // own Activity tab) — so each one now also notifies staff via the bell
+  // icon, the same notifyStaffForReview() used by the branches above.
+  reschedule_requested: (ctx) =>
+    notifyStaffForReview(
+      ctx.followup.companyId,
+      "AI call: reschedule requested",
+      `${ctx.applicantName} asked to reschedule the call — review and follow up.`,
+    ),
+  callback_requested: (ctx) =>
+    notifyStaffForReview(
+      ctx.followup.companyId,
+      "AI call: callback requested",
+      `${ctx.applicantName} asked for a callback — review and follow up.`,
+    ),
+  no_answer: (ctx) =>
+    notifyStaffForReview(ctx.followup.companyId, "AI call: no answer", `${ctx.applicantName} did not answer the AI call.`),
+  voicemail: (ctx) =>
+    notifyStaffForReview(ctx.followup.companyId, "AI call: went to voicemail", `AI call to ${ctx.applicantName} went to voicemail.`),
+  other: (ctx) =>
+    notifyStaffForReview(
+      ctx.followup.companyId,
+      "AI call completed",
+      `AI call with ${ctx.applicantName} completed — review the call summary for details.`,
+    ),
 };
 
 export async function handleCallCompleted(followup: ApplicantFollowupRow, body: CompletedEvent): Promise<void> {

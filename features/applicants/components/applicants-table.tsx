@@ -81,7 +81,7 @@ export function ApplicantsTable({
             <td className="px-4 py-3">
               <StatusBadge status={applicant.status} />
             </td>
-            <td className="px-4 py-3 capitalize text-foreground/80">{applicant.source.replace("_", " ")}</td>
+            <td className="px-4 py-3 capitalize text-foreground/80">{(applicant.source || "unknown").replace("_", " ")}</td>
             <td className="px-4 py-3 text-foreground/80">
               {new Date(applicant.appliedAt).toLocaleDateString("en-US", {
                 month: "short",

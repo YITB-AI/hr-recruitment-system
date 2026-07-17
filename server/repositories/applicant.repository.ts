@@ -337,4 +337,30 @@ export const applicantRepository = {
   ): Promise<void> {
     await Applicant.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: fix });
   },
+  // Beyond a BSON-type mismatch (above), a raw external insert also skips
+  // every Mongoose schema default entirely — source/tags never get their
+  // default applied, and status can land as an empty string. Only matches
+  // applicants whose companyId/jobId are already valid ObjectIds — a
+  // record still orphaned by type isn't visible to any tenant-scoped view
+  // yet anyway, so there's nothing to render until findOrphaned fixes it.
+  async findIncomplete(): Promise<Array<Record<string, unknown> & { _id: unknown }>> {
+    // Cast: `source`'s schema enum type rejects the plain "" literal used to
+    // detect an empty/invalid value here — this query is deliberately
+    // reading outside the schema's own type guarantees, same as findOrphaned.
+    const filter = {
+      companyId: { $type: "objectId" },
+      jobId: { $type: "objectId" },
+      $or: [
+        { source: { $exists: false } },
+        { source: "" },
+        { tags: { $exists: false } },
+        { status: { $exists: false } },
+        { status: "" },
+      ],
+    } as unknown as Parameters<typeof Applicant.find>[0];
+    return Applicant.find(filter).lean();
+  },
+  async repairCompleteness(id: string, fix: { source?: string; tags?: string[]; status?: string }): Promise<void> {
+    await Applicant.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: fix });
+  },
 };
