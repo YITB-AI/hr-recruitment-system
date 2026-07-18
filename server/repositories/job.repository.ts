@@ -94,7 +94,10 @@ export const jobRepository = {
   },
   /** Minimal shape for the Applicants filter dropdown — this company's jobs only. */
   async findAllForPicker(companyId: string): Promise<Array<{ _id: string; title: string }>> {
-    const rows = await Job.find({ companyId }).select("_id title").lean<Array<{ _id: unknown; title: string }>>();
+    const rows = await Job.find({ companyId })
+      .select("_id title")
+      .limit(1000)
+      .lean<Array<{ _id: unknown; title: string }>>();
     return rows.map((row) => ({ _id: String(row._id), title: row.title }));
   },
   async findAllForCompany(companyId: string): Promise<JobRow[]> {

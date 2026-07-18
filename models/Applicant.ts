@@ -33,6 +33,15 @@ const applicantSchema = new Schema(
 
 applicantSchema.index({ status: 1, createdAt: -1 });
 applicantSchema.index({ name: "text", email: "text", skills: "text" });
+// Compound indexes matching applicant.repository.ts's actual tenant-scoped
+// count queries (countByStatus, countCreatedBetween,
+// countByStatusUpdatedBetween) — these run on every dashboard load and
+// every 30s dashboard poll tick; companyId alone can't serve a
+// {companyId, status}/{companyId, createdAt}/{companyId, status, updatedAt}
+// filter efficiently.
+applicantSchema.index({ companyId: 1, status: 1 });
+applicantSchema.index({ companyId: 1, createdAt: -1 });
+applicantSchema.index({ companyId: 1, status: 1, updatedAt: -1 });
 
 export type ApplicantDoc = InferSchemaType<typeof applicantSchema>;
 

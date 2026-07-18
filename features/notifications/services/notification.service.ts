@@ -2,12 +2,17 @@ import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { notificationRepository } from "@/server/repositories/notification.repository";
 import { autoRepairResolvableOrphanedNotifications } from "@/features/settings/services/data-repair.service";
+import { shouldRunRepairJob } from "@/lib/repair-throttle";
+
+const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
 
 // Fire-and-forget, after the response has gone out — see the identical
-// pattern/reasoning in applicant.service.ts's triggerAutoRepairInBackground.
+// pattern/reasoning (incl. the throttle) in
+// applicant.service.ts's triggerAutoRepairInBackground.
 function triggerAutoRepairInBackground(): void {
   after(async () => {
     try {
+      if (!(await shouldRunRepairJob("notifications", REPAIR_INTERVAL_MS))) return;
       await autoRepairResolvableOrphanedNotifications();
     } catch (error) {
       console.error("Auto-repair of orphaned notifications failed:", error);

@@ -27,6 +27,14 @@ const activityLogSchema = new Schema(
 );
 
 activityLogSchema.index({ createdAt: -1 });
+// Compound indexes matching the repository's actual query shapes —
+// findRecent/findAllPaginated filter {companyId} + sort(createdAt), and
+// findByEntity filters {companyId, entityType, entityId} + sort(createdAt).
+// The single-field indexes above can't serve either efficiently: Mongo
+// would have to either scan every company's rows in createdAt order, or
+// index-scan companyId and sort the results in memory.
+activityLogSchema.index({ companyId: 1, createdAt: -1 });
+activityLogSchema.index({ companyId: 1, entityType: 1, entityId: 1, createdAt: -1 });
 
 export type ActivityLogDoc = InferSchemaType<typeof activityLogSchema>;
 

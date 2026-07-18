@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/server/db/connect";
 import { Company } from "@/models/Company";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
+import { verifySession } from "@/lib/auth/session";
 import type { SessionUser } from "@/types/user";
 
 // Used purely for audit-log attribution when code runs outside a real
@@ -37,17 +37,27 @@ async function getSystemUser(): Promise<SessionUser> {
 // now gets redirected to /login instead of silently getting a placeholder
 // user, matching Next's documented DAL pattern (redirect happens here, not
 // in proxy.ts, which only does an optimistic cookie-presence check).
+//
+// Routed through verifySession() (React cache()-wrapped) rather than
+// calling cookies()/verifySessionToken() directly — this function is
+// called from dozens of independent service functions per page render
+// (AppShell's layout, plus every service a page's data-fetching Promise.all
+// touches), and calling verifySessionToken directly here meant every one of
+// those was a fresh, uncached DB round trip: a single applicant detail page
+// render was measured doing ~10 independent session/user lookups. cache()
+// dedupes all of those into one within a single render pass.
 export async function getCurrentUser(): Promise<SessionUser> {
-  let cookieStore;
+  // Only a script context (cookies() throws outside a real request) falls
+  // back to the system user — a genuine downstream error (e.g. a DB blip
+  // inside verifySession) must keep propagating as a real error, not get
+  // silently swallowed into "running as System" (isPlatformAdmin: true).
   try {
-    cookieStore = await cookies();
+    await cookies();
   } catch {
     return getSystemUser();
   }
 
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const user = token ? await verifySessionToken(token) : null;
-
+  const user = await verifySession();
   if (!user) redirect("/login");
   return user;
 }

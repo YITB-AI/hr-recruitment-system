@@ -35,6 +35,12 @@ const documentSchema = new Schema(
 
 documentSchema.index({ createdAt: -1 });
 documentSchema.index({ applicantId: 1, createdAt: -1 });
+// Compound indexes matching generated-document.repository.ts's actual
+// query shapes (findByEmployeeId, findByBatchId) — companyId alone (or
+// employeeId/batchId alone) can't serve a {companyId, employeeId}/
+// {companyId, batchId} filter efficiently.
+documentSchema.index({ companyId: 1, employeeId: 1, createdAt: -1 });
+documentSchema.index({ companyId: 1, batchId: 1 });
 
 export type DocumentRowDoc = InferSchemaType<typeof documentSchema>;
 

@@ -185,6 +185,7 @@ export const applicantRepository = {
   async findAllForPicker(companyId: string): Promise<ApplicantPickerRow[]> {
     const rows = await Applicant.find({ companyId })
       .select("name email")
+      .limit(1000)
       .lean<Array<Record<string, unknown> & { _id: unknown }>>();
     return rows.map((row) => ({
       _id: String(row._id),

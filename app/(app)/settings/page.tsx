@@ -1,4 +1,17 @@
 import type { Metadata } from "next";
+import {
+  Settings as SettingsIcon,
+  Palette,
+  Bell,
+  Users,
+  ShieldCheck,
+  Tag,
+  Building2,
+  Network,
+  Building,
+  Briefcase,
+  AlertTriangle,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
@@ -73,88 +86,135 @@ export default async function SettingsPage() {
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader title="Settings" description="Manage your organization's configuration and appearance." />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
+        <Tabs defaultValue="general" orientation="vertical" className="items-start">
+          <TabsList variant="line" className="h-fit w-56 shrink-0 flex-col items-stretch gap-1 bg-transparent p-0">
+            <TabsTrigger value="general" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+              <SettingsIcon className="size-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="appearance" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+              <Palette className="size-4" />
+              Appearance
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+              <Bell className="size-4" />
+              Notifications
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="users" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Users className="size-4" />
+                Users & Roles
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="permissions" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <ShieldCheck className="size-4" />
+                Permissions
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="statuses" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Tag className="size-4" />
+                Statuses
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="departments" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Building2 className="size-4" />
+                Departments
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="employee-types" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Network className="size-4" />
+                Employee Types
+              </TabsTrigger>
+            )}
+            {isPlatformAdmin && (
+              <TabsTrigger value="companies" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Building className="size-4" />
+                Companies
+              </TabsTrigger>
+            )}
+            {isPlatformAdmin && (
+              <TabsTrigger value="unmapped-jobs" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Briefcase className="size-4" />
+                Unmapped Jobs
+              </TabsTrigger>
+            )}
+            {isPlatformAdmin && (
+              <TabsTrigger value="orphaned-applicants" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <AlertTriangle className="size-4" />
+                Orphaned Applicants
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <Card className="flex-1">
             <CardContent className="pt-6">
-              <Tabs defaultValue="general">
-                <TabsList>
-                  <TabsTrigger value="general">General</TabsTrigger>
-                  <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                  <TabsTrigger value="notifications">Notifications</TabsTrigger>
-                  {isAdmin && <TabsTrigger value="users">Users & Roles</TabsTrigger>}
-                  {isAdmin && <TabsTrigger value="permissions">Permissions</TabsTrigger>}
-                  {isAdmin && <TabsTrigger value="statuses">Statuses</TabsTrigger>}
-                  {isAdmin && <TabsTrigger value="departments">Departments</TabsTrigger>}
-                  {isAdmin && <TabsTrigger value="employee-types">Employee Types</TabsTrigger>}
-                  {isPlatformAdmin && <TabsTrigger value="companies">Companies</TabsTrigger>}
-                  {isPlatformAdmin && <TabsTrigger value="unmapped-jobs">Unmapped Jobs</TabsTrigger>}
-                  {isPlatformAdmin && <TabsTrigger value="orphaned-applicants">Orphaned Applicants</TabsTrigger>}
-                </TabsList>
+              <TabsContent value="general">
+                <GeneralSettingsForm settings={settings} />
+              </TabsContent>
 
-                <TabsContent value="general" className="pt-6">
-                  <GeneralSettingsForm settings={settings} />
+              <TabsContent value="appearance">
+                <AppearanceSettingsForm settings={settings} />
+              </TabsContent>
+
+              <TabsContent value="notifications">
+                <NotificationSettingsForm settings={settings} />
+              </TabsContent>
+
+              {isAdmin && users && (
+                <TabsContent value="users">
+                  <UsersTable users={users} />
                 </TabsContent>
+              )}
 
-                <TabsContent value="appearance" className="pt-6">
-                  <AppearanceSettingsForm settings={settings} />
+              {isAdmin && applicantStatuses && employeeStatuses && (
+                <TabsContent value="statuses">
+                  <StatusManagementPanel statusesByModule={{ applicant: applicantStatuses, employee: employeeStatuses }} />
                 </TabsContent>
+              )}
 
-                <TabsContent value="notifications" className="pt-6">
-                  <NotificationSettingsForm settings={settings} />
+              {isAdmin && departments && (
+                <TabsContent value="departments">
+                  <DepartmentManagementPanel departments={departments} />
                 </TabsContent>
+              )}
 
-                {isAdmin && users && (
-                  <TabsContent value="users" className="pt-6">
-                    <UsersTable users={users} />
-                  </TabsContent>
-                )}
+              {isAdmin && employeeTypes && (
+                <TabsContent value="employee-types">
+                  <EmployeeTypeManagementPanel employeeTypes={employeeTypes} />
+                </TabsContent>
+              )}
 
-                {isAdmin && applicantStatuses && employeeStatuses && (
-                  <TabsContent value="statuses" className="pt-6">
-                    <StatusManagementPanel statusesByModule={{ applicant: applicantStatuses, employee: employeeStatuses }} />
-                  </TabsContent>
-                )}
+              {isAdmin && roleSummaries && (
+                <TabsContent value="permissions">
+                  <PermissionsPanel roles={roleSummaries} allActions={allPermissionActions} />
+                </TabsContent>
+              )}
 
-                {isAdmin && departments && (
-                  <TabsContent value="departments" className="pt-6">
-                    <DepartmentManagementPanel departments={departments} />
-                  </TabsContent>
-                )}
+              {isPlatformAdmin && allCompanies && (
+                <TabsContent value="companies">
+                  <CompaniesTable companies={allCompanies} />
+                </TabsContent>
+              )}
 
-                {isAdmin && employeeTypes && (
-                  <TabsContent value="employee-types" className="pt-6">
-                    <EmployeeTypeManagementPanel employeeTypes={employeeTypes} />
-                  </TabsContent>
-                )}
+              {isPlatformAdmin && unmappedJobs && companiesForMapping && (
+                <TabsContent value="unmapped-jobs">
+                  <UnmappedJobsTable jobs={unmappedJobs} companies={companiesForMapping} />
+                </TabsContent>
+              )}
 
-                {isAdmin && roleSummaries && (
-                  <TabsContent value="permissions" className="pt-6">
-                    <PermissionsPanel roles={roleSummaries} allActions={allPermissionActions} />
-                  </TabsContent>
-                )}
-
-                {isPlatformAdmin && allCompanies && (
-                  <TabsContent value="companies" className="pt-6">
-                    <CompaniesTable companies={allCompanies} />
-                  </TabsContent>
-                )}
-
-                {isPlatformAdmin && unmappedJobs && companiesForMapping && (
-                  <TabsContent value="unmapped-jobs" className="pt-6">
-                    <UnmappedJobsTable jobs={unmappedJobs} companies={companiesForMapping} />
-                  </TabsContent>
-                )}
-
-                {isPlatformAdmin && orphanedApplicants && companiesForMapping && (
-                  <TabsContent value="orphaned-applicants" className="pt-6">
-                    <OrphanedApplicantsTable applicants={orphanedApplicants} companies={companiesForMapping} />
-                  </TabsContent>
-                )}
-              </Tabs>
+              {isPlatformAdmin && orphanedApplicants && companiesForMapping && (
+                <TabsContent value="orphaned-applicants">
+                  <OrphanedApplicantsTable applicants={orphanedApplicants} companies={companiesForMapping} />
+                </TabsContent>
+              )}
             </CardContent>
           </Card>
-        </div>
+        </Tabs>
 
         <div className="space-y-6">
           {company && (

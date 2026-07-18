@@ -23,11 +23,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function InterviewsPage() {
   const [interviews, { companyId }] = await Promise.all([listInterviews(), getCurrentUser()]);
-  const [latestEmails, activityLists] = await Promise.all([
+  const [latestEmails, activityByInterview] = await Promise.all([
     emailLogRepository.findLatestByInterviewIds(companyId, interviews.map((i) => i._id)),
-    Promise.all(interviews.map((i) => activityLogRepository.findByEntity(companyId, "interview", i._id, 20))),
+    activityLogRepository.findByEntities(companyId, "interview", interviews.map((i) => i._id), 20),
   ]);
-  const activityByInterview = new Map(interviews.map((i, idx) => [i._id, activityLists[idx]]));
 
   return (
     <div className="space-y-6 p-4 md:p-6">

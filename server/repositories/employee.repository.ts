@@ -157,6 +157,7 @@ export const employeeRepository = {
   async findAllForPicker(companyId: string): Promise<EmployeeRow[]> {
     const rows = await Employee.find({ companyId })
       .select("name email department designation basicSalary grossSalary joiningDate employmentType")
+      .limit(1000)
       .lean<Array<Record<string, unknown> & { _id: unknown }>>();
     return rows.map((row) => ({
       _id: String(row._id),

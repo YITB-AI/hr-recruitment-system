@@ -21,7 +21,15 @@ import { FOLLOWUP_TYPE_LABELS, FOLLOWUP_OUTCOME_LABELS } from "@/constants/follo
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { statusRepository } from "@/server/repositories/status.repository";
+import { shouldRunRepairJob } from "@/lib/repair-throttle";
 import type { SessionUser } from "@/types/user";
+
+// How often the background repair actually scans, at most — these are
+// full, cross-tenant, unindexable $type/$or scans (see data-repair.service.ts),
+// so running them on every single Applicants page view (this page is one
+// of the most-visited in the app) meant Atlas was doing that scan
+// continuously, across every tenant, just from people browsing lists.
+const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
 
 // Fire-and-forget, after the response has gone out — self-heals any
 // orphaned records left by a raw external insert (see
@@ -31,6 +39,7 @@ import type { SessionUser } from "@/types/user";
 function triggerAutoRepairInBackground(): void {
   after(async () => {
     try {
+      if (!(await shouldRunRepairJob("applicant-resume-analysis", REPAIR_INTERVAL_MS))) return;
       // Applicants first — ResumeAnalysis repair derives companyId/jobId
       // from the linked Applicant, so an applicant that's still orphaned
       // itself needs fixing first for its analysis to resolve on this pass.

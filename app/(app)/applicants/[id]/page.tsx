@@ -66,11 +66,10 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
     activityLogRepository.findByEntity(companyId, "applicant", id, 50),
   ]);
   const latestInterviewId = interviews[0]?._id ?? null;
-  const [latestEmails, interviewActivityLists] = await Promise.all([
+  const [latestEmails, interviewActivityById] = await Promise.all([
     emailLogRepository.findLatestByInterviewIds(companyId, interviews.map((i) => i._id)),
-    Promise.all(interviews.map((i) => activityLogRepository.findByEntity(companyId, "interview", i._id, 20))),
+    activityLogRepository.findByEntities(companyId, "interview", interviews.map((i) => i._id), 20),
   ]);
-  const interviewActivityById = new Map(interviews.map((i, idx) => [i._id, interviewActivityLists[idx]]));
 
   return (
     <StatusConfigProvider statuses={applicantStatuses}>

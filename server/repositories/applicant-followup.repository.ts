@@ -152,13 +152,15 @@ export const applicantFollowupRepository = {
   },
   async countByType(companyId: string): Promise<CommunicationCounts> {
     const companyObjectId = new Types.ObjectId(companyId);
-    const rows = await ApplicantFollowup.aggregate<{ _id: FollowupType; count: number }>([
-      { $match: { companyId: companyObjectId } },
-      { $group: { _id: "$type", count: { $sum: 1 } } },
-    ]);
-    const pendingRows = await ApplicantFollowup.aggregate<{ _id: FollowupStatus; count: number }>([
-      { $match: { companyId: companyObjectId, status: { $in: ["pending", "failed", "in_progress"] } } },
-      { $group: { _id: "$status", count: { $sum: 1 } } },
+    const [rows, pendingRows] = await Promise.all([
+      ApplicantFollowup.aggregate<{ _id: FollowupType; count: number }>([
+        { $match: { companyId: companyObjectId } },
+        { $group: { _id: "$type", count: { $sum: 1 } } },
+      ]),
+      ApplicantFollowup.aggregate<{ _id: FollowupStatus; count: number }>([
+        { $match: { companyId: companyObjectId, status: { $in: ["pending", "failed", "in_progress"] } } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
     ]);
 
     const byType = new Map(rows.map((r) => [r._id, r.count]));

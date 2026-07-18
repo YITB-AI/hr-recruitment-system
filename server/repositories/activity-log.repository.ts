@@ -1,5 +1,5 @@
 import { ActivityLog, ACTIVITY_ENTITY_TYPES } from "@/models";
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 
 export type ActivityLogRow = {
   _id: string;
@@ -74,6 +74,43 @@ export const activityLogRepository = {
       .select("action message actorName createdAt")
       .lean<RawActivityRow[]>();
     return rows.map(serialize);
+  },
+  // Batched replacement for calling findByEntity once per entity in a loop
+  // (the previous pattern on the Interviews list and Applicant detail
+  // pages — up to ~100 concurrent queries on the Interviews page alone).
+  // One aggregation, using the {companyId,entityType,entityId,createdAt}
+  // compound index to $sort+$group+$slice the top `limitPerEntity` rows
+  // per entity in the database instead of in application code.
+  async findByEntities(
+    companyId: string,
+    entityType: (typeof ACTIVITY_ENTITY_TYPES)[number],
+    entityIds: string[],
+    limitPerEntity: number,
+  ): Promise<Map<string, ActivityLogRow[]>> {
+    if (entityIds.length === 0) return new Map();
+    const rows = await ActivityLog.aggregate<{ _id: unknown; items: RawActivityRow[] }>([
+      {
+        $match: {
+          companyId: new Types.ObjectId(companyId),
+          entityType,
+          entityId: { $in: entityIds.map((id) => new Types.ObjectId(id)) },
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$entityId",
+          items: { $push: { _id: "$_id", action: "$action", message: "$message", actorName: "$actorName", createdAt: "$createdAt" } },
+        },
+      },
+      { $project: { items: { $slice: ["$items", limitPerEntity] } } },
+    ]);
+
+    const grouped = new Map<string, ActivityLogRow[]>();
+    for (const row of rows) {
+      grouped.set(String(row._id), row.items.map(serialize));
+    }
+    return grouped;
   },
   // Duplicate-submit guard for fire-and-forget webhook triggers with no
   // domain record of their own to check against (e.g. Create Application,

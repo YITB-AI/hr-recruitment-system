@@ -182,6 +182,7 @@ export type FieldValueMap = Record<string, string | boolean | Array<Record<strin
 async function generateOne(
   actor: SessionUser,
   template: DocumentTemplateRow,
+  templateBuffer: Buffer,
   recipient: DocumentRecipient,
   values: FieldValueMap,
   batchId: string,
@@ -265,7 +266,6 @@ async function generateOne(
     images[key] = { buffer, width: pending.width, height: pending.height };
   }
 
-  const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
   const outputBuffer = renderTemplate(templateBuffer, resolvedValues, images);
 
   const fileName = `${template.name.replace(/\s+/g, "_")}_${recipientRecord.name.replace(/\s+/g, "_")}.docx`;
@@ -342,8 +342,9 @@ export async function generateDocument(
     settingRepository.get(actor.companyId),
   ]);
   if (!template) throw new Error("Template not found");
+  const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
 
-  return generateOne(actor, template, recipient, values, randomUUID(), {
+  return generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
     logoUrl: company?.logoUrl ?? null,
   }, setting.dateFormat);
@@ -368,6 +369,11 @@ export async function generateDocumentsBulk(
     settingRepository.get(actor.companyId),
   ]);
   if (!template) throw new Error("Template not found");
+  // Fetched once for the whole batch — every recipient renders against the
+  // same template file, so there's no reason to re-fetch it from Blob
+  // storage per recipient (previously: N identical network fetches for an
+  // N-recipient batch).
+  const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
 
   const batchId = randomUUID();
   const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
@@ -375,7 +381,9 @@ export async function generateDocumentsBulk(
   // allSettled, not all — one bad recipient (missing record, missing
   // required field) must not sink the rest of the batch.
   const settled = await Promise.allSettled(
-    recipients.map((recipient) => generateOne(actor, template, recipient, values, batchId, companyInfo, setting.dateFormat)),
+    recipients.map((recipient) =>
+      generateOne(actor, template, templateBuffer, recipient, values, batchId, companyInfo, setting.dateFormat),
+    ),
   );
 
   const results: BulkGenerateResultItem[] = settled.map((outcome, index) => {
