@@ -8,11 +8,12 @@
  *   - POST /api/applicants/{id}/send-email   (Applicant Quick Actions → n8n)
  *   - POST /api/applicants/{id}/send-sms     (Applicant Quick Actions → n8n)
  *   - POST /api/webhooks/ai-call             (n8n → app: AI call progress/outcome)
+ *   - POST /api/webhooks/repair-data         (n8n → app: run data-repair after a sync/insert)
  *   - GET  /api/files/{path}                 (stored template/document downloads)
  *   - GET  /api/employees/export             (CSV export)
  *
  * Kept as a plain object (not scanned from JSDoc comments in the route files)
- * because there are only 5 routes — a build-time doc generator would be more
+ * because there are only 6 routes — a build-time doc generator would be more
  * moving parts than value here. If the REST surface grows meaningfully,
  * revisit with `next-swagger-doc` to scan route handlers automatically.
  */
@@ -181,6 +182,63 @@ export const openApiSpec = {
           "404": { description: "followupId doesn't resolve to any ApplicantFollowup row" },
           "413": { description: "Body too large" },
           "422": { description: "Body failed schema validation, or applicantId doesn't match the followupId row" },
+        },
+      },
+    },
+    "/api/webhooks/repair-data": {
+      post: {
+        tags: ["Webhooks"],
+        summary: "Run data-repair for records n8n just wrote directly into MongoDB",
+        description:
+          "Call this as the last step of any n8n workflow that inserts records straight into MongoDB " +
+          "(Sync Jobs, Sync All, Create Application, etc.), bypassing this app's Mongoose layer. n8n's own " +
+          "MongoDB node can leave reference fields (companyId, jobId, applicantId, userId) as plain strings " +
+          "instead of real ObjectIds, which makes those records invisible to every tenant-scoped query in the " +
+          "app until repaired. Fixes Applicant, Job, ResumeAnalysis, and Notification records in one pass; a " +
+          "record whose companyId/jobId doesn't resolve to a real company/job is left alone (that's the " +
+          "existing Unmapped Jobs / orphaned-applicant admin screens' job — this only fixes cases with " +
+          "nothing left to decide). No request body needed — takes no input from the caller.",
+        security: [{ callbackSecret: [] }],
+        responses: {
+          "200": {
+            description: "Repair ran (even if nothing needed fixing)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    results: {
+                      type: "object",
+                      properties: {
+                        applicants: {
+                          type: "object",
+                          properties: { repaired: { type: "integer" }, skipped: { type: "integer" } },
+                        },
+                        incompleteApplicants: {
+                          type: "object",
+                          properties: { repaired: { type: "integer" } },
+                        },
+                        resumeAnalyses: {
+                          type: "object",
+                          properties: { repaired: { type: "integer" }, skipped: { type: "integer" } },
+                        },
+                        jobs: {
+                          type: "object",
+                          properties: { repaired: { type: "integer" }, skipped: { type: "integer" } },
+                        },
+                        notifications: {
+                          type: "object",
+                          properties: { repaired: { type: "integer" }, skipped: { type: "integer" } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Missing or incorrect X-Callback-Secret" },
         },
       },
     },
