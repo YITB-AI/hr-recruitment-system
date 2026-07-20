@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createJobSchema, updateJobSchema } from "@/validators/job";
-import { createJob, updateJob, archiveJob, restoreJob, deleteJob } from "@/features/jobs/services/job.service";
+import { createJob, updateJob, archiveJob, restoreJob, deleteJob, syncJobs, syncAll } from "@/features/jobs/services/job.service";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -69,5 +69,27 @@ export async function deleteJobAction(jobId: string): Promise<ActionResult> {
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to delete job" };
+  }
+}
+
+export async function syncJobsAction(): Promise<ActionResult> {
+  try {
+    const result = await syncJobs();
+    if (!result.success) return result;
+    revalidatePath("/jobs");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to sync jobs" };
+  }
+}
+
+export async function syncAllAction(): Promise<ActionResult> {
+  try {
+    const result = await syncAll();
+    if (!result.success) return result;
+    revalidatePath("/jobs");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to sync" };
   }
 }

@@ -3,7 +3,9 @@ export type WebhookAction =
   | "send-sms"
   | "ai-call"
   | "create-application"
-  | "send-account-email";
+  | "send-account-email"
+  | "sync-jobs"
+  | "sync-all";
 
 const WEBHOOK_ENV_VAR: Record<WebhookAction, string> = {
   "send-email": "N8N_WEBHOOK_SEND_EMAIL",
@@ -16,6 +18,13 @@ const WEBHOOK_ENV_VAR: Record<WebhookAction, string> = {
   // {to, subject, html} transactional email (OTP codes, welcome emails) —
   // see lib/email.ts.
   "send-account-email": "N8N_WEBHOOK_SEND_ACCOUNT_EMAIL",
+  // Triggered from the Jobs page's "Sync Jobs"/"Sync All" buttons — n8n
+  // pulls fresh job (and, for sync-all, other) data from the external
+  // source and writes it directly into MongoDB, same as the existing
+  // n8n-authored Job pipeline. Only companyId is sent; n8n resolves
+  // everything else on its side.
+  "sync-jobs": "N8N_WEBHOOK_SYNC_JOBS",
+  "sync-all": "N8N_WEBHOOK_SYNC_ALL",
 };
 
 export function getWebhookUrl(action: WebhookAction): string {

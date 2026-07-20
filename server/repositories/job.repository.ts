@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Types } from "mongoose";
 import { Job, Applicant, Interview } from "@/models";
 import type { JobStatus, JobType } from "@/constants/job";
 
@@ -201,5 +202,22 @@ export const jobRepository = {
   },
   async assignCompany(jobId: string, companyId: string): Promise<void> {
     await Job.updateOne({ _id: jobId }, { companyId });
+  },
+
+  // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---
+  // Same pattern as applicantRepository.findOrphaned/repairTypes — a raw
+  // n8n insert (its own MongoDB node, not this app's Mongoose layer) can
+  // leave companyId as a plain string instead of an ObjectId. A
+  // string-typed companyId never matches this file's `{companyId}`
+  // tenant-scoped queries, so the job becomes invisible to its own
+  // company. Deliberately excludes rows with NO companyId at all — those
+  // are the existing findUnmapped()/assignCompany() flow's job (genuinely
+  // ambiguous, needs a human), this is only for "already correctly
+  // identifies a real company, just the wrong BSON type."
+  async findOrphaned(): Promise<Array<Record<string, unknown> & { _id: unknown }>> {
+    return Job.find({ companyId: { $type: "string" } }).lean();
+  },
+  async repairTypes(id: string, companyId: Types.ObjectId): Promise<void> {
+    await Job.collection.updateOne({ _id: new Types.ObjectId(id) }, { $set: { companyId } });
   },
 };

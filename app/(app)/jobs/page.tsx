@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/shared/pagination";
 import { JobFilters } from "@/features/jobs/components/job-filters";
 import { JobsTable } from "@/features/jobs/components/jobs-table";
+import { SyncJobsButtons } from "@/features/jobs/components/sync-jobs-buttons";
 import { getJobsPageData } from "@/features/jobs/services/job.service";
 import type { JobListFilters } from "@/server/repositories/job.repository";
 
@@ -47,10 +48,13 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
         title="Jobs"
         description="Manage your open job postings."
         actions={
-          <Button nativeButton={false} render={<Link href="/jobs/new" />}>
-            <Plus className="size-4" />
-            Create Job
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SyncJobsButtons />
+            <Button nativeButton={false} render={<Link href="/jobs/new" />}>
+              <Plus className="size-4" />
+              Create Job
+            </Button>
+          </div>
         }
       />
 

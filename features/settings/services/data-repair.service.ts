@@ -315,6 +315,50 @@ export async function autoRepairIncompleteApplicants(): Promise<{ repaired: numb
   return { repaired };
 }
 
+// Same automatic, zero-human-action type-repair as
+// autoRepairResolvableOrphanedApplicants, for Job. Unlike Applicant, Job
+// has no linked entity to derive companyId from — it IS the entity — so
+// this only fixes the case where companyId is already a string that
+// correctly identifies a real company, just the wrong BSON type. A job
+// with no companyId at all (or a string that doesn't resolve to a real
+// company) is left for the existing Unmapped Jobs screen
+// (job-mapping.service.ts), which requires a human to pick the company.
+export async function autoRepairResolvableOrphanedJobs(): Promise<{ repaired: number; skipped: number }> {
+  await connectDB();
+  const rawRows = await jobRepository.findOrphaned();
+  let repaired = 0;
+  let skipped = 0;
+
+  for (const row of rawRows) {
+    const rawCompanyId = stripQuotes(row.companyId);
+    if (!Types.ObjectId.isValid(rawCompanyId)) {
+      skipped++;
+      continue;
+    }
+
+    const company = await companyRepository.findById(rawCompanyId);
+    if (!company) {
+      skipped++;
+      continue;
+    }
+
+    const jobId = String(row._id);
+    await jobRepository.repairTypes(jobId, new Types.ObjectId(rawCompanyId));
+
+    await activityLogRepository.create({
+      companyId: rawCompanyId,
+      actorName: "Auto-Repair",
+      action: "job.repaired",
+      entityType: "job",
+      entityId: jobId,
+      message: `Automatically repaired an orphaned job record (${(row.title as string) ?? "unknown"}) for ${company.name}`,
+    });
+    repaired++;
+  }
+
+  return { repaired, skipped };
+}
+
 // Same pattern again for Notification. companyId is derived from the
 // linked User (the source of truth for "which company"), never trusted
 // from the notification's own possibly-corrupted companyId field.

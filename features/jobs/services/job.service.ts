@@ -1,15 +1,85 @@
+import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { jobRepository, type JobRow, type JobListFilters } from "@/server/repositories/job.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { applicantRepository, type ApplicantListRow } from "@/server/repositories/applicant.repository";
+import { autoRepairResolvableOrphanedJobs } from "@/features/settings/services/data-repair.service";
+import { shouldRunRepairJob } from "@/lib/repair-throttle";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { triggerWebhook } from "@/lib/webhook";
 import type { CreateJobInput, UpdateJobInput } from "@/validators/job";
+
+const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
+
+// Fire-and-forget, after the response has gone out — same pattern as
+// applicant.service.ts's triggerAutoRepairInBackground, throttled the same
+// way (see lib/repair-throttle.ts).
+function triggerAutoRepairInBackground(): void {
+  after(async () => {
+    try {
+      if (!(await shouldRunRepairJob("jobs", REPAIR_INTERVAL_MS))) return;
+      await autoRepairResolvableOrphanedJobs();
+    } catch (error) {
+      console.error("Auto-repair of orphaned job records failed:", error);
+    }
+  });
+}
 
 export async function getJobsPageData(filters: JobListFilters) {
   await connectDB();
   const { companyId } = await getCurrentUser();
+  triggerAutoRepairInBackground();
   return jobRepository.findAllForCompanyPaginated(companyId, filters);
+}
+
+// "Sync Jobs"/"Sync All" buttons on the Jobs page — POST companyId to n8n,
+// which pulls fresh data from the external source and writes it directly
+// into MongoDB (same as the existing n8n-authored Job pipeline). Tenant
+// isolation: companyId is always the session-derived one, never client
+// input.
+export async function syncJobs(): Promise<{ success: true } | { success: false; error: string }> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "job.manage");
+
+  const result = await triggerWebhook("sync-jobs", { companyId: actor.companyId });
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "job.sync_requested",
+    entityType: "job",
+    entityId: actor.companyId,
+    message: result.ok
+      ? `${actor.name} triggered a job sync`
+      : `${actor.name}'s job sync request failed: ${result.error}`,
+  });
+
+  return result.ok ? { success: true } : { success: false, error: result.error };
+}
+
+export async function syncAll(): Promise<{ success: true } | { success: false; error: string }> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "job.manage");
+
+  const result = await triggerWebhook("sync-all", { companyId: actor.companyId });
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "job.sync_all_requested",
+    entityType: "job",
+    entityId: actor.companyId,
+    message: result.ok
+      ? `${actor.name} triggered a full sync`
+      : `${actor.name}'s full sync request failed: ${result.error}`,
+  });
+
+  return result.ok ? { success: true } : { success: false, error: result.error };
 }
 
 export async function getJob(id: string): Promise<JobRow | null> {
