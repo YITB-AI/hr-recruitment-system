@@ -14,7 +14,7 @@ import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
-import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue } from "@/lib/date-format";
+import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
 import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
 import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import { getCurrentUser } from "@/lib/current-user";
@@ -164,12 +164,18 @@ function resolveCompanyFieldValue(key: string, company: { name: string; logoUrl:
   }
 }
 
-function resolveSystemFieldValue(key: string, generatedByName: string, dateFormat?: string, timeFormat?: string): string | undefined {
+function resolveSystemFieldValue(
+  key: string,
+  generatedByName: string,
+  companyTimezone: string,
+  dateFormat?: string,
+  timeFormat?: string,
+): string | undefined {
   switch (key.toLowerCase()) {
     case "current_date":
-      return formatDateWithPreset(new Date(), dateFormat);
+      return formatDateWithPreset(nowInTimeZone(companyTimezone), dateFormat);
     case "current_time":
-      return formatTimeWithPreset(new Date(), timeFormat ?? "h:mm A");
+      return formatTimeWithPreset(nowInTimeZone(companyTimezone), timeFormat ?? "h:mm A");
     case "generated_by":
       return generatedByName;
     default:
@@ -188,6 +194,7 @@ async function generateOne(
   batchId: string,
   company: { name: string; logoUrl: string | null },
   companyDateFormat: string,
+  companyTimezone: string,
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
@@ -236,7 +243,7 @@ async function generateOne(
       const effectiveDateFormat = field.dateFormat ?? companyDateFormat;
       const value = provided
         ? formatProvidedDateValue(provided, effectiveDateFormat, field.timeFormat)
-        : resolveSystemFieldValue(field.key, actor.name, effectiveDateFormat, field.timeFormat) ||
+        : resolveSystemFieldValue(field.key, actor.name, companyTimezone, effectiveDateFormat, field.timeFormat) ||
           resolveCompanyFieldValue(field.key, company) ||
           resolveKnownFieldValue(field.key, recipientRecord, effectiveDateFormat) ||
           "";
@@ -247,7 +254,7 @@ async function generateOne(
       const provided = typeof raw === "string" ? raw.trim() : "";
       const value =
         provided ||
-        resolveSystemFieldValue(field.key, actor.name, companyDateFormat) ||
+        resolveSystemFieldValue(field.key, actor.name, companyTimezone, companyDateFormat) ||
         resolveCompanyFieldValue(field.key, company) ||
         resolveKnownFieldValue(field.key, recipientRecord, companyDateFormat) ||
         "";
@@ -347,7 +354,7 @@ export async function generateDocument(
   return generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
     logoUrl: company?.logoUrl ?? null,
-  }, setting.dateFormat);
+  }, setting.dateFormat, setting.timezone);
 }
 
 export type BulkGenerateResultItem =
@@ -382,7 +389,7 @@ export async function generateDocumentsBulk(
   // required field) must not sink the rest of the batch.
   const settled = await Promise.allSettled(
     recipients.map((recipient) =>
-      generateOne(actor, template, templateBuffer, recipient, values, batchId, companyInfo, setting.dateFormat),
+      generateOne(actor, template, templateBuffer, recipient, values, batchId, companyInfo, setting.dateFormat, setting.timezone),
     ),
   );
 

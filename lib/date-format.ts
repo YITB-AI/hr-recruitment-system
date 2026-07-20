@@ -43,6 +43,43 @@ export function formatDateWithPreset(date: Date, preset?: string): string {
   }
 }
 
+// "now" as wall-clock date/time in a given IANA timezone — needed because
+// formatDateWithPreset/formatTimeWithPreset read a Date object's LOCAL
+// getters (getDate/getHours/etc), and the server's own local timezone on
+// Vercel is UTC, not the company's configured Setting.timezone. Without
+// this, `{{current_date}}` was computed in UTC: for a company in
+// Asia/Karachi (UTC+5), any document generated between 7pm-midnight UTC
+// (already past midnight, i.e. "tomorrow", in Karachi) would render
+// yesterday's date. Builds a Date via the local constructor using the
+// target timezone's actual wall-clock numbers, so the existing local
+// getters "just work" against it regardless of the server's own timezone.
+export function nowInTimeZone(timeZone: string): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const byType: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") byType[part.type] = part.value;
+  }
+
+  return new Date(
+    Number(byType.year),
+    Number(byType.month) - 1,
+    Number(byType.day),
+    Number(byType.hour) % 24, // some engines report "24" for midnight with hour12:false
+    Number(byType.minute),
+    Number(byType.second),
+  );
+}
+
 export function formatTimeWithPreset(date: Date, preset?: string): string {
   const hours24 = date.getHours();
   const minutes = pad2(date.getMinutes());

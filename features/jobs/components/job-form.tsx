@@ -19,13 +19,19 @@ import { createJobSchema, updateJobSchema, type CreateJobInput, type UpdateJobIn
 import { createJobAction, updateJobAction } from "@/actions/jobs";
 import { JOB_STATUSES, JOB_TYPES } from "@/constants/job";
 import type { JobRow } from "@/server/repositories/job.repository";
+import type { DepartmentRow } from "@/server/repositories/department.repository";
 
 const STATUS_ITEMS = JOB_STATUSES.map((s) => ({ value: s, label: s }));
 const TYPE_ITEMS = JOB_TYPES.map((t) => ({ value: t, label: t }));
+const NO_DEPARTMENT = "";
 
 type JobFormValues = CreateJobInput | UpdateJobInput;
 
-export function JobForm({ job }: { job?: JobRow }) {
+export function JobForm({ job, departments }: { job?: JobRow; departments: DepartmentRow[] }) {
+  const departmentItems = [
+    { value: NO_DEPARTMENT, label: "No department" },
+    ...departments.map((d) => ({ value: d.name, label: d.name })),
+  ];
   const router = useRouter();
   const isEdit = Boolean(job);
   const {
@@ -72,8 +78,25 @@ export function JobForm({ job }: { job?: JobRow }) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="department">Department</Label>
-          <Input id="department" {...register("department")} placeholder="Engineering" />
+          <Label>Department</Label>
+          <Controller
+            control={control}
+            name="department"
+            render={({ field }) => (
+              <Select items={departmentItems} value={field.value ?? NO_DEPARTMENT} onValueChange={(v) => field.onChange(v ?? NO_DEPARTMENT)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="No department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departmentItems.map((item) => (
+                    <SelectItem key={item.value || "none"} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Job Type</Label>
