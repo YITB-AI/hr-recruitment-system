@@ -13,6 +13,7 @@ import {
   listApplicantsForPicker,
   listRecentDocuments,
 } from "@/features/documents/services/generate-document.service";
+import { listActiveDepartments } from "@/features/settings/services/department.service";
 
 export const metadata: Metadata = { title: "Generate Document" };
 export const dynamic = "force-dynamic";
@@ -23,11 +24,12 @@ export default async function DocumentsPage({
   searchParams: Promise<{ templateId?: string; employeeId?: string }>;
 }) {
   const { templateId, employeeId } = await searchParams;
-  const [templates, employees, applicants, recentDocuments] = await Promise.all([
+  const [templates, employees, applicants, recentDocuments, departments] = await Promise.all([
     listTemplatesForPicker(),
     listEmployeesForPicker(),
     listApplicantsForPicker(),
     listRecentDocuments(),
+    listActiveDepartments(),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function DocumentsPage({
               templates={templates}
               employees={employees}
               applicants={applicants}
+              departments={departments}
               initialTemplateId={templateId}
               initialEmployeeId={employeeId}
             />

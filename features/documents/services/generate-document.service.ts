@@ -16,6 +16,7 @@ import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
 import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
+import type { CalculationType } from "@/constants/document-template";
 import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
@@ -183,7 +184,8 @@ function resolveSystemFieldValue(
   }
 }
 
-export type FieldValueMap = Record<string, string | boolean | Array<Record<string, string>>>;
+export type CalculatedFieldValue = { calculationType: CalculationType; value: number };
+export type FieldValueMap = Record<string, string | boolean | Array<Record<string, string>> | CalculatedFieldValue>;
 
 async function generateOne(
   actor: SessionUser,
@@ -204,23 +206,39 @@ async function generateOne(
     throw new Error(recipient.type === "employee" ? "Employee not found" : "Applicant not found");
   }
 
-  const hasCalculatedField = template.fields.some((field) => field.type === "calculated" && field.calculation);
+  const hasCalculatedField = template.fields.some((field) => field.type === "calculated");
   if (recipient.type === "applicant" && hasCalculatedField) {
     throw new Error(`Template "${template.name}" has salary-calculated field(s) and cannot be used for applicants`);
   }
 
-  const resolvedValues: FieldValueMap = {};
+  const resolvedValues: Record<string, string | boolean | Array<Record<string, string>>> = {};
   const missing: string[] = [];
   // Image fields resolve to a URL first; the real bytes are only fetched
   // once we know every field passed its required-value check below.
   const pendingImages: Record<string, { url: string; width: number; height: number }> = {};
 
   for (const field of template.fields) {
-    if (field.type === "calculated" && field.calculation) {
+    if (field.type === "calculated") {
       // recipient.type === "employee" here — guarded above for applicants.
-      resolvedValues[field.key] = String(
-        resolveCalculatedValue(field.calculation, recipientRecord as { basicSalary: number; grossSalary: number }),
-      );
+      // The calculation type/value is chosen per-generation (wizard/bulk
+      // payload), not stored on the template — see the note in
+      // validators/document-template.ts.
+      const raw = values[field.key];
+      const calc =
+        raw && typeof raw === "object" && !Array.isArray(raw) && "calculationType" in raw && "value" in raw
+          ? (raw as CalculatedFieldValue)
+          : null;
+      if (calc) {
+        resolvedValues[field.key] = String(
+          resolveCalculatedValue(
+            { type: calc.calculationType, value: calc.value },
+            recipientRecord as { basicSalary: number; grossSalary: number },
+          ),
+        );
+      } else {
+        resolvedValues[field.key] = "";
+        if (field.required) missing.push(field.label);
+      }
     } else if (field.type === "table") {
       const rows = Array.isArray(values[field.key]) ? (values[field.key] as Array<Record<string, string>>) : [];
       resolvedValues[field.key] = rows;

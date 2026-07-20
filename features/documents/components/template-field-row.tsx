@@ -11,12 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  FIELD_TYPES,
-  FIELD_TYPE_LABELS,
-  CALCULATION_TYPES,
-  CALCULATION_TYPE_LABELS,
-} from "@/constants/document-template";
+import { FIELD_TYPES, FIELD_TYPE_LABELS } from "@/constants/document-template";
 import { TEMPLATE_DATE_FORMAT_PRESETS, TIME_FORMAT_PRESETS } from "@/lib/date-format";
 import type { TemplateFieldInput } from "@/validators/document-template";
 
@@ -24,7 +19,6 @@ import type { TemplateFieldInput } from "@/validators/document-template";
 // `items` lookup — without these, the type selects showed raw strings like
 // "percentage_of_basic" instead of their labels.
 const FIELD_TYPE_ITEMS = FIELD_TYPES.map((type) => ({ value: type, label: FIELD_TYPE_LABELS[type] }));
-const CALCULATION_TYPE_ITEMS = CALCULATION_TYPES.map((type) => ({ value: type, label: CALCULATION_TYPE_LABELS[type] }));
 const DATE_FORMAT_ITEMS = TEMPLATE_DATE_FORMAT_PRESETS.map((preset) => ({ value: preset, label: preset }));
 const NO_TIME_FORMAT = "__none__";
 const TIME_FORMAT_ITEMS = [
@@ -71,7 +65,10 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
               ...field,
               type: type as TemplateFieldInput["type"],
               options: type === "select" ? field.options ?? [""] : undefined,
-              calculation: type === "calculated" ? field.calculation ?? { type: "fixed", value: 0 } : undefined,
+              // Calculation type/value are no longer configured at
+              // template-creation time — see the note above the
+              // "calculated" block below.
+              calculation: undefined,
               columns: type === "table" ? field.columns ?? [{ key: "", label: "" }] : undefined,
               imageWidth: type === "image" ? field.imageWidth ?? 150 : undefined,
               imageHeight: type === "image" ? field.imageHeight ?? 150 : undefined,
@@ -222,44 +219,11 @@ export function TemplateFieldRow({ field, onChange, onRemove }: TemplateFieldRow
       )}
 
       {field.type === "calculated" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Select
-            items={CALCULATION_TYPE_ITEMS}
-            value={field.calculation?.type ?? "fixed"}
-            onValueChange={(type) =>
-              onChange({
-                ...field,
-                calculation: { type: type as (typeof CALCULATION_TYPES)[number], value: field.calculation?.value ?? 0 },
-              })
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CALCULATION_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {CALCULATION_TYPE_LABELS[type]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Input
-            type="number"
-            placeholder={field.calculation?.type === "fixed" ? "Amount (Rs.)" : "Percentage"}
-            value={field.calculation?.value ?? 0}
-            onChange={(e) =>
-              onChange({
-                ...field,
-                calculation: {
-                  type: field.calculation?.type ?? "fixed",
-                  value: Number(e.target.value),
-                },
-              })
-            }
-          />
-        </div>
+        <p className="rounded-lg bg-accent/60 p-3 text-xs text-accent-foreground">
+          The calculation type (% of Basic Salary, % of Gross Salary, or a fixed amount) and its value are chosen
+          when generating a document with this template, not here — this lets the same template be reused with
+          different amounts for different people or batches.
+        </p>
       )}
 
       {field.type !== "conditional" && (

@@ -36,10 +36,10 @@ export const templateFieldSchema = z
     message: "Dropdown fields need at least one option",
     path: ["options"],
   })
-  .refine((field) => field.type !== "calculated" || field.calculation != null, {
-    message: "Calculated fields need a calculation type and value",
-    path: ["calculation"],
-  })
+  // "calculated" fields no longer configure their calculation type/value
+  // here — that's now chosen per-generation on the Documents page (see
+  // generate-document-wizard.tsx), since the same template can be used
+  // with different percentages/amounts for different people or batches.
   .refine((field) => field.type !== "table" || (field.columns && field.columns.length > 0), {
     message: "Table fields need at least one column",
     path: ["columns"],

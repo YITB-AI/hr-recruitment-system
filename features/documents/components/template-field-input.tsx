@@ -16,16 +16,28 @@ import {
 } from "@/components/ui/select";
 import { uploadDocumentImageAction } from "@/actions/documents";
 import type { TemplateFieldInput } from "@/validators/document-template";
+import type { DepartmentRow } from "@/server/repositories/department.repository";
 
 export type FieldValue = string | boolean | Array<Record<string, string>>;
+
+// Field keys that mean "department" — same aliases resolveKnownFieldValue
+// (generate-document.service.ts) and autoFillFromEmployee already treat as
+// equivalent — matched so `{{department}}`/`{{dept}}`/`{{department_name}}`
+// all get the real dropdown below, regardless of which one the template uses.
+const DEPARTMENT_FIELD_KEYS = new Set(["department", "dept", "department_name"]);
 
 type TemplateFieldRendererProps = {
   field: TemplateFieldInput;
   value: FieldValue;
   onChange: (value: FieldValue) => void;
+  // All active departments (Settings > Departments) — when the field's key
+  // is a department alias, this renders a dropdown of real department
+  // names instead of a free-text input, so the generated value always
+  // matches a name that actually exists.
+  departments?: DepartmentRow[];
 };
 
-export function TemplateFieldRenderer({ field, value, onChange }: TemplateFieldRendererProps) {
+export function TemplateFieldRenderer({ field, value, onChange, departments }: TemplateFieldRendererProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   if (field.type === "image") {
@@ -134,6 +146,8 @@ export function TemplateFieldRenderer({ field, value, onChange }: TemplateFieldR
   }
 
   const stringValue = typeof value === "string" ? value : "";
+  const isDepartmentField = DEPARTMENT_FIELD_KEYS.has(field.key.toLowerCase());
+  const departmentOptions = isDepartmentField ? departments ?? [] : [];
 
   return (
     <div className="space-y-1.5">
@@ -142,7 +156,24 @@ export function TemplateFieldRenderer({ field, value, onChange }: TemplateFieldR
         {field.required && <span className="text-destructive"> *</span>}
       </Label>
 
-      {field.type === "select" ? (
+      {isDepartmentField && departmentOptions.length > 0 ? (
+        <Select
+          items={departmentOptions.map((d) => ({ value: d.name, label: d.name }))}
+          value={stringValue}
+          onValueChange={(v) => onChange(v ?? "")}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select department" />
+          </SelectTrigger>
+          <SelectContent>
+            {departmentOptions.map((d) => (
+              <SelectItem key={d._id} value={d.name}>
+                {d.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : field.type === "select" ? (
         <Select
           items={(field.options ?? []).map((option) => ({ value: option, label: option }))}
           value={stringValue}

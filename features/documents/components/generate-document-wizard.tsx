@@ -21,17 +21,22 @@ import { generateDocumentAction, generateDocumentsBulkAction } from "@/actions/d
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { formatDateWithPreset } from "@/lib/date-format";
-import { CALCULATION_TYPE_LABELS } from "@/constants/document-template";
+import { CALCULATION_TYPES, CALCULATION_TYPE_LABELS, type CalculationType } from "@/constants/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import type { EmployeeRow } from "@/server/repositories/employee.repository";
 import type { ApplicantPickerRow } from "@/server/repositories/applicant.repository";
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
-import type { BulkGenerateResultItem } from "@/features/documents/services/generate-document.service";
+import type { BulkGenerateResultItem, CalculatedFieldValue } from "@/features/documents/services/generate-document.service";
+import type { DepartmentRow } from "@/server/repositories/department.repository";
+
+const CALCULATION_TYPE_ITEMS = CALCULATION_TYPES.map((type) => ({ value: type, label: CALCULATION_TYPE_LABELS[type] }));
+const DEFAULT_CALCULATED_CONFIG: CalculatedFieldValue = { calculationType: "fixed", value: 0 };
 
 type GenerateDocumentWizardProps = {
   templates: DocumentTemplateRow[];
   employees: EmployeeRow[];
   applicants: ApplicantPickerRow[];
+  departments: DepartmentRow[];
   initialTemplateId?: string;
   initialEmployeeId?: string;
 };
@@ -112,6 +117,7 @@ export function GenerateDocumentWizard({
   templates,
   employees,
   applicants,
+  departments,
   initialTemplateId,
   initialEmployeeId,
 }: GenerateDocumentWizardProps) {
@@ -122,6 +128,7 @@ export function GenerateDocumentWizard({
   const [selectedRecipients, setSelectedRecipients] = useState<SelectedRecipient[]>([]);
   const [recipientFilter, setRecipientFilter] = useState("");
   const [values, setValues] = useState<Record<string, FieldValue>>({});
+  const [calculatedConfigs, setCalculatedConfigs] = useState<Record<string, CalculatedFieldValue>>({});
   const [result, setResult] = useState<GeneratedDocumentRow | null>(null);
   const [bulkResult, setBulkResult] = useState<{ batchId: string; results: BulkGenerateResultItem[] } | null>(null);
   const [isGenerating, startGenerating] = useTransition();
@@ -194,11 +201,29 @@ export function GenerateDocumentWizard({
       }
     }
     setValues(next);
+
+    const nextCalculated: Record<string, CalculatedFieldValue> = {};
+    for (const field of calculatedFields) {
+      nextCalculated[field.key] = DEFAULT_CALCULATED_CONFIG;
+    }
+    setCalculatedConfigs(nextCalculated);
+  }
+
+  function configFor(field: (typeof calculatedFields)[number]): CalculatedFieldValue {
+    return calculatedConfigs[field.key] ?? DEFAULT_CALCULATED_CONFIG;
   }
 
   function resolvedValueFor(field: (typeof calculatedFields)[number]) {
-    if (!selectedEmployee || !field.calculation) return null;
-    return resolveCalculatedValue(field.calculation, selectedEmployee);
+    if (!selectedEmployee) return null;
+    const config = configFor(field);
+    return resolveCalculatedValue({ type: config.calculationType, value: config.value }, selectedEmployee);
+  }
+
+  function updateCalculatedConfig(fieldKey: string, patch: Partial<CalculatedFieldValue>) {
+    setCalculatedConfigs((prev) => ({
+      ...prev,
+      [fieldKey]: { ...(prev[fieldKey] ?? DEFAULT_CALCULATED_CONFIG), ...patch },
+    }));
   }
 
   // "Generate Another" intentionally keeps the employee/recipients selected
@@ -211,11 +236,22 @@ export function GenerateDocumentWizard({
     setBulkResult(null);
   }
 
+  // Calculated fields' type/value live in their own state (not `values`,
+  // which TemplateFieldRenderer owns the shape of) — merged in here right
+  // before the server action call.
+  function buildValuesPayload(): Record<string, FieldValue | CalculatedFieldValue> {
+    const merged: Record<string, FieldValue | CalculatedFieldValue> = { ...values };
+    for (const field of calculatedFields) {
+      merged[field.key] = configFor(field);
+    }
+    return merged;
+  }
+
   function handleGenerate() {
     if (!selectedTemplate || !selectedEmployee) return;
 
     startGenerating(async () => {
-      const response = await generateDocumentAction({ templateId, employeeId, values });
+      const response = await generateDocumentAction({ templateId, employeeId, values: buildValuesPayload() });
       if (!response.success) {
         toast.error(response.error);
         return;
@@ -233,7 +269,7 @@ export function GenerateDocumentWizard({
       const response = await generateDocumentsBulkAction({
         templateId,
         recipients: selectedRecipients,
-        values,
+        values: buildValuesPayload(),
       });
       if (!response.success) {
         toast.error(response.error);
@@ -384,31 +420,59 @@ export function GenerateDocumentWizard({
                   field={field}
                   value={values[field.key] ?? ""}
                   onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
+                  departments={departments}
                 />
               ))}
             </div>
           )}
 
           {calculatedFields.length > 0 && (
-            <div className="space-y-2 rounded-lg border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Calculated fields (auto-filled)</p>
-              {calculatedFields.map((field) => (
-                <div key={field.key} className="flex items-center justify-between text-sm">
-                  <span>{field.label}</span>
-                  <span className="font-medium tabular-nums">
-                    {bulkMode ? (
-                      "Computed per recipient"
-                    ) : (
-                      <>
-                        Rs. {resolvedValueFor(field)?.toLocaleString() ?? "—"}
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          ({field.calculation ? CALCULATION_TYPE_LABELS[field.calculation.type] : ""})
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              ))}
+            <div className="space-y-4 rounded-lg border p-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Calculated fields{bulkMode ? " — applies to every selected recipient" : ""}
+              </p>
+              {calculatedFields.map((field) => {
+                const config = configFor(field);
+                return (
+                  <div key={field.key} className="space-y-2">
+                    <Label>
+                      {field.label}
+                      {field.required && <span className="text-destructive"> *</span>}
+                    </Label>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Select
+                        items={CALCULATION_TYPE_ITEMS}
+                        value={config.calculationType}
+                        onValueChange={(type) =>
+                          updateCalculatedConfig(field.key, { calculationType: (type as CalculationType) ?? "fixed" })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CALCULATION_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {CALCULATION_TYPE_LABELS[type]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        placeholder={config.calculationType === "fixed" ? "Amount (Rs.)" : "Percentage"}
+                        value={config.value}
+                        onChange={(e) => updateCalculatedConfig(field.key, { value: Number(e.target.value) })}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {bulkMode
+                        ? "Computed per recipient using this configuration."
+                        : `Rs. ${resolvedValueFor(field)?.toLocaleString() ?? "—"}`}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -435,7 +499,7 @@ export function GenerateDocumentWizard({
                   </Badge>
                 ))}
               </div>
-              {inputFields.some((f) => hasPreviewableValue(f, values[f.key])) && (
+              {(inputFields.some((f) => hasPreviewableValue(f, values[f.key])) || calculatedFields.length > 0) && (
                 <dl className="mt-4 space-y-2 border-t pt-3">
                   {inputFields
                     .filter((f) => hasPreviewableValue(f, values[f.key]))
@@ -445,6 +509,18 @@ export function GenerateDocumentWizard({
                         <dd className="font-medium">{formatFieldValueForPreview(field, values[field.key])}</dd>
                       </div>
                     ))}
+                  {calculatedFields.map((field) => {
+                    const config = configFor(field);
+                    return (
+                      <div key={field.key} className="flex justify-between text-sm">
+                        <dt className="text-muted-foreground">{field.label}</dt>
+                        <dd className="font-medium">
+                          {CALCULATION_TYPE_LABELS[config.calculationType]}
+                          {config.calculationType === "fixed" ? ` — Rs. ${config.value.toLocaleString()}` : ` — ${config.value}%`}
+                        </dd>
+                      </div>
+                    );
+                  })}
                 </dl>
               )}
             </div>

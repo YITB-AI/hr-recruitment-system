@@ -1,8 +1,22 @@
 import { z } from "zod";
+import { CALCULATION_TYPES } from "@/constants/document-template";
 
 // A flat field's value is a string; a "table" field's is an array of row
-// objects; a "conditional" field's is a boolean — see lib/docx.ts.
-const fieldValueSchema = z.union([z.string(), z.boolean(), z.array(z.record(z.string(), z.string()))]);
+// objects; a "conditional" field's is a boolean — see lib/docx.ts. A
+// "calculated" field's value is the calculation type/value the admin chose
+// on the generation wizard (no longer stored on the template itself — see
+// the note in validators/document-template.ts).
+const calculatedFieldValueSchema = z.object({
+  calculationType: z.enum(CALCULATION_TYPES),
+  value: z.number(),
+});
+
+const fieldValueSchema = z.union([
+  z.string(),
+  z.boolean(),
+  z.array(z.record(z.string(), z.string())),
+  calculatedFieldValueSchema,
+]);
 
 export const generateDocumentSchema = z.object({
   templateId: z.string().min(1, "Select a template"),
