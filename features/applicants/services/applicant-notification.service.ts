@@ -87,7 +87,7 @@ export async function sendApplicantEmail(
     createdByName: actor.name,
   });
 
-  const result = await triggerWebhook("send-email", { ...payload, followupId: followup._id });
+  const result = await triggerWebhook("send-email", { ...payload, followupId: followup._id }, actor);
 
   await applicantFollowupRepository.applyEvent(followup._id, {
     status: result.ok ? "sent" : "failed",
@@ -161,14 +161,18 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
     createdByName: actor.name,
   });
 
-  const result = await triggerWebhook("send-sms", {
-    followupId: followup._id,
-    applicantId: applicant._id,
-    name: applicant.name,
-    phone: applicant.phone,
-    jobTitle: applicant.jobId?.title ?? null,
-    status: applicant.status,
-  });
+  const result = await triggerWebhook(
+    "send-sms",
+    {
+      followupId: followup._id,
+      applicantId: applicant._id,
+      name: applicant.name,
+      phone: applicant.phone,
+      jobTitle: applicant.jobId?.title ?? null,
+      status: applicant.status,
+    },
+    actor,
+  );
 
   await applicantFollowupRepository.applyEvent(followup._id, {
     status: result.ok ? "sent" : "failed",

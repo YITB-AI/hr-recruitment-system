@@ -1,11 +1,14 @@
-import { GeneratedDocument, GENERATED_DOCUMENT_STATUSES } from "@/models";
+import { GeneratedDocument, GENERATED_DOCUMENT_STATUSES, PDF_STATUSES } from "@/models";
 
 export type GeneratedDocumentStatus = (typeof GENERATED_DOCUMENT_STATUSES)[number];
+export type PdfStatus = (typeof PDF_STATUSES)[number];
 
 export type GeneratedDocumentRow = {
   _id: string;
   fileName: string;
   fileUrl: string | null;
+  pdfUrl: string | null;
+  pdfStatus: PdfStatus;
   status: string;
   batchId: string | null;
   createdAt: Date;
@@ -28,6 +31,8 @@ function serialize(row: RawRow): GeneratedDocumentRow {
     _id: String(row._id),
     fileName: row.fileName as string,
     fileUrl: (row.fileUrl as string | undefined) ?? null,
+    pdfUrl: (row.pdfUrl as string | undefined) ?? null,
+    pdfStatus: (row.pdfStatus as PdfStatus | undefined) ?? "none",
     status: row.status as string,
     batchId: (row.batchId as string | undefined) ?? null,
     createdAt: row.createdAt as Date,
@@ -187,5 +192,13 @@ export const generatedDocumentRepository = {
   },
   async delete(companyId: string, id: string) {
     return GeneratedDocument.findOneAndDelete({ _id: id, companyId }).lean();
+  },
+  /** Best-effort PDF conversion result — never touches the docx `status`/`statusHistory` fields. */
+  async updatePdfInfo(
+    companyId: string,
+    id: string,
+    patch: { pdfStatus: PdfStatus; pdfUrl?: string },
+  ): Promise<void> {
+    await GeneratedDocument.findOneAndUpdate({ _id: id, companyId }, patch);
   },
 };

@@ -583,15 +583,23 @@ export function GenerateDocumentWizard({
             <p className="text-sm text-muted-foreground">{result.fileName}</p>
           </div>
           <div className="flex gap-2">
-            <Button nativeButton={false} render={<a href={result.fileUrl ?? "#"} download />}>
+            <Button
+              nativeButton={false}
+              render={<a href={(result.pdfStatus === "ready" && result.pdfUrl) || result.fileUrl || "#"} download />}
+            >
               <Download className="size-4" />
-              Download
+              {result.pdfStatus === "ready" ? "Download PDF" : "Download"}
             </Button>
             <Button variant="outline" onClick={reset}>
               <RotateCcw className="size-4" />
               Generate Another
             </Button>
           </div>
+          {result.pdfStatus === "failed" && (
+            <p className="text-xs text-muted-foreground">
+              PDF conversion failed — downloading the original Word document instead.
+            </p>
+          )}
         </div>
       )}
     </div>

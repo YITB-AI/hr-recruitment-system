@@ -1,6 +1,7 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 
 export const GENERATED_DOCUMENT_STATUSES = ["generated", "sent", "signed"] as const;
+export const PDF_STATUSES = ["none", "pending", "ready", "failed"] as const;
 
 // One entry per status transition, oldest first — the current `status` field
 // always mirrors the last entry's status. Kept as a subdocument (not a
@@ -26,6 +27,11 @@ const documentSchema = new Schema(
     batchId: { type: String, index: true },
     fileName: { type: String, required: true },
     fileUrl: { type: String },
+    // Best-effort PDF copy, converted right after the .docx is generated
+    // (see lib/pdf-conversion.ts) — "failed" never blocks the .docx itself
+    // from being available; the UI falls back to it when this isn't "ready".
+    pdfUrl: { type: String },
+    pdfStatus: { type: String, enum: PDF_STATUSES, default: "none" },
     status: { type: String, enum: GENERATED_DOCUMENT_STATUSES, default: "generated", index: true },
     statusHistory: { type: [statusHistoryEntrySchema], default: [] },
     generatedBy: { type: Schema.Types.ObjectId, ref: "User" },

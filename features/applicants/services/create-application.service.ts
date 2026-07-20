@@ -55,19 +55,23 @@ export async function requestApplicationCreate(jobId: string, file: File): Promi
   const buffer = Buffer.from(await file.arrayBuffer());
   const fileBase64 = buffer.toString("base64");
 
-  const result = await triggerWebhook("create-application", {
-    idempotencyKey: crypto.randomUUID(),
-    // Always the session-derived company, never anything from the client —
-    // n8n uses this to set the new Applicant's companyId directly.
-    companyId: actor.companyId,
-    jobId: job._id,
-    jobTitle: job.title,
-    jobDescription: job.description,
-    submittedByName: actor.name,
-    fileName: file.name,
-    mimeType: file.type,
-    fileBase64,
-  });
+  const result = await triggerWebhook(
+    "create-application",
+    {
+      idempotencyKey: crypto.randomUUID(),
+      // Always the session-derived company, never anything from the client —
+      // n8n uses this to set the new Applicant's companyId directly.
+      companyId: actor.companyId,
+      jobId: job._id,
+      jobTitle: job.title,
+      jobDescription: job.description,
+      submittedByName: actor.name,
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64,
+    },
+    actor,
+  );
 
   await activityLogRepository.create({
     companyId: actor.companyId,

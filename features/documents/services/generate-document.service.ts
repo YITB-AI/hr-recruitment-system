@@ -11,6 +11,8 @@ import {
 } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { saveFile, readFileByKey } from "@/lib/file-storage";
+import { convertDocxToPdf, launchSharedPdfBrowser } from "@/lib/pdf-conversion";
+import type { Browser } from "puppeteer-core";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
@@ -197,6 +199,10 @@ async function generateOne(
   company: { name: string; logoUrl: string | null },
   companyDateFormat: string,
   companyTimezone: string,
+  // Bulk generation launches one Chromium instance for the whole batch and
+  // passes it in here (see generateDocumentsBulk) instead of every recipient
+  // paying its own ~1-2s cold-start cost.
+  sharedPdfBrowser?: Browser,
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
@@ -316,6 +322,33 @@ async function generateOne(
     message: `${actor.name} generated "${template.name}" for ${recipientRecord.name}`,
   });
 
+  // Best-effort — a conversion failure must never fail the document
+  // generation itself (the .docx is already saved and usable). The
+  // download UI falls back to the .docx whenever pdfStatus isn't "ready".
+  try {
+    const pdfBuffer = await convertDocxToPdf(outputBuffer, sharedPdfBrowser);
+    const pdfFileName = fileName.replace(/\.docx$/, ".pdf");
+    const { storageKey: pdfStorageKey } = await saveFile(DOCUMENT_FOLDER, pdfFileName, pdfBuffer);
+    await generatedDocumentRepository.updatePdfInfo(actor.companyId, created._id, {
+      pdfStatus: "ready",
+      pdfUrl: `/api/files/${pdfStorageKey}`,
+    });
+    created.pdfStatus = "ready";
+    created.pdfUrl = `/api/files/${pdfStorageKey}`;
+  } catch (error) {
+    await generatedDocumentRepository.updatePdfInfo(actor.companyId, created._id, { pdfStatus: "failed" });
+    created.pdfStatus = "failed";
+    await activityLogRepository.create({
+      companyId: actor.companyId,
+      actorId: actor.id === "system" ? undefined : actor.id,
+      actorName: actor.name,
+      action: "document.pdf_conversion_failed",
+      entityType: "document",
+      entityId: created._id,
+      message: `PDF conversion failed for "${template.name}" (${recipientRecord.name}): ${error instanceof Error ? error.message : "unknown error"}`,
+    });
+  }
+
   return created;
 }
 
@@ -403,13 +436,32 @@ export async function generateDocumentsBulk(
   const batchId = randomUUID();
   const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
 
+  // One shared Chromium instance for the whole batch's PDF conversions,
+  // instead of every recipient paying its own launch cost — if it fails to
+  // launch at all, PDF conversion best-effort-fails for the whole batch
+  // (generateOne's own try/catch still lets every .docx generate normally).
+  const sharedPdfBrowser = await launchSharedPdfBrowser().catch(() => undefined);
+
   // allSettled, not all — one bad recipient (missing record, missing
   // required field) must not sink the rest of the batch.
   const settled = await Promise.allSettled(
     recipients.map((recipient) =>
-      generateOne(actor, template, templateBuffer, recipient, values, batchId, companyInfo, setting.dateFormat, setting.timezone),
+      generateOne(
+        actor,
+        template,
+        templateBuffer,
+        recipient,
+        values,
+        batchId,
+        companyInfo,
+        setting.dateFormat,
+        setting.timezone,
+        sharedPdfBrowser,
+      ),
     ),
   );
+
+  if (sharedPdfBrowser) await sharedPdfBrowser.close();
 
   const results: BulkGenerateResultItem[] = settled.map((outcome, index) => {
     const recipient = recipients[index];

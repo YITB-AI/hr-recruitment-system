@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  // puppeteer-core + @sparticuz/chromium (lib/pdf-conversion.ts) ship native
+  // binaries/binary-loading logic that Next's bundler must not try to trace
+  // into — they need to stay as plain node_modules requires at runtime.
+  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
   experimental: {
     serverActions: {
       // Next's default is 1MB, which is already below the existing

@@ -89,23 +89,27 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     createdByName: actor.name,
   });
 
-  const result = await triggerWebhook("ai-call", {
-    followupId: followup._id,
-    interviewId,
-    applicantId: applicant._id,
-    name: input.name,
-    phone: input.phone,
-    email: input.email || null,
-    jobTitle: input.jobTitle || null,
-    company: company?.name ?? null,
-    date: input.callDate,
-    time: input.callTime,
-    message: input.message,
-    interviewerNames,
-    meetingLink: input.meetingLink,
-    userId: actor.id === "system" ? null : actor.id,
-    createdBy: actor.name,
-  });
+  const result = await triggerWebhook(
+    "ai-call",
+    {
+      followupId: followup._id,
+      interviewId,
+      applicantId: applicant._id,
+      name: input.name,
+      phone: input.phone,
+      email: input.email || null,
+      jobTitle: input.jobTitle || null,
+      company: company?.name ?? null,
+      date: input.callDate,
+      time: input.callTime,
+      message: input.message,
+      interviewerNames,
+      meetingLink: input.meetingLink,
+      userId: actor.id === "system" ? null : actor.id,
+      createdBy: actor.name,
+    },
+    actor,
+  );
 
   // The row already exists as "pending" — patch it rather than creating a
   // second row. Only a trigger failure needs to move it here; on success it

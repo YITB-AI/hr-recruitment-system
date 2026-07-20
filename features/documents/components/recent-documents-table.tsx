@@ -84,8 +84,13 @@ export function RecentDocumentsTable({ documents }: { documents: GeneratedDocume
             </td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-1">
-                {doc.fileUrl && (
-                  <Button variant="ghost" size="icon-sm" nativeButton={false} render={<a href={doc.fileUrl} download />}>
+                {(doc.pdfUrl || doc.fileUrl) && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    nativeButton={false}
+                    render={<a href={(doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#"} download />}
+                  >
                     <Download className="size-4" />
                   </Button>
                 )}

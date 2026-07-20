@@ -43,7 +43,7 @@ export async function syncJobs(): Promise<{ success: true } | { success: false; 
   const actor = await getCurrentUser();
   requireRole(actor, "job.manage");
 
-  const result = await triggerWebhook("sync-jobs", { companyId: actor.companyId });
+  const result = await triggerWebhook("sync-jobs", { companyId: actor.companyId }, actor);
 
   await activityLogRepository.create({
     companyId: actor.companyId,
@@ -65,7 +65,7 @@ export async function syncAll(): Promise<{ success: true } | { success: false; e
   const actor = await getCurrentUser();
   requireRole(actor, "job.manage");
 
-  const result = await triggerWebhook("sync-all", { companyId: actor.companyId });
+  const result = await triggerWebhook("sync-all", { companyId: actor.companyId }, actor);
 
   await activityLogRepository.create({
     companyId: actor.companyId,

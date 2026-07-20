@@ -38,9 +38,9 @@ export function EmployeeDocumentsTab({ documents }: { documents: GeneratedDocume
             <Badge variant="outline" className="capitalize">
               {doc.status}
             </Badge>
-            {doc.fileUrl && (
+            {(doc.pdfUrl || doc.fileUrl) && (
               <a
-                href={doc.fileUrl}
+                href={(doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#"}
                 download
                 className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
               >
