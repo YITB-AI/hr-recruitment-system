@@ -149,9 +149,21 @@ export async function getJob(id: string): Promise<JobRow | null> {
 export type JobDetail = {
   job: JobRow;
   applicantCount: number;
+  newApplicantCount: number;
   interviewCount: number;
   recentApplicants: ApplicantListRow[];
+  // Hiring Pipeline card/Analytics tab. Stages are the 4 guaranteed pipeline
+  // keys every company's Status collection seeds by default (see
+  // PIPELINE_STATUSES) that represent forward progress — "rejected" and
+  // "incomplete" are excluded since they're exits, not funnel stages.
+  // "hired"/"offer" aren't in that guaranteed set (a company may not have
+  // configured one), so conversionRate is defined as "reached interview
+  // stage" rather than a hire rate that could silently always read 0%.
+  pipeline: Array<{ status: string; count: number }>;
+  conversionRate: number;
 };
+
+const PIPELINE_FUNNEL_STAGES = ["new", "screening", "shortlisted", "interview"] as const;
 
 export async function getJobDetail(id: string): Promise<JobDetail | null> {
   await connectDB();
@@ -159,13 +171,32 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
   const job = await jobRepository.findById(companyId, id);
   if (!job) return null;
 
-  const [applicantCount, interviewCount, applicantsResult] = await Promise.all([
+  const newSince = new Date();
+  newSince.setDate(newSince.getDate() - NEW_APPLICANT_WINDOW_DAYS);
+
+  const [applicantCount, interviewCount, applicantsResult, statusCounts, applicantCounts] = await Promise.all([
     jobRepository.countApplicants(companyId, id),
     jobRepository.countInterviews(companyId, id),
     applicantRepository.findAllPaginated(companyId, { jobId: id, page: 1, pageSize: 10 }),
+    applicantRepository.groupByStatusForJob(companyId, id),
+    jobRepository.countApplicantsByJobIds(companyId, [id], newSince),
   ]);
 
-  return { job, applicantCount, interviewCount, recentApplicants: applicantsResult.rows };
+  const countByStatus = new Map(statusCounts.map((row) => [row.status, row.count]));
+  const pipeline = PIPELINE_FUNNEL_STAGES.map((status) => ({ status, count: countByStatus.get(status) ?? 0 }));
+  const interviewStageCount = countByStatus.get("interview") ?? 0;
+  const conversionRate = applicantCount === 0 ? 0 : Math.round((interviewStageCount / applicantCount) * 1000) / 10;
+  const newApplicantCount = applicantCounts.get(id)?.new ?? 0;
+
+  return {
+    job,
+    applicantCount,
+    newApplicantCount,
+    interviewCount,
+    recentApplicants: applicantsResult.rows,
+    pipeline,
+    conversionRate,
+  };
 }
 
 export async function createJob(input: CreateJobInput): Promise<JobRow> {

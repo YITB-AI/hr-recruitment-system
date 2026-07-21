@@ -294,6 +294,15 @@ export const applicantRepository = {
     ]);
     return rows.map((row) => ({ status: row._id, count: row.count }));
   },
+  // Same as groupByStatus, scoped to one job — backs the Job Detail page's
+  // Hiring Pipeline card/Analytics tab.
+  async groupByStatusForJob(companyId: string, jobId: string): Promise<Array<{ status: ApplicantStatus; count: number }>> {
+    const rows = await Applicant.aggregate<{ _id: ApplicantStatus; count: number }>([
+      { $match: { companyId: new Types.ObjectId(companyId), jobId: new Types.ObjectId(jobId) } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+    return rows.map((row) => ({ status: row._id, count: row.count }));
+  },
 
   // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---
   // A raw external insert (e.g. an n8n workflow's own MongoDB node, bypassing
