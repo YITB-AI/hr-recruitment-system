@@ -77,12 +77,38 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   return (
     <StatusConfigProvider statuses={applicantStatuses}>
     <div className="space-y-6 p-4 md:p-6">
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link href="/applicants" className="hover:text-foreground">
-          Applicants
-        </Link>
-        <ChevronRight className="size-3.5" />
-        <span className="text-foreground">Applicant Details</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link href="/applicants" className="hover:text-foreground">
+            Applicants
+          </Link>
+          <ChevronRight className="size-3.5" />
+          <span className="text-foreground">Applicant Details</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {adjacent.previousId ? (
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.previousId}`} />}>
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              <ChevronLeft className="size-4" />
+              Previous
+            </Button>
+          )}
+          {adjacent.nextId ? (
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.nextId}`} />}>
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              Next
+              <ChevronRight className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
@@ -110,48 +136,22 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="overview">
-              <div className="flex items-center gap-2">
-                <TabsList className="w-full flex-1 justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="interviews">Interviews</TabsTrigger>
-                  <TabsTrigger value="notes">Notes</TabsTrigger>
-                  <TabsTrigger value="activity">Activity</TabsTrigger>
-                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                  <TabsTrigger value="communication">Communication</TabsTrigger>
-                  <TabsTrigger value="resume">Resume</TabsTrigger>
-                  {PLACEHOLDER_TABS.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value}>
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {adjacent.previousId ? (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.previousId}`} />}>
-                      <ChevronLeft className="size-4" />
-                      Previous
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      <ChevronLeft className="size-4" />
-                      Previous
-                    </Button>
-                  )}
-                  {adjacent.nextId ? (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.nextId}`} />}>
-                      Next
-                      <ChevronRight className="size-4" />
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      Next
-                      <ChevronRight className="size-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+              <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden scrollbar-hide">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="activity">Activity</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="communication">Communication</TabsTrigger>
+                <TabsTrigger value="resume">Resume</TabsTrigger>
+                {PLACEHOLDER_TABS.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
               <TabsContent value="overview" className="pt-6">
                 <ApplicantOverview applicant={applicant} />

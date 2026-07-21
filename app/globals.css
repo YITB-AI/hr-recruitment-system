@@ -188,3 +188,17 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  /* Keeps horizontal scroll (e.g. an overflowing tab list) usable via drag/
+     swipe/shift-scroll without showing a native scrollbar — scrollbar-width
+     alone (Firefox-only until recently) doesn't thin/hide it in Chromium,
+     which needs the ::-webkit-scrollbar rule below too. */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
