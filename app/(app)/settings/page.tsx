@@ -45,7 +45,11 @@ import type { UserRole } from "@/constants/user";
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+const DEEP_LINKABLE_TABS = new Set(["notifications"]);
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
+  const defaultTab = tab && DEEP_LINKABLE_TABS.has(tab) ? tab : "general";
   await connectDB();
   const actor = await getCurrentUser();
   const isAdmin = actor.role === "admin";
@@ -87,7 +91,7 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" description="Manage your organization's configuration and appearance." />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
-        <Tabs defaultValue="general" orientation="vertical" className="items-start">
+        <Tabs defaultValue={defaultTab} orientation="vertical" className="items-start">
           <TabsList variant="line" className="h-fit w-56 shrink-0 flex-col items-stretch gap-1 bg-transparent p-0">
             <TabsTrigger value="general" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
               <SettingsIcon className="size-4" />

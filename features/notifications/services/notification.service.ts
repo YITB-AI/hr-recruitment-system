@@ -1,8 +1,10 @@
 import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
-import { notificationRepository } from "@/server/repositories/notification.repository";
+import { notificationRepository, type NotificationRow } from "@/server/repositories/notification.repository";
+import { resolveNotificationEntity, type NotificationEntityLink } from "@/features/notifications/services/notification-entity.service";
 import { autoRepairResolvableOrphanedNotifications } from "@/features/settings/services/data-repair.service";
 import { shouldRunRepairJob } from "@/lib/repair-throttle";
+import type { NotificationType } from "@/constants/notification";
 
 const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -32,10 +34,36 @@ export async function getRecentNotifications(userId: string, limit = 5) {
   return notificationRepository.findRecent(userId, limit);
 }
 
-export async function getNotificationsPageData(userId: string, page: number, pageSize = 15) {
+export async function getNotificationsPageData(
+  userId: string,
+  page: number,
+  pageSize = 15,
+  type?: NotificationType,
+  unreadOnly?: boolean,
+) {
   await connectDB();
   triggerAutoRepairInBackground();
-  return notificationRepository.findAllPaginated(userId, page, pageSize);
+  return notificationRepository.findAllPaginated(userId, page, pageSize, type, unreadOnly);
+}
+
+/** Per-category counts backing the Notifications page's sidebar. */
+export async function getNotificationCategoryCounts(userId: string) {
+  await connectDB();
+  return notificationRepository.countByType(userId);
+}
+
+export type NotificationDetail = { notification: NotificationRow; entityLink: NotificationEntityLink | null };
+
+export async function getNotificationDetail(
+  userId: string,
+  companyId: string,
+  id: string,
+): Promise<NotificationDetail | null> {
+  await connectDB();
+  const notification = await notificationRepository.findByIdForUser(id, userId);
+  if (!notification) return null;
+  const entityLink = await resolveNotificationEntity(companyId, notification.entityType, notification.entityId);
+  return { notification, entityLink };
 }
 
 export async function markNotificationRead(id: string, userId: string): Promise<void> {

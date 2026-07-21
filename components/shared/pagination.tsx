@@ -8,6 +8,8 @@ type PaginationProps = {
   total: number;
   /** Builds the href for a given page number, e.g. (p) => `/employees?page=${p}` */
   buildHref: (page: number) => string;
+  /** Trailing noun in "Showing X to Y of Z {itemLabel}" — defaults to "results". */
+  itemLabel?: string;
 };
 
 /** Collapses a long page range to first/last + a window around the current page, e.g. 1 … 4 5 [6] 7 8 … 40. */
@@ -44,7 +46,7 @@ function StepButton({ href, disabled, children }: { href: string; disabled: bool
   );
 }
 
-export function Pagination({ page, pageSize, total, buildHref }: PaginationProps) {
+export function Pagination({ page, pageSize, total, buildHref, itemLabel = "results" }: PaginationProps) {
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
@@ -54,7 +56,7 @@ export function Pagination({ page, pageSize, total, buildHref }: PaginationProps
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground">
       <p>
-        Showing {from} to {to} of {total} results
+        Showing {from} to {to} of {total} {itemLabel}
       </p>
 
       <div className="flex items-center gap-1">

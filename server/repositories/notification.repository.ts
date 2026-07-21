@@ -83,8 +83,9 @@ export const notificationRepository = {
     page: number,
     pageSize: number,
     type?: NotificationType,
+    unreadOnly?: boolean,
   ): Promise<{ data: NotificationRow[]; total: number }> {
-    const query: Record<string, unknown> = { userId, ...(type ? { type } : {}) };
+    const query: Record<string, unknown> = { userId, ...(type ? { type } : {}), ...(unreadOnly ? { read: false } : {}) };
     const [rows, total] = await Promise.all([
       Notification.find(query)
         .sort({ createdAt: -1 })
@@ -103,11 +104,20 @@ export const notificationRepository = {
   },
   /** Per-type counts for the Notifications page's category sidebar. */
   async countByType(userId: string): Promise<Array<{ type: NotificationType; count: number; unread: number }>> {
-    const rows = await Notification.aggregate<{ _id: NotificationType | null; count: number; unread: number }>([
+    // $ifNull folds pre-type-field legacy rows into the "system" bucket
+    // INSIDE the aggregation. Grouping on the bare "$type" field instead
+    // (with the same `?? "system"` fallback applied only after the query
+    // came back) produced two separate rows for the same "system" key
+    // whenever any type-less row existed — one from real type:"system" docs,
+    // one from _id:null docs merely relabeled to "system" in JS. Callers
+    // that reduce this array into a Map keyed by `type` (e.g. the
+    // Notifications page sidebar) would then have the second row silently
+    // clobber the first, undercounting "system" to just the legacy rows.
+    const rows = await Notification.aggregate<{ _id: NotificationType; count: number; unread: number }>([
       { $match: { userId: new Types.ObjectId(userId) } },
-      { $group: { _id: "$type", count: { $sum: 1 }, unread: { $sum: { $cond: ["$read", 0, 1] } } } },
+      { $group: { _id: { $ifNull: ["$type", "system"] }, count: { $sum: 1 }, unread: { $sum: { $cond: ["$read", 0, 1] } } } },
     ]);
-    return rows.map((row) => ({ type: row._id ?? "system", count: row.count, unread: row.unread }));
+    return rows.map((row) => ({ type: row._id, count: row.count, unread: row.unread }));
   },
   async markRead(id: string, userId: string): Promise<void> {
     await Notification.updateOne({ _id: id, userId }, { $set: { read: true } });
