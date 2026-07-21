@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Types } from "mongoose";
 import { Job, Applicant, Interview } from "@/models";
-import type { JobStatus, JobType } from "@/constants/job";
+import type { JobStatus, JobType, ExperienceLevel, WorkMode } from "@/constants/job";
 
 export type JobRow = {
   _id: string;
@@ -16,10 +16,22 @@ export type JobRow = {
   type: string | null;
   createdAt: string | null;
   archivedAt: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string;
+  experienceLevel: string | null;
+  workMode: string | null;
+  skills: string[];
+  responsibilities: string[];
+  featured: boolean;
 };
 
 type RawJobRow = Record<string, unknown> & { _id: unknown };
 
+// The one load-bearing spot for graceful fallbacks on the 7 app-only fields
+// below — an n8n-synced job predates all of them, so every consumer (table,
+// detail page, export CSV) gets a safe value here instead of `undefined`
+// reaching JSX.
 function serializeJobRow(row: RawJobRow): JobRow {
   return {
     _id: String(row._id),
@@ -34,6 +46,14 @@ function serializeJobRow(row: RawJobRow): JobRow {
     type: (row.type as string | undefined) ?? null,
     createdAt: (row.createdAt as string | undefined) ?? null,
     archivedAt: row.archivedAt ? (row.archivedAt as Date).toISOString() : null,
+    salaryMin: (row.salaryMin as number | undefined) ?? null,
+    salaryMax: (row.salaryMax as number | undefined) ?? null,
+    salaryCurrency: (row.salaryCurrency as string) || "USD",
+    experienceLevel: (row.experienceLevel as string | undefined) ?? null,
+    workMode: (row.workMode as string | undefined) ?? null,
+    skills: Array.isArray(row.skills) ? (row.skills as string[]) : [],
+    responsibilities: Array.isArray(row.responsibilities) ? (row.responsibilities as string[]) : [],
+    featured: Boolean(row.featured),
   };
 }
 
@@ -46,6 +66,14 @@ export type CreateJobInput = {
   country?: string;
   status: JobStatus;
   type: JobType;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  experienceLevel?: ExperienceLevel;
+  workMode?: WorkMode;
+  skills?: string[];
+  responsibilities?: string[];
+  featured?: boolean;
 };
 
 export type UpdateJobInput = Partial<CreateJobInput>;
@@ -53,6 +81,7 @@ export type UpdateJobInput = Partial<CreateJobInput>;
 export type JobListFilters = {
   search?: string;
   status?: string;
+  department?: string;
   includeArchived?: boolean;
   sort?: "newest" | "oldest" | "title_asc" | "title_desc";
   page: number;
@@ -93,6 +122,48 @@ export const jobRepository = {
       },
     });
   },
+  countByStatus(companyId: string, status: string, includeArchived = false) {
+    return Job.countDocuments({ companyId, status, ...(includeArchived ? {} : { archivedAt: { $exists: false } }) });
+  },
+  // Same $expr/$toDate conversion as countCreatedBetween — updatedAt is an
+  // ISO string here too, not a BSON date.
+  countByStatusUpdatedBetween(companyId: string, status: string, start: Date, end: Date) {
+    return Job.countDocuments({
+      companyId,
+      status,
+      archivedAt: { $exists: false },
+      $expr: {
+        $and: [
+          { $gte: [{ $toDate: "$updatedAt" }, start] },
+          { $lt: [{ $toDate: "$updatedAt" }, end] },
+        ],
+      },
+    });
+  },
+  /** Per-job {total, new} applicant counts for the Jobs list table — one aggregate, not N queries. */
+  async countApplicantsByJobIds(
+    companyId: string,
+    jobIds: string[],
+    newSince: Date,
+  ): Promise<Map<string, { total: number; new: number }>> {
+    if (jobIds.length === 0) return new Map();
+    const rows = await Applicant.aggregate<{ _id: unknown; total: number; new: number }>([
+      {
+        $match: {
+          companyId: new Types.ObjectId(companyId),
+          jobId: { $in: jobIds.map((id) => new Types.ObjectId(id)) },
+        },
+      },
+      {
+        $group: {
+          _id: "$jobId",
+          total: { $sum: 1 },
+          new: { $sum: { $cond: [{ $gte: ["$createdAt", newSince] }, 1, 0] } },
+        },
+      },
+    ]);
+    return new Map(rows.map((row) => [String(row._id), { total: row.total, new: row.new }]));
+  },
   /** Minimal shape for the Applicants filter dropdown — this company's jobs only. */
   async findAllForPicker(companyId: string): Promise<Array<{ _id: string; title: string }>> {
     const rows = await Job.find({ companyId })
@@ -109,6 +180,7 @@ export const jobRepository = {
     const query: Record<string, unknown> = { companyId };
     if (!filters.includeArchived) query.archivedAt = { $exists: false };
     if (filters.status) query.status = filters.status;
+    if (filters.department) query.department = filters.department;
     if (filters.search) {
       const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       query.$or = [{ title: pattern }, { department: pattern }, { job_id: pattern }];
@@ -181,6 +253,14 @@ export const jobRepository = {
       country: input.country ?? "",
       status: input.status,
       type: input.type,
+      salaryMin: input.salaryMin,
+      salaryMax: input.salaryMax,
+      salaryCurrency: input.salaryCurrency ?? "USD",
+      experienceLevel: input.experienceLevel,
+      workMode: input.workMode,
+      skills: input.skills ?? [],
+      responsibilities: input.responsibilities ?? [],
+      featured: input.featured ?? false,
       createdAt: now,
       updatedAt: now,
     });

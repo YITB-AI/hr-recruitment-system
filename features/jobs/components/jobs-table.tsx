@@ -3,11 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Briefcase } from "lucide-react";
 import { JobRowActions } from "@/features/jobs/components/job-row-actions";
+import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
 import type { JobRow } from "@/server/repositories/job.repository";
-
-function statusVariant(status: string): "outline" | "destructive" {
-  return status === "Closed" ? "destructive" : "outline";
-}
 
 export function JobsTable({ jobs }: { jobs: JobRow[] }) {
   if (jobs.length === 0) {
@@ -43,7 +40,7 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
             <td className="px-4 py-3 text-foreground/80">{job.type ?? "—"}</td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-1.5">
-                <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+                <JobStatusBadge status={job.status} />
                 {job.archivedAt && <Badge variant="outline">Archived</Badge>}
               </div>
             </td>

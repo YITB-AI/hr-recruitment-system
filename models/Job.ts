@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { EXPERIENCE_LEVELS, WORK_MODES } from "@/constants/job";
 
 // Shape mirrors what the existing n8n pipeline already writes into
 // hr_master_db.jobs — job_id (custom string, not _id), flat address fields,
@@ -34,6 +35,18 @@ const jobSchema = new Schema(
     // field rather than overloading `status` (a free-text string n8n also
     // writes to) so "archived" is never confused with n8n's own status values.
     archivedAt: { type: Date },
+    // Everything below is 100%-app-authored — n8n never sets these, so they
+    // get real enum constraints (unlike status/type above). Always optional/
+    // defaulted: an n8n-synced job predates all of them and must render
+    // gracefully with none set (handled in job.repository.ts's serializer).
+    salaryMin: { type: Number, min: 0 },
+    salaryMax: { type: Number, min: 0 },
+    salaryCurrency: { type: String, trim: true, default: "USD" },
+    experienceLevel: { type: String, enum: EXPERIENCE_LEVELS, trim: true },
+    workMode: { type: String, enum: WORK_MODES, trim: true },
+    skills: { type: [String], default: [] },
+    responsibilities: { type: [String], default: [] },
+    featured: { type: Boolean, default: false },
   },
   { timestamps: false },
 );

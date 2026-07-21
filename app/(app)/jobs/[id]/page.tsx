@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { JobRowActions } from "@/features/jobs/components/job-row-actions";
+import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
 import { getJobDetail } from "@/features/jobs/services/job.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
@@ -17,10 +18,6 @@ import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Job Details" };
 export const dynamic = "force-dynamic";
-
-function statusVariant(status: string): "outline" | "destructive" {
-  return status === "Closed" ? "destructive" : "outline";
-}
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -54,7 +51,7 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
-            <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+            <JobStatusBadge status={job.status} />
             {job.archivedAt && <Badge variant="outline">Archived</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
