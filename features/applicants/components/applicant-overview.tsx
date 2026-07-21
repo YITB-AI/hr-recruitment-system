@@ -1,4 +1,16 @@
-import { Link as LinkIcon, FolderGit2, Globe, Briefcase, Calendar, CheckCircle2, Clock, FileText, ExternalLink } from "lucide-react";
+import {
+  Link as LinkIcon,
+  FolderGit2,
+  Globe,
+  Briefcase,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  FileText,
+  ExternalLink,
+  Languages as LanguagesIcon,
+  Trophy,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import type { ApplicantDetailRow } from "@/server/repositories/applicant.repository";
@@ -25,7 +37,8 @@ function resumeFileName(url: string): string {
 }
 
 export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow }) {
-  const hasLinks = applicant.linkedinUrl || applicant.githubUrl || applicant.portfolioUrl;
+  const hasLinks = applicant.linkedinUrl || applicant.githubUrl || applicant.portfolioUrl || applicant.socialMediaUrls.length > 0;
+  const companyCount = applicant.experienceHistory.length;
 
   return (
     <div className="space-y-6">
@@ -77,8 +90,6 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Only the fields we actually have data for — no fabricated "companies worked
-            with" or similar, since nothing in this app tracks that today. */}
         <Card>
           <CardContent className="space-y-3 pt-5">
             <h4 className="flex items-center gap-2 text-sm font-semibold">
@@ -91,13 +102,19 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
                 <p className="text-xs text-muted-foreground">Total Experience</p>
               </div>
             )}
+            {companyCount > 0 && (
+              <div>
+                <p className="text-lg font-semibold">{companyCount}</p>
+                <p className="text-xs text-muted-foreground">{companyCount === 1 ? "Company" : "Companies"} Worked With</p>
+              </div>
+            )}
             {applicant.currentPosition && (
               <div>
                 <p className="text-sm font-medium">{applicant.currentPosition}</p>
                 <p className="text-xs text-muted-foreground">Current Position</p>
               </div>
             )}
-            {applicant.experienceYears == null && !applicant.currentPosition && (
+            {applicant.experienceYears == null && companyCount === 0 && !applicant.currentPosition && (
               <p className="text-sm text-muted-foreground">No experience details on file.</p>
             )}
           </CardContent>
@@ -129,6 +146,37 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
         </Card>
       </div>
 
+      {applicant.languages.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold">Languages</h3>
+          <div className="flex flex-wrap gap-2">
+            {applicant.languages.map((language) => (
+              <span
+                key={language}
+                className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80"
+              >
+                <LanguagesIcon className="size-3 text-primary" />
+                {language}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {applicant.achievements.length > 0 && (
+        <div>
+          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+            <Trophy className="size-4 text-[var(--warning)]" />
+            Achievements
+          </h3>
+          <ul className="space-y-1.5 text-sm text-foreground/80">
+            {applicant.achievements.map((achievement) => (
+              <li key={achievement}>• {achievement}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {hasLinks && (
         <div>
           <h3 className="mb-3 text-sm font-semibold">Links</h3>
@@ -136,6 +184,9 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
             {applicant.linkedinUrl && <Field icon={LinkIcon} label="LinkedIn" value={applicant.linkedinUrl} />}
             {applicant.githubUrl && <Field icon={FolderGit2} label="GitHub" value={applicant.githubUrl} />}
             {applicant.portfolioUrl && <Field icon={Globe} label="Portfolio" value={applicant.portfolioUrl} />}
+            {applicant.socialMediaUrls.map((url, index) => (
+              <Field key={`${url}-${index}`} icon={Globe} label="Other Link" value={url} />
+            ))}
           </div>
         </div>
       )}

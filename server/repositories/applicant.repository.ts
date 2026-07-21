@@ -13,6 +13,10 @@ export type ApplicantListRow = {
   jobId: { _id: string; title: string } | null;
 };
 
+export type ExperienceHistoryEntry = { job_title: string; company: string; duration: string; responsibilities: string[] };
+export type EducationHistoryEntry = { degree_name: string; institution: string; year: string };
+export type CertificationHistoryEntry = { certification_name: string; issuer: string; year: string };
+
 export type ApplicantDetailRow = ApplicantListRow & {
   phone: string | null;
   location: string | null;
@@ -24,6 +28,12 @@ export type ApplicantDetailRow = ApplicantListRow & {
   experienceYears: number | null;
   currentPosition: string | null;
   tags: string[];
+  languages: string[];
+  achievements: string[];
+  socialMediaUrls: string[];
+  experienceHistory: ExperienceHistoryEntry[];
+  educationHistory: EducationHistoryEntry[];
+  certificationsHistory: CertificationHistoryEntry[];
 };
 
 // Raw shape of a .lean() result before normalization: _id/jobId._id are BSON
@@ -35,6 +45,10 @@ type RawRow = Record<string, unknown> & {
   jobId: { _id: unknown; title: string } | null;
 };
 
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
 function serialize<TOut>(doc: RawRow | null): TOut | null {
   if (!doc) return null;
 
@@ -42,10 +56,36 @@ function serialize<TOut>(doc: RawRow | null): TOut | null {
     ...doc,
     _id: String(doc._id),
     jobId: doc.jobId ? { _id: String(doc.jobId._id), title: doc.jobId.title } : null,
-    // A raw n8n insert can leave this as an empty string instead of the
-    // schema's array default — never let a non-array reach a caller
+    // A raw n8n insert can leave any of these as an empty string instead of
+    // the schema's array default, or individual sub-document fields absent
+    // entirely — never let a non-array/missing-field reach a caller
     // expecting to .map() over it.
-    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    tags: asStringArray(doc.tags),
+    languages: asStringArray(doc.languages),
+    achievements: asStringArray(doc.achievements),
+    socialMediaUrls: asStringArray(doc.socialMediaUrls),
+    experienceHistory: Array.isArray(doc.experienceHistory)
+      ? doc.experienceHistory.map((entry: Record<string, unknown>) => ({
+          job_title: (entry?.job_title as string) || "",
+          company: (entry?.company as string) || "",
+          duration: (entry?.duration as string) || "",
+          responsibilities: asStringArray(entry?.responsibilities),
+        }))
+      : [],
+    educationHistory: Array.isArray(doc.educationHistory)
+      ? doc.educationHistory.map((entry: Record<string, unknown>) => ({
+          degree_name: (entry?.degree_name as string) || "",
+          institution: (entry?.institution as string) || "",
+          year: (entry?.year as string) || "",
+        }))
+      : [],
+    certificationsHistory: Array.isArray(doc.certificationsHistory)
+      ? doc.certificationsHistory.map((entry: Record<string, unknown>) => ({
+          certification_name: (entry?.certification_name as string) || "",
+          issuer: (entry?.issuer as string) || "",
+          year: (entry?.year as string) || "",
+        }))
+      : [],
   } as TOut;
 }
 

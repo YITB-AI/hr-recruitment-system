@@ -17,6 +17,9 @@ const resumeAnalysisSchema = new Schema(
     weaknesses: { type: [String], default: [] },
     summary: { type: String },
     recommendation: { type: String },
+    // Also already written by n8n on every real analysis, never declared
+    // here — a bullet-point rationale distinct from `summary`'s prose.
+    statusReason: { type: String },
   },
   { timestamps: true },
 );

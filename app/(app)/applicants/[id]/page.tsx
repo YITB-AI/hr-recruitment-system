@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ChevronRight, ChevronLeft, Sparkles, CalendarClock, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, CalendarClock, History } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +24,8 @@ import { ApplicantDocumentsTab } from "@/features/applicants/components/applican
 import { ApplicantHistoryTab } from "@/features/applicants/components/applicant-history-tab";
 import { ApplicantCommunicationHistoryTab } from "@/features/applicants/components/applicant-communication-history-tab";
 import { ApplicantNotesTab } from "@/features/applicants/components/applicant-notes-tab";
+import { ApplicantExperienceTab } from "@/features/applicants/components/applicant-experience-tab";
+import { ApplicantEducationTab } from "@/features/applicants/components/applicant-education-tab";
 import { FollowupStatusIndicator } from "@/features/applicants/components/followup-status-indicator";
 import { CvViewerTab } from "@/features/applicants/components/cv-viewer-tab";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
@@ -36,16 +38,6 @@ import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Applicant Details" };
 export const dynamic = "force-dynamic";
-
-// "Timeline" is the applicant's full cross-entity feed (status changes,
-// comms, notes — one line each); "Communication" is the richer per-channel
-// detail view (full email body, full call transcript/summary); "Documents"
-// is generated offer/appointment letters. Experience/Education still have
-// no backing data model.
-const PLACEHOLDER_TABS = [
-  { value: "experience", label: "Experience", description: "Structured work history will appear here." },
-  { value: "education", label: "Education", description: "Education history will appear here." },
-];
 
 export default async function ApplicantDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -146,11 +138,8 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="communication">Communication</TabsTrigger>
                 <TabsTrigger value="resume">Resume</TabsTrigger>
-                {PLACEHOLDER_TABS.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value}>
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
+                <TabsTrigger value="experience">Experience</TabsTrigger>
+                <TabsTrigger value="education">Education</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="pt-6">
@@ -241,11 +230,13 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 <CvViewerTab resumeUrl={applicant.resumeUrl} />
               </TabsContent>
 
-              {PLACEHOLDER_TABS.map((tab) => (
-                <TabsContent key={tab.value} value={tab.value} className="pt-6">
-                  <EmptyState icon={Sparkles} title={`${tab.label} not available yet`} description={tab.description} />
-                </TabsContent>
-              ))}
+              <TabsContent value="experience" className="pt-6">
+                <ApplicantExperienceTab entries={applicant.experienceHistory} />
+              </TabsContent>
+
+              <TabsContent value="education" className="pt-6">
+                <ApplicantEducationTab education={applicant.educationHistory} certifications={applicant.certificationsHistory} />
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

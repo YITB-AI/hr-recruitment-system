@@ -10,6 +10,7 @@ export type ResumeAnalysisRow = {
   weaknesses: string[];
   summary: string | null;
   recommendation: string | null;
+  statusReason: string | null;
 };
 
 type RawRow = {
@@ -21,6 +22,7 @@ type RawRow = {
   weaknesses: string[];
   summary?: string;
   recommendation?: string;
+  statusReason?: string;
 };
 
 // NOT companyId-scoped here, unlike other repositories — like Job, this
@@ -34,7 +36,7 @@ export const resumeAnalysisRepository = {
   async findByApplicantId(applicantId: string): Promise<ResumeAnalysisRow | null> {
     const row = await ResumeAnalysis.findOne({ applicantId })
       .sort({ createdAt: -1 })
-      .select("overallScore jdMatchPercentage strengths missingSkills weaknesses summary recommendation")
+      .select("overallScore jdMatchPercentage strengths missingSkills weaknesses summary recommendation statusReason")
       .lean<RawRow | null>();
 
     if (!row) return null;
@@ -48,6 +50,7 @@ export const resumeAnalysisRepository = {
       weaknesses: row.weaknesses,
       summary: row.summary ?? null,
       recommendation: row.recommendation ?? null,
+      statusReason: row.statusReason ?? null,
     };
   },
 

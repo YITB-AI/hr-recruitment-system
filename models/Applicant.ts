@@ -3,6 +3,38 @@ import { APPLICANT_SOURCES } from "@/constants/applicant-source";
 
 export { APPLICANT_SOURCES };
 
+// n8n's resume-parsing pipeline writes these three sub-documents directly
+// into MongoDB (its own driver, not through this schema) — field names
+// (job_title/degree_name/certification_name, snake_case) match exactly what
+// it actually emits, confirmed against real production data, not guessed.
+const experienceHistoryEntrySchema = new Schema(
+  {
+    job_title: { type: String, trim: true },
+    company: { type: String, trim: true },
+    duration: { type: String, trim: true },
+    responsibilities: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
+const educationHistoryEntrySchema = new Schema(
+  {
+    degree_name: { type: String, trim: true },
+    institution: { type: String, trim: true },
+    year: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
+const certificationHistoryEntrySchema = new Schema(
+  {
+    certification_name: { type: String, trim: true },
+    issuer: { type: String, trim: true },
+    year: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
 const applicantSchema = new Schema(
   {
     // Optional for now — see the companyId comment in models/User.ts.
@@ -27,6 +59,16 @@ const applicantSchema = new Schema(
     currentPosition: { type: String, trim: true },
     tags: { type: [String], default: [] },
     appliedAt: { type: Date, default: Date.now },
+    // Discovered directly against real production data — n8n's own
+    // MongoDB writes already included these on every applicant, but
+    // nothing in this schema declared them, so they were never exposed by
+    // the repository layer or shown anywhere in the app.
+    languages: { type: [String], default: [] },
+    achievements: { type: [String], default: [] },
+    socialMediaUrls: { type: [String], default: [] },
+    experienceHistory: { type: [experienceHistoryEntrySchema], default: [] },
+    educationHistory: { type: [educationHistoryEntrySchema], default: [] },
+    certificationsHistory: { type: [certificationHistoryEntrySchema], default: [] },
   },
   { timestamps: true },
 );
