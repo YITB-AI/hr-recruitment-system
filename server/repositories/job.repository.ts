@@ -211,6 +211,14 @@ export const jobRepository = {
     const row = await Job.findById(id).lean<RawJobRow | null>();
     return row ? serializeJobRow(row) : null;
   },
+  // n8n's Applicant-creation workflow sometimes writes this human-readable
+  // job_id string (its own external identifier, e.g. "job_2026...") into
+  // Applicant.jobId instead of the real Job._id it should reference —
+  // backs the orphaned-applicant auto-repair's fallback resolution.
+  async findByExternalJobId(companyId: string, jobIdString: string): Promise<{ _id: string } | null> {
+    const row = await Job.findOne({ companyId, job_id: jobIdString }).select("_id").lean<{ _id: unknown } | null>();
+    return row ? { _id: String(row._id) } : null;
+  },
   async update(companyId: string, id: string, input: UpdateJobInput): Promise<JobRow | null> {
     const row = await Job.findOneAndUpdate(
       { _id: id, companyId },

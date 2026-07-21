@@ -23,6 +23,7 @@ export type ApplicantDetailRow = ApplicantListRow & {
   skills: string[];
   experienceYears: number | null;
   currentPosition: string | null;
+  tags: string[];
 };
 
 // Raw shape of a .lean() result before normalization: _id/jobId._id are BSON
@@ -41,6 +42,10 @@ function serialize<TOut>(doc: RawRow | null): TOut | null {
     ...doc,
     _id: String(doc._id),
     jobId: doc.jobId ? { _id: String(doc.jobId._id), title: doc.jobId.title } : null,
+    // A raw n8n insert can leave this as an empty string instead of the
+    // schema's array default — never let a non-array reach a caller
+    // expecting to .map() over it.
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
   } as TOut;
 }
 
@@ -302,6 +307,35 @@ export const applicantRepository = {
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
     return rows.map((row) => ({ status: row._id, count: row.count }));
+  },
+  // Backs the Applicant Detail page's Previous/Next navigation. Ordered the
+  // same way the Applicants list is by default (newest-first by createdAt,
+  // with _id as a tiebreaker for full determinism) — a known simplification
+  // that doesn't respect whatever custom sort/filter you arrived from.
+  async findAdjacentIds(companyId: string, id: string): Promise<{ previousId: string | null; nextId: string | null }> {
+    const current = await Applicant.findOne({ companyId, _id: id }).select("createdAt").lean<{ createdAt: Date } | null>();
+    if (!current) return { previousId: null, nextId: null };
+
+    const companyObjectId = new Types.ObjectId(companyId);
+    const [newer, older] = await Promise.all([
+      Applicant.findOne({
+        companyId: companyObjectId,
+        $or: [{ createdAt: { $gt: current.createdAt } }, { createdAt: current.createdAt, _id: { $gt: id } }],
+      })
+        .sort({ createdAt: 1, _id: 1 })
+        .select("_id")
+        .lean<{ _id: unknown } | null>(),
+      Applicant.findOne({
+        companyId: companyObjectId,
+        $or: [{ createdAt: { $lt: current.createdAt } }, { createdAt: current.createdAt, _id: { $lt: id } }],
+      })
+        .sort({ createdAt: -1, _id: -1 })
+        .select("_id")
+        .lean<{ _id: unknown } | null>(),
+    ]);
+
+    // List is newest-first, so the next-newer row is "Previous" and the next-older row is "Next".
+    return { previousId: newer ? String(newer._id) : null, nextId: older ? String(older._id) : null };
   },
 
   // --- Orphaned-record repair (features/settings/services/data-repair.service.ts) ---

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ChevronRight, Sparkles, CalendarClock, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, Sparkles, CalendarClock, History } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -12,6 +13,7 @@ import {
   getApplicantHistory,
   getApplicantCommunicationHistory,
   getApplicantLatestFollowup,
+  getAdjacentApplicantIds,
 } from "@/features/applicants/services/applicant.service";
 import { listNotes } from "@/features/applicants/services/note.service";
 import { ApplicantOverview } from "@/features/applicants/components/applicant-overview";
@@ -47,7 +49,7 @@ const PLACEHOLDER_TABS = [
 
 export default async function ApplicantDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [applicant, resumeAnalysis, documents, history, communicationHistory, notes, latestFollowup] = await Promise.all([
+  const [applicant, resumeAnalysis, documents, history, communicationHistory, notes, latestFollowup, adjacent] = await Promise.all([
     getApplicantDetail(id),
     getApplicantResumeAnalysis(id),
     getApplicantDocuments(id),
@@ -55,6 +57,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
     getApplicantCommunicationHistory(id),
     listNotes(id),
     getApplicantLatestFollowup(id),
+    getAdjacentApplicantIds(id),
   ]);
 
   if (!applicant) notFound();
@@ -107,22 +110,48 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="overview">
-              <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-                <TabsTrigger value="interviews">Interviews</TabsTrigger>
-                <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="communication">Communication</TabsTrigger>
-                <TabsTrigger value="resume">Resume</TabsTrigger>
-                {PLACEHOLDER_TABS.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value}>
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <div className="flex items-center gap-2">
+                <TabsList className="w-full flex-1 justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                  <TabsTrigger value="notes">Notes</TabsTrigger>
+                  <TabsTrigger value="activity">Activity</TabsTrigger>
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  <TabsTrigger value="communication">Communication</TabsTrigger>
+                  <TabsTrigger value="resume">Resume</TabsTrigger>
+                  {PLACEHOLDER_TABS.map((tab) => (
+                    <TabsTrigger key={tab.value} value={tab.value}>
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {adjacent.previousId ? (
+                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.previousId}`} />}>
+                      <ChevronLeft className="size-4" />
+                      Previous
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      <ChevronLeft className="size-4" />
+                      Previous
+                    </Button>
+                  )}
+                  {adjacent.nextId ? (
+                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/applicants/${adjacent.nextId}`} />}>
+                      Next
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      Next
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
 
               <TabsContent value="overview" className="pt-6">
                 <ApplicantOverview applicant={applicant} />

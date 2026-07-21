@@ -128,10 +128,23 @@ export async function autoRepairResolvableOrphanedApplicants(): Promise<{ repair
 
   for (const row of rawRows) {
     const rawCompanyId = stripQuotes(row.companyId);
-    const rawJobId = stripQuotes(row.jobId);
-    if (!Types.ObjectId.isValid(rawCompanyId) || !Types.ObjectId.isValid(rawJobId)) {
+    if (!Types.ObjectId.isValid(rawCompanyId)) {
       skipped++;
       continue;
+    }
+
+    let rawJobId = stripQuotes(row.jobId);
+    if (!Types.ObjectId.isValid(rawJobId)) {
+      // n8n's own Applicant-creation workflow sometimes writes Job.job_id
+      // (its own external identifier string, e.g. "job_2026...") into this
+      // field instead of the real Job._id it should reference — resolve
+      // through that field before giving up on this row.
+      const resolvedJob = await jobRepository.findByExternalJobId(rawCompanyId, rawJobId);
+      if (!resolvedJob) {
+        skipped++;
+        continue;
+      }
+      rawJobId = resolvedJob._id;
     }
 
     const [company, job] = await Promise.all([

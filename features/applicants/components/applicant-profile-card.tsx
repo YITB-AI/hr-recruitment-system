@@ -1,7 +1,10 @@
-import { Mail, Phone, MapPin, Briefcase, Clock } from "lucide-react";
+import Link from "next/link";
+import { Mail, Phone, MapPin, Briefcase, Clock, CalendarPlus, Download } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ApplicantStatusSelect } from "@/features/applicants/components/applicant-status-select";
+import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
 import type { ApplicantDetailRow } from "@/server/repositories/applicant.repository";
 
 function initials(name: string) {
@@ -25,8 +28,8 @@ export function ApplicantProfileCard({ applicant }: { applicant: ApplicantDetail
     <Card>
       <CardContent className="space-y-5 pt-6">
         <div className="flex flex-col items-center gap-2 text-center">
-          <Avatar className="size-20">
-            <AvatarFallback className="bg-primary/10 text-lg font-semibold text-primary">
+          <Avatar className="size-24">
+            <AvatarFallback className="bg-primary/10 text-xl font-semibold text-primary">
               {initials(applicant.name)}
             </AvatarFallback>
           </Avatar>
@@ -39,7 +42,27 @@ export function ApplicantProfileCard({ applicant }: { applicant: ApplicantDetail
           </div>
         </div>
 
+        <div className="space-y-2 border-t pt-4">
+          <Button className="w-full justify-start" nativeButton={false} render={<Link href={`/applicants/${applicant._id}/schedule-interview`} />}>
+            <CalendarPlus className="size-4" />
+            Schedule Interview
+          </Button>
+          <SendEmailDialog applicantId={applicant._id} applicantEmail={applicant.email} template="general_notification" />
+          {applicant.resumeUrl && (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              nativeButton={false}
+              render={<a href={applicant.resumeUrl} download />}
+            >
+              <Download className="size-4" />
+              Download Resume
+            </Button>
+          )}
+        </div>
+
         <div className="space-y-3 border-t pt-4">
+          <h3 className="text-sm font-semibold">Contact Information</h3>
           <InfoRow icon={Mail} label="Email" value={applicant.email} />
           <InfoRow icon={Phone} label="Phone" value={applicant.phone ?? "Not provided"} />
           <InfoRow icon={MapPin} label="Location" value={applicant.location ?? "Not provided"} />

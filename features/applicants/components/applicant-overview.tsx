@@ -1,4 +1,6 @@
-import { Link as LinkIcon, FolderGit2, Globe, Briefcase, Calendar } from "lucide-react";
+import { Link as LinkIcon, FolderGit2, Globe, Briefcase, Calendar, CheckCircle2, Clock, FileText, ExternalLink } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import type { ApplicantDetailRow } from "@/server/repositories/applicant.repository";
 
 function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
@@ -13,6 +15,15 @@ function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: s
   );
 }
 
+function resumeFileName(url: string): string {
+  try {
+    const pathname = new URL(url, "http://localhost").pathname;
+    return pathname.split("/").pop() || "Resume";
+  } catch {
+    return "Resume";
+  }
+}
+
 export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow }) {
   const hasLinks = applicant.linkedinUrl || applicant.githubUrl || applicant.portfolioUrl;
 
@@ -20,7 +31,7 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
     <div className="space-y-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold">Application Details</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field icon={Briefcase} label="Job Applied For" value={applicant.jobId?.title ?? "No job linked"} />
           <Field
             icon={Calendar}
@@ -31,6 +42,7 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
               year: "numeric",
             })}
           />
+          <Field icon={Globe} label="Source" value={APPLICANT_SOURCE_LABELS[applicant.source as ApplicantSource] ?? applicant.source} />
         </div>
       </div>
 
@@ -41,14 +53,81 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
             {applicant.skills.map((skill) => (
               <span
                 key={skill}
-                className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80"
+                className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80"
               >
+                <CheckCircle2 className="size-3 text-primary" />
                 {skill}
               </span>
             ))}
           </div>
         </div>
       )}
+
+      {applicant.tags.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold">Tags</h3>
+          <div className="flex flex-wrap gap-2">
+            {applicant.tags.map((tag) => (
+              <span key={tag} className="rounded-full border px-2.5 py-1 text-xs font-medium text-foreground/80">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Only the fields we actually have data for — no fabricated "companies worked
+            with" or similar, since nothing in this app tracks that today. */}
+        <Card>
+          <CardContent className="space-y-3 pt-5">
+            <h4 className="flex items-center gap-2 text-sm font-semibold">
+              <Clock className="size-4 text-primary" />
+              Experience Summary
+            </h4>
+            {applicant.experienceYears != null && (
+              <div>
+                <p className="text-lg font-semibold">{applicant.experienceYears} years</p>
+                <p className="text-xs text-muted-foreground">Total Experience</p>
+              </div>
+            )}
+            {applicant.currentPosition && (
+              <div>
+                <p className="text-sm font-medium">{applicant.currentPosition}</p>
+                <p className="text-xs text-muted-foreground">Current Position</p>
+              </div>
+            )}
+            {applicant.experienceYears == null && !applicant.currentPosition && (
+              <p className="text-sm text-muted-foreground">No experience details on file.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-3 pt-5">
+            <h4 className="flex items-center gap-2 text-sm font-semibold">
+              <FileText className="size-4 text-primary" />
+              Resume
+            </h4>
+            {applicant.resumeUrl ? (
+              <>
+                <p className="truncate text-sm font-medium">{resumeFileName(applicant.resumeUrl)}</p>
+                <a
+                  href={applicant.resumeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Preview Resume
+                </a>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No resume on file.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {hasLinks && (
         <div>

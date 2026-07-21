@@ -72,6 +72,12 @@ export async function getApplicantDetail(id: string): Promise<ApplicantDetailRow
   return applicantRepository.findById(companyId, id);
 }
 
+export async function getAdjacentApplicantIds(id: string): Promise<{ previousId: string | null; nextId: string | null }> {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  return applicantRepository.findAdjacentIds(companyId, id);
+}
+
 // resumeAnalysisRepository isn't companyId-scoped itself (n8n-authored, see
 // its own file) — isolation here comes from first confirming the applicant
 // actually belongs to the caller's company before ever looking up its score.

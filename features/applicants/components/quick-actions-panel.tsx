@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
-import { MessageSquareText, CalendarPlus, CheckCircle2, XCircle } from "lucide-react";
+import { MessageSquareText, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shortlistApplicantAction, rejectApplicantAction } from "@/actions/applicants";
 import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
@@ -83,18 +82,6 @@ export function QuickActionsPanel({
         <CheckCircle2 className="text-[var(--status-shortlisted)]" />
         Shortlist
       </Button>
-
-      <Button
-        variant="outline"
-        className="w-full justify-start"
-        nativeButton={false}
-        render={<Link href={`/applicants/${applicantId}/schedule-interview`} />}
-      >
-        <CalendarPlus />
-        Schedule Interview
-      </Button>
-
-      <SendEmailDialog applicantId={applicantId} applicantEmail={email} template="general_notification" />
 
       {latestInterviewId && (
         <SendEmailDialog
