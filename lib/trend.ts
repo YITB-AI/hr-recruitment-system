@@ -10,6 +10,16 @@ export function getWeekWindows(now: Date) {
   return { previousStart, currentStart, now };
 }
 
+export function getMonthWindows(now: Date) {
+  const currentStart = new Date(now);
+  currentStart.setMonth(currentStart.getMonth() - 1);
+
+  const previousStart = new Date(now);
+  previousStart.setMonth(previousStart.getMonth() - 2);
+
+  return { previousStart, currentStart, now };
+}
+
 export function computeTrend(currentPeriodCount: number, previousPeriodCount: number): StatTrend {
   if (previousPeriodCount === 0) {
     return currentPeriodCount === 0

@@ -14,6 +14,9 @@ type StatCardProps = {
   // provided; every existing caller that doesn't pass one keeps rendering
   // a plain, non-interactive div exactly as before.
   href?: string;
+  // Optional — describes the trend's comparison period. Defaults to "last
+  // week" so every existing caller (weekly-windowed trends) is unaffected.
+  periodLabel?: string;
 };
 
 const TREND_STYLES: Record<StatTrend["direction"], string> = {
@@ -28,7 +31,7 @@ const TREND_ICON: Record<StatTrend["direction"], LucideIcon> = {
   flat: Minus,
 };
 
-export function StatCard({ label, value, icon: Icon, iconClassName, trend, href }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, iconClassName, trend, href, periodLabel }: StatCardProps) {
   const TrendIcon = trend ? TREND_ICON[trend.direction] : null;
   const cardClassName = cn(
     "rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md",
@@ -62,8 +65,8 @@ export function StatCard({ label, value, icon: Icon, iconClassName, trend, href 
       <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
       {trend && (
         <p className="mt-1 text-xs text-muted-foreground">
-          {trend.direction === "flat" ? "No change" : trend.direction === "up" ? "Up" : "Down"} from
-          last week
+          {trend.direction === "flat" ? "No change" : trend.direction === "up" ? "Up" : "Down"} from{" "}
+          {periodLabel ?? "last week"}
         </p>
       )}
     </>

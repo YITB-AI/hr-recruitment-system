@@ -4,13 +4,18 @@ import { jobRepository, type JobRow, type JobListFilters } from "@/server/reposi
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { applicantRepository, type ApplicantListRow } from "@/server/repositories/applicant.repository";
 import { autoRepairResolvableOrphanedJobs } from "@/features/settings/services/data-repair.service";
+import { listActiveDepartments } from "@/features/settings/services/department.service";
 import { shouldRunRepairJob } from "@/lib/repair-throttle";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
+import { computeTrend, getMonthWindows } from "@/lib/trend";
 import type { CreateJobInput, UpdateJobInput } from "@/validators/job";
 
 const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
+// "New" applicants for a job's list-row count — matches the 7-day window
+// convention already used elsewhere in this app (e.g. dashboard trends).
+const NEW_APPLICANT_WINDOW_DAYS = 7;
 
 // Fire-and-forget, after the response has gone out — same pattern as
 // applicant.service.ts's triggerAutoRepairInBackground, throttled the same
@@ -30,7 +35,60 @@ export async function getJobsPageData(filters: JobListFilters) {
   await connectDB();
   const { companyId } = await getCurrentUser();
   triggerAutoRepairInBackground();
-  return jobRepository.findAllForCompanyPaginated(companyId, filters);
+
+  const { previousStart, currentStart, now } = getMonthWindows(new Date());
+
+  const [
+    list,
+    departments,
+    totalCount,
+    totalThisMonth,
+    totalPrevMonth,
+    openCount,
+    draftCount,
+    closedCount,
+    openThisMonth,
+    openPrevMonth,
+    draftThisMonth,
+    draftPrevMonth,
+    closedThisMonth,
+    closedPrevMonth,
+  ] = await Promise.all([
+    jobRepository.findAllForCompanyPaginated(companyId, filters),
+    listActiveDepartments(),
+    jobRepository.countTotal(companyId),
+    jobRepository.countCreatedBetween(companyId, currentStart, now),
+    jobRepository.countCreatedBetween(companyId, previousStart, currentStart),
+    jobRepository.countByStatus(companyId, "Open"),
+    jobRepository.countByStatus(companyId, "Draft"),
+    jobRepository.countByStatus(companyId, "Closed"),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Open", currentStart, now),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Open", previousStart, currentStart),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Draft", currentStart, now),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Draft", previousStart, currentStart),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Closed", currentStart, now),
+    jobRepository.countByStatusUpdatedBetween(companyId, "Closed", previousStart, currentStart),
+  ]);
+
+  const newSince = new Date();
+  newSince.setDate(newSince.getDate() - NEW_APPLICANT_WINDOW_DAYS);
+  const applicantCounts = await jobRepository.countApplicantsByJobIds(
+    companyId,
+    list.rows.map((row) => row._id),
+    newSince,
+  );
+
+  return {
+    ...list,
+    departments,
+    applicantCounts,
+    stats: {
+      total: { value: totalCount, trend: computeTrend(totalThisMonth, totalPrevMonth) },
+      open: { value: openCount, trend: computeTrend(openThisMonth, openPrevMonth) },
+      draft: { value: draftCount, trend: computeTrend(draftThisMonth, draftPrevMonth) },
+      closed: { value: closedCount, trend: computeTrend(closedThisMonth, closedPrevMonth) },
+    },
+  };
 }
 
 // "Sync Jobs"/"Sync All" buttons on the Jobs page — POST companyId to n8n,

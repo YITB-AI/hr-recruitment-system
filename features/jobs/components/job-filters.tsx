@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { JOB_STATUSES } from "@/constants/job";
+import type { DepartmentRow } from "@/server/repositories/department.repository";
 
 const STATUS_TABS = [{ value: undefined, label: "All Jobs" }, ...JOB_STATUSES.map((status) => ({ value: status, label: status }))];
 
@@ -18,7 +19,9 @@ const SORT_ITEMS = [
   { value: "title_desc", label: "Title Z–A" },
 ];
 
-export function JobFilters() {
+const ALL_DEPARTMENTS = "__all__";
+
+export function JobFilters({ departments }: { departments: DepartmentRow[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -27,7 +30,13 @@ export function JobFilters() {
 
   const currentStatus = searchParams.get("status") ?? undefined;
   const currentSort = searchParams.get("sort") ?? "newest";
+  const currentDepartment = searchParams.get("department") ?? "";
   const showArchived = searchParams.get("archived") === "1";
+
+  const departmentItems = [
+    { value: ALL_DEPARTMENTS, label: "All Departments" },
+    ...departments.map((d) => ({ value: d.name, label: d.name })),
+  ];
 
   function navigate(updates: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -60,6 +69,23 @@ export function JobFilters() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        <Select
+          items={departmentItems}
+          value={currentDepartment || ALL_DEPARTMENTS}
+          onValueChange={(v) => navigate({ department: v === ALL_DEPARTMENTS ? undefined : (v ?? undefined) })}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {departmentItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select items={SORT_ITEMS} value={currentSort} onValueChange={(v) => navigate({ sort: v ?? undefined })}>
           <SelectTrigger className="w-40">
             <SelectValue />
