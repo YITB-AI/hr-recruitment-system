@@ -222,14 +222,15 @@ export const employeeRepository = {
 
   /**
    * Generates the next sequential display code (EMP-1001, EMP-1002, ...),
-   * scoped per company so each company's codes start from EMP-1001. Not safe
-   * against concurrent creates racing on the same count — acceptable for
-   * this app's single-admin-per-company usage pattern.
-   * NOTE: `employeeCode`'s uniqueness is still a bare global unique index
-   * (see models/Employee.ts) — this must become a compound
-   * `{companyId, employeeCode}` index before two companies can safely
-   * both have an "EMP-1001", same tightening step already flagged for
-   * User.email/SavedView.name/Setting.
+   * scoped per company so each company's codes start from EMP-1001 —
+   * `employeeCode`'s uniqueness is enforced by a compound
+   * `{companyId, employeeCode}` index (models/Employee.ts), not a bare
+   * global one, so two different companies can both have an "EMP-1001".
+   * Not safe against concurrent creates racing on the same count —
+   * acceptable for this app's single-admin-per-company usage pattern; a
+   * genuine race now fails loudly with a duplicate-key error rather than
+   * silently succeeding, since the index still enforces uniqueness within
+   * a company.
    */
   async nextEmployeeCode(companyId: string): Promise<string> {
     const count = await Employee.countDocuments({ companyId });

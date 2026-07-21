@@ -7,7 +7,7 @@ const employeeSchema = new Schema(
     companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     // Human-friendly display id shown in the UI (e.g. "EMP-1001"), distinct
     // from Mongo's _id. Assigned once at creation, never reused.
-    employeeCode: { type: String, required: true, unique: true },
+    employeeCode: { type: String, required: true },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant" },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -39,6 +39,11 @@ const employeeSchema = new Schema(
 
 employeeSchema.index({ department: 1 });
 employeeSchema.index({ name: "text", email: "text", employeeCode: "text" });
+// employeeCode is unique per-company, not globally — a bare unique index on
+// the field alone would let a fresh company's first "EMP-1001" collide with
+// another company's existing one (nextEmployeeCode's sequence starts over
+// per company).
+employeeSchema.index({ companyId: 1, employeeCode: 1 }, { unique: true });
 
 export type EmployeeDoc = InferSchemaType<typeof employeeSchema>;
 
