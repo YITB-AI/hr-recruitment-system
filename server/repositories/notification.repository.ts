@@ -1,5 +1,9 @@
 import { Types } from "mongoose";
 import { Notification } from "@/models";
+import { ACTIVITY_ENTITY_TYPES } from "@/models/ActivityLog";
+import type { NotificationType, NotificationPriority } from "@/constants/notification";
+
+type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
 
 export type NotificationRow = {
   _id: string;
@@ -7,6 +11,10 @@ export type NotificationRow = {
   message: string;
   read: boolean;
   createdAt: Date;
+  type: NotificationType;
+  priority: NotificationPriority;
+  entityType: ActivityEntityType | null;
+  entityId: string | null;
 };
 
 export type CreateNotificationInput = {
@@ -14,7 +22,42 @@ export type CreateNotificationInput = {
   userId: string;
   title: string;
   message: string;
+  type: NotificationType;
+  priority?: NotificationPriority;
+  entityType?: ActivityEntityType;
+  entityId?: string;
 };
+
+type RawNotificationRow = {
+  _id: unknown;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: Date;
+  type?: NotificationType;
+  priority?: NotificationPriority;
+  entityType?: ActivityEntityType;
+  entityId?: unknown;
+};
+
+const SELECT_FIELDS = "title message read createdAt type priority entityType entityId";
+
+// The one load-bearing spot for graceful fallbacks on rows created before
+// type/priority/entityType/entityId existed — every read path gets a real
+// value here, never `undefined` reaching a UI component.
+function serialize(row: RawNotificationRow): NotificationRow {
+  return {
+    _id: String(row._id),
+    title: row.title,
+    message: row.message,
+    read: row.read,
+    createdAt: row.createdAt,
+    type: row.type ?? "system",
+    priority: row.priority ?? "normal",
+    entityType: row.entityType ?? null,
+    entityId: row.entityId ? String(row.entityId) : null,
+  };
+}
 
 export const notificationRepository = {
   countUnread(userId: string) {
@@ -31,42 +74,40 @@ export const notificationRepository = {
     const rows = await Notification.find({ userId })
       .sort({ createdAt: -1 })
       .limit(limit)
-      .select("title message read createdAt")
-      .lean<Array<{ _id: unknown; title: string; message: string; read: boolean; createdAt: Date }>>();
-
-    return rows.map((row) => ({
-      _id: String(row._id),
-      title: row.title,
-      message: row.message,
-      read: row.read,
-      createdAt: row.createdAt,
-    }));
+      .select(SELECT_FIELDS)
+      .lean<RawNotificationRow[]>();
+    return rows.map(serialize);
   },
   async findAllPaginated(
     userId: string,
     page: number,
     pageSize: number,
+    type?: NotificationType,
   ): Promise<{ data: NotificationRow[]; total: number }> {
+    const query: Record<string, unknown> = { userId, ...(type ? { type } : {}) };
     const [rows, total] = await Promise.all([
-      Notification.find({ userId })
+      Notification.find(query)
         .sort({ createdAt: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize)
-        .select("title message read createdAt")
-        .lean<Array<{ _id: unknown; title: string; message: string; read: boolean; createdAt: Date }>>(),
-      Notification.countDocuments({ userId }),
+        .select(SELECT_FIELDS)
+        .lean<RawNotificationRow[]>(),
+      Notification.countDocuments(query),
     ]);
 
-    return {
-      data: rows.map((row) => ({
-        _id: String(row._id),
-        title: row.title,
-        message: row.message,
-        read: row.read,
-        createdAt: row.createdAt,
-      })),
-      total,
-    };
+    return { data: rows.map(serialize), total };
+  },
+  async findByIdForUser(id: string, userId: string): Promise<NotificationRow | null> {
+    const row = await Notification.findOne({ _id: id, userId }).select(SELECT_FIELDS).lean<RawNotificationRow | null>();
+    return row ? serialize(row) : null;
+  },
+  /** Per-type counts for the Notifications page's category sidebar. */
+  async countByType(userId: string): Promise<Array<{ type: NotificationType; count: number; unread: number }>> {
+    const rows = await Notification.aggregate<{ _id: NotificationType | null; count: number; unread: number }>([
+      { $match: { userId: new Types.ObjectId(userId) } },
+      { $group: { _id: "$type", count: { $sum: 1 }, unread: { $sum: { $cond: ["$read", 0, 1] } } } },
+    ]);
+    return rows.map((row) => ({ type: row._id ?? "system", count: row.count, unread: row.unread }));
   },
   async markRead(id: string, userId: string): Promise<void> {
     await Notification.updateOne({ _id: id, userId }, { $set: { read: true } });

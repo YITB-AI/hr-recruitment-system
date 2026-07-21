@@ -168,11 +168,12 @@ export async function autoRepairResolvableOrphanedApplicants(): Promise<{ repair
     // (which only backfills fields on an already-visible record — a second
     // notification there would just be noise for the same applicant).
     const applicantName = (row.name as string) ?? "A new applicant";
-    await notifyStaffForReview(
-      rawCompanyId,
-      "New applicant added",
-      `${applicantName} applied via automation for ${job.title}.`,
-    );
+    await notifyStaffForReview(rawCompanyId, "New applicant added", `${applicantName} applied via automation for ${job.title}.`, {
+      type: "application",
+      priority: "normal",
+      entityType: "applicant",
+      entityId: applicantId,
+    });
 
     repaired++;
   }

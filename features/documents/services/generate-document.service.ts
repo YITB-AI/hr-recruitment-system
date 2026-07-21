@@ -22,6 +22,7 @@ import type { CalculationType } from "@/constants/document-template";
 import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { notifyStaffForReview } from "@/lib/staff-notify";
 import type { SessionUser } from "@/types/user";
 
 const DOCUMENT_FOLDER = "documents";
@@ -402,10 +403,20 @@ export async function generateDocument(
   if (!template) throw new Error("Template not found");
   const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
 
-  return generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
+  const created = await generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
     logoUrl: company?.logoUrl ?? null,
   }, setting.dateFormat, setting.timezone);
+
+  const recipientName = created.employee?.name ?? created.applicant?.name ?? "the recipient";
+  await notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
+    type: "document",
+    priority: "low",
+    entityType: "document",
+    entityId: created._id,
+  });
+
+  return created;
 }
 
 export type BulkGenerateResultItem =
@@ -480,6 +491,18 @@ export async function generateDocumentsBulk(
       error: outcome.reason instanceof Error ? outcome.reason.message : "Failed to generate document",
     };
   });
+
+  // One summary notification for the whole batch, not one per recipient —
+  // a large bulk batch would otherwise fan out N x (admin+hr+recruiter)
+  // notifications. No single natural record to deep-link a whole batch to
+  // (batchId is a UUID, not an ObjectId), so entityType/entityId are omitted.
+  const succeededCount = results.filter((r) => r.success).length;
+  await notifyStaffForReview(
+    actor.companyId,
+    "Documents generated",
+    `${succeededCount} of ${recipients.length} document(s) generated from "${template.name}".`,
+    { type: "document", priority: "low" },
+  );
 
   return { batchId, results };
 }

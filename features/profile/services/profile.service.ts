@@ -168,6 +168,10 @@ async function notifyAdminsOfEmailChange(
         userId: admin._id,
         title: "Email change requested",
         message: `${actorName} changed their email from ${oldEmail} to ${newEmail}`,
+        type: "system",
+        priority: "normal",
+        entityType: "user",
+        entityId: actorId,
       })),
     );
 

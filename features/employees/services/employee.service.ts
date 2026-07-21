@@ -12,6 +12,7 @@ import { employeeTypeRepository } from "@/server/repositories/employee-type.repo
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
+import { notifyHrStaff } from "@/lib/staff-notify";
 import type { EmployeeFormInput } from "@/validators/employee";
 
 async function assertValidEmploymentStatus(companyId: string, status: string): Promise<void> {
@@ -121,6 +122,13 @@ export async function createEmployee(input: EmployeeFormInput): Promise<Employee
     entityType: "employee",
     entityId: created._id,
     message: `${actor.name} added ${created.name} (${created.employeeCode}) to ${created.department}`,
+  });
+
+  await notifyHrStaff(actor.companyId, "New employee added", `${created.name} (${created.employeeCode}) was added to ${created.department}.`, {
+    type: "employee",
+    priority: "normal",
+    entityType: "employee",
+    entityId: created._id,
   });
 
   return created;

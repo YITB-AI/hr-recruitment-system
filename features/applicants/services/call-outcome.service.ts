@@ -92,7 +92,12 @@ async function tryStatusChangeOrNotify(
   // Don't guess at a status that isn't configured for this company — flag
   // it for a human instead, same fail-closed spirit as this project's
   // other "don't auto-apply an assumption" cases.
-  await notifyStaffForReview(ctx.followup.companyId, title, fallbackMessage);
+  await notifyStaffForReview(ctx.followup.companyId, title, fallbackMessage, {
+    type: "application",
+    priority: "normal",
+    entityType: "applicant",
+    entityId: ctx.followup.applicantId,
+  });
 }
 
 // outcome -> side effect. Matches this codebase's existing flat-lookup-table
@@ -124,6 +129,7 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
       ctx.followup.companyId,
       "AI call: interview requested",
       `${ctx.applicantName} agreed to an interview${when} — schedule it from the Interviews page.`,
+      { type: "interview", priority: "high", entityType: "applicant", entityId: ctx.followup.applicantId },
     );
   },
   rejected: async (ctx) => {
@@ -154,6 +160,7 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
       ctx.followup.companyId,
       "AI call: applicant accepted",
       `${ctx.applicantName} indicated acceptance during the AI call — please review and update their status.`,
+      { type: "application", priority: "high", entityType: "applicant", entityId: ctx.followup.applicantId },
     );
   },
   // No status change — these outcomes don't warrant flipping the pipeline
@@ -167,22 +174,35 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
       ctx.followup.companyId,
       "AI call: reschedule requested",
       `${ctx.applicantName} asked to reschedule the call — review and follow up.`,
+      { type: "application", priority: "normal", entityType: "applicant", entityId: ctx.followup.applicantId },
     ),
   callback_requested: (ctx) =>
     notifyStaffForReview(
       ctx.followup.companyId,
       "AI call: callback requested",
       `${ctx.applicantName} asked for a callback — review and follow up.`,
+      { type: "application", priority: "normal", entityType: "applicant", entityId: ctx.followup.applicantId },
     ),
   no_answer: (ctx) =>
-    notifyStaffForReview(ctx.followup.companyId, "AI call: no answer", `${ctx.applicantName} did not answer the AI call.`),
+    notifyStaffForReview(ctx.followup.companyId, "AI call: no answer", `${ctx.applicantName} did not answer the AI call.`, {
+      type: "application",
+      priority: "low",
+      entityType: "applicant",
+      entityId: ctx.followup.applicantId,
+    }),
   voicemail: (ctx) =>
-    notifyStaffForReview(ctx.followup.companyId, "AI call: went to voicemail", `AI call to ${ctx.applicantName} went to voicemail.`),
+    notifyStaffForReview(
+      ctx.followup.companyId,
+      "AI call: went to voicemail",
+      `AI call to ${ctx.applicantName} went to voicemail.`,
+      { type: "application", priority: "low", entityType: "applicant", entityId: ctx.followup.applicantId },
+    ),
   other: (ctx) =>
     notifyStaffForReview(
       ctx.followup.companyId,
       "AI call completed",
       `AI call with ${ctx.applicantName} completed — review the call summary for details.`,
+      { type: "application", priority: "normal", entityType: "applicant", entityId: ctx.followup.applicantId },
     ),
 };
 

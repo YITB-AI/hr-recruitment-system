@@ -5,6 +5,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { notifyStaffForReview } from "@/lib/staff-notify";
 import type { ScheduleInterviewInput, RescheduleInterviewInput } from "@/validators/interview";
 
 export async function listInterviews() {
@@ -80,6 +81,13 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
     entityId: interview._id,
     message: `Interview scheduled for ${applicant.name} — ${applicant.jobId.title}`,
   });
+
+  await notifyStaffForReview(
+    actor.companyId,
+    "Interview scheduled",
+    `${applicant.name}'s interview for ${applicant.jobId.title} has been scheduled.`,
+    { type: "interview", priority: "normal", entityType: "interview", entityId: String(interview._id) },
+  );
 
   return interview;
 }
