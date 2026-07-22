@@ -24,3 +24,17 @@ export const JOB_STATUS_COLORS: Record<string, string> = {
   "On Hold": "#f59e0b",
   Closed: "#ef4444",
 };
+
+// Promote tab — self-reported promotion channels, not real job-board/social
+// API integrations (none exist). "other" pairs with a free-text
+// customChannel field on the log entry itself.
+export const PROMOTION_CHANNELS = ["linkedin", "indeed", "company_website", "social_media", "other"] as const;
+export type PromotionChannel = (typeof PROMOTION_CHANNELS)[number];
+
+export const PROMOTION_CHANNEL_LABELS: Record<PromotionChannel, string> = {
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  company_website: "Company Website",
+  social_media: "Social Media",
+  other: "Other",
+};

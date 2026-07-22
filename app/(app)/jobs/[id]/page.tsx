@@ -14,6 +14,8 @@ import { JobRowActions } from "@/features/jobs/components/job-row-actions";
 import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
 import { ShareJobButton } from "@/features/jobs/components/share-job-button";
 import { HiringPipeline } from "@/features/jobs/components/hiring-pipeline";
+import { JobTeamTab } from "@/features/jobs/components/job-team-tab";
+import { JobPromoteTab } from "@/features/jobs/components/job-promote-tab";
 import { getJobDetail } from "@/features/jobs/services/job.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
@@ -38,7 +40,18 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
   const detail = await getJobDetail(id);
   if (!detail) notFound();
 
-  const { job, applicantCount, newApplicantCount, interviewCount, recentApplicants, pipeline, conversionRate } = detail;
+  const {
+    job,
+    applicantCount,
+    newApplicantCount,
+    interviewCount,
+    recentApplicants,
+    pipeline,
+    conversionRate,
+    teamMembers,
+    companyUsers,
+    sourceBreakdown,
+  } = detail;
   const { companyId } = await getCurrentUser();
   const [activity, applicantStatuses] = await Promise.all([
     activityLogRepository.findByEntity(companyId, "job", id, 30),
@@ -150,6 +163,8 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="applicants">Applicants</TabsTrigger>
                   <TabsTrigger value="job-details">Job Details</TabsTrigger>
+                  <TabsTrigger value="team">Team</TabsTrigger>
+                  <TabsTrigger value="promote">Promote</TabsTrigger>
                   <TabsTrigger value="activity">Activity</TabsTrigger>
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
@@ -256,6 +271,14 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                       </div>
                     </div>
                   )}
+                </TabsContent>
+
+                <TabsContent value="team" className="pt-6">
+                  <JobTeamTab jobId={job._id} teamMembers={teamMembers} companyUsers={companyUsers} />
+                </TabsContent>
+
+                <TabsContent value="promote" className="pt-6">
+                  <JobPromoteTab jobId={job._id} promotionLog={job.promotionLog} sourceBreakdown={sourceBreakdown} />
                 </TabsContent>
 
                 <TabsContent value="activity" className="pt-6">

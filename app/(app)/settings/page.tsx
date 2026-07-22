@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { GeneralSettingsForm } from "@/features/settings/components/general-settings-form";
 import { NotificationSettingsForm } from "@/features/settings/components/notification-settings-form";
+import { NotificationPreferencesForm } from "@/features/notifications/components/notification-preferences-form";
 import { AppearanceSettingsForm } from "@/features/settings/components/appearance-settings-form";
 import { UsersTable } from "@/features/settings/components/users-table";
 import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-table";
@@ -36,6 +37,7 @@ import { listStatuses } from "@/features/settings/services/status-management.ser
 import { listDepartments } from "@/features/settings/services/department.service";
 import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
+import { getOwnNotificationPreferences } from "@/features/notifications/services/notification.service";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
@@ -70,6 +72,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     orphanedApplicants,
     departments,
     employeeTypes,
+    notificationPreferences,
   ] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
@@ -85,6 +88,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
     isAdmin ? listDepartments() : Promise.resolve(null),
     isAdmin ? listEmployeeTypes() : Promise.resolve(null),
+    getOwnNotificationPreferences(actor.companyId, actor.id),
   ]);
   const allPermissionActions = getAllPermissionActions();
 
@@ -167,8 +171,21 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <AppearanceSettingsForm settings={settings} />
               </TabsContent>
 
-              <TabsContent value="notifications">
-                <NotificationSettingsForm settings={settings} />
+              <TabsContent value="notifications" className="space-y-8">
+                <div>
+                  <h3 className="mb-1 text-sm font-semibold">Your Notification Preferences</h3>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Choose which categories of notifications you personally receive in your bell/Notifications page.
+                  </p>
+                  <NotificationPreferencesForm preferences={notificationPreferences} />
+                </div>
+                <div className="border-t pt-6">
+                  <h3 className="mb-1 text-sm font-semibold">Company Notification Settings</h3>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Admin-controlled delivery channels for the whole company.
+                  </p>
+                  <NotificationSettingsForm settings={settings} />
+                </div>
               </TabsContent>
 
               {isAdmin && users && (

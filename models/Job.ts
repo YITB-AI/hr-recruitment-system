@@ -1,5 +1,23 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { EXPERIENCE_LEVELS, WORK_MODES } from "@/constants/job";
+import { EXPERIENCE_LEVELS, WORK_MODES, PROMOTION_CHANNELS } from "@/constants/job";
+
+// A single self-reported "we posted this job to X" log line — Promote tab.
+// No real job-board/social API integration exists, so this is a manual
+// audit trail, not automated distribution tracking.
+const promotionLogEntrySchema = new Schema(
+  {
+    channel: { type: String, enum: PROMOTION_CHANNELS, required: true },
+    // Only meaningful when channel === "other" — the fixed enum above
+    // covers the known channels, this covers everything else.
+    customChannel: { type: String, trim: true },
+    postedAt: { type: Date, required: true, default: Date.now },
+    url: { type: String, trim: true },
+    notes: { type: String, trim: true },
+    loggedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    loggedByName: { type: String },
+  },
+  { timestamps: true },
+);
 
 // Shape mirrors what the existing n8n pipeline already writes into
 // hr_master_db.jobs — job_id (custom string, not _id), flat address fields,
@@ -47,6 +65,11 @@ const jobSchema = new Schema(
     skills: { type: [String], default: [] },
     responsibilities: { type: [String], default: [] },
     featured: { type: Boolean, default: false },
+    // Hiring team assigned to this specific job — plain user references, no
+    // per-job role tagging (kept intentionally simple; a person's system
+    // role, e.g. recruiter/interviewer, already carries most of that meaning).
+    teamMemberIds: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
+    promotionLog: { type: [promotionLogEntrySchema], default: [] },
   },
   { timestamps: false },
 );

@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/session";
 import { userRepository, type OwnProfileRow } from "@/server/repositories/user.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
+import { isNotificationTypeEnabled } from "@/lib/notification-preferences";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { sendEmail } from "@/lib/email";
 import { otpCodeEmailHtml, emailChangeAdminNoticeHtml } from "@/lib/email-templates";
@@ -162,18 +163,26 @@ async function notifyAdminsOfEmailChange(
     ]);
     if (admins.length === 0) return;
 
-    await notificationRepository.createMany(
-      admins.map((admin) => ({
-        companyId,
-        userId: admin._id,
-        title: "Email change requested",
-        message: `${actorName} changed their email from ${oldEmail} to ${newEmail}`,
-        type: "system",
-        priority: "normal",
-        entityType: "user",
-        entityId: actorId,
-      })),
-    );
+    // Only the in-app bell/Notifications-page entry respects a muted
+    // "System" category preference — the actual email below still goes to
+    // every admin regardless, since this is a real account-security event,
+    // not routine activity noise.
+    const prefsByAdmin = await userRepository.getNotificationPreferences(admins.map((a) => a._id));
+    const notifiableAdmins = admins.filter((a) => isNotificationTypeEnabled(prefsByAdmin.get(a._id), "system"));
+    if (notifiableAdmins.length > 0) {
+      await notificationRepository.createMany(
+        notifiableAdmins.map((admin) => ({
+          companyId,
+          userId: admin._id,
+          title: "Email change requested",
+          message: `${actorName} changed their email from ${oldEmail} to ${newEmail}`,
+          type: "system",
+          priority: "normal",
+          entityType: "user",
+          entityId: actorId,
+        })),
+      );
+    }
 
     const companyName = company?.name ?? "your company";
     await Promise.all(

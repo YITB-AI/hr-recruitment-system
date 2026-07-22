@@ -1,6 +1,9 @@
 import { User, type UserRole } from "@/models";
+import type { NotificationType } from "@/constants/notification";
 
 export type UserRow = { _id: string; name: string; title: string | null };
+
+export type TeamMemberRow = { _id: string; name: string; role: UserRole; avatarUrl: string | null };
 
 export type OwnProfileRow = {
   _id: string;
@@ -82,6 +85,14 @@ export const userRepository = {
       .select("name title")
       .lean<Array<{ _id: unknown; name: string; title?: string }>>();
     return rows.map((row) => ({ _id: String(row._id), name: row.name, title: row.title ?? null }));
+  },
+  /** Resolves a job's teamMemberIds into displayable rows (name/role/avatar) — Job Detail's Team tab. */
+  async findTeamMembers(companyId: string, ids: string[]): Promise<TeamMemberRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await User.find({ _id: { $in: ids }, companyId })
+      .select("name role avatarUrl")
+      .lean<Array<{ _id: unknown; name: string; role: UserRole; avatarUrl?: string }>>();
+    return rows.map((row) => ({ _id: String(row._id), name: row.name, role: row.role, avatarUrl: row.avatarUrl ?? null }));
   },
   /** Full-ish shape for the admin-only Users management screen. */
   async findAllForCompany(companyId: string): Promise<CompanyUserRow[]> {
@@ -283,5 +294,28 @@ export const userRepository = {
       .select("name")
       .lean<Array<{ _id: unknown; name: string }>>();
     return rows.map((row) => ({ _id: String(row._id), name: row.name }));
+  },
+
+  // --- Personal, per-category notification preferences ---
+  // Distinct from Setting.notifications' company-wide SMS/Email channel
+  // toggles — this is "which categories does THIS user personally want to
+  // see", enforced at fan-out time (lib/staff-notify.ts).
+  /** Batch lookup for filtering a fan-out recipient list — see lib/staff-notify.ts. */
+  async getNotificationPreferences(userIds: string[]): Promise<Map<string, Partial<Record<NotificationType, boolean>>>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await User.find({ _id: { $in: userIds } })
+      .select("notificationPreferences")
+      .lean<Array<{ _id: unknown; notificationPreferences?: Record<string, boolean> }>>();
+    // .lean() returns a Mongoose Map field as a plain object, not a Map instance.
+    return new Map(rows.map((row) => [String(row._id), row.notificationPreferences ?? {}]));
+  },
+  async getOwnNotificationPreferences(companyId: string, id: string): Promise<Partial<Record<NotificationType, boolean>>> {
+    const row = await User.findOne({ _id: id, companyId })
+      .select("notificationPreferences")
+      .lean<{ notificationPreferences?: Record<string, boolean> } | null>();
+    return row?.notificationPreferences ?? {};
+  },
+  async updateOwnNotificationPreferences(companyId: string, id: string, prefs: Partial<Record<NotificationType, boolean>>): Promise<void> {
+    await User.updateOne({ _id: id, companyId }, { notificationPreferences: prefs });
   },
 };

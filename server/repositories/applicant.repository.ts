@@ -348,6 +348,16 @@ export const applicantRepository = {
     ]);
     return rows.map((row) => ({ status: row._id, count: row.count }));
   },
+  // Same shape as groupByStatusForJob, grouped by source instead — backs the
+  // Job Detail page's Promote tab "where applicants actually came from"
+  // breakdown (real data, Applicant.source, not fabricated).
+  async groupBySourceForJob(companyId: string, jobId: string): Promise<Array<{ source: string; count: number }>> {
+    const rows = await Applicant.aggregate<{ _id: string; count: number }>([
+      { $match: { companyId: new Types.ObjectId(companyId), jobId: new Types.ObjectId(jobId) } },
+      { $group: { _id: "$source", count: { $sum: 1 } } },
+    ]);
+    return rows.map((row) => ({ source: row._id, count: row.count }));
+  },
   // Backs the Applicant Detail page's Previous/Next navigation. Ordered the
   // same way the Applicants list is by default (newest-first by createdAt,
   // with _id as a tiebreaker for full determinism) — a known simplification

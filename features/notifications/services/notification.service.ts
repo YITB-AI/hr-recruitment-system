@@ -1,10 +1,12 @@
 import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { notificationRepository, type NotificationRow } from "@/server/repositories/notification.repository";
+import { userRepository } from "@/server/repositories/user.repository";
 import { resolveNotificationEntity, type NotificationEntityLink } from "@/features/notifications/services/notification-entity.service";
 import { autoRepairResolvableOrphanedNotifications } from "@/features/settings/services/data-repair.service";
 import { shouldRunRepairJob } from "@/lib/repair-throttle";
-import type { NotificationType } from "@/constants/notification";
+import { NOTIFICATION_TYPES, type NotificationType } from "@/constants/notification";
+import type { UpdateNotificationPreferencesInput } from "@/validators/notification-preferences";
 
 const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -74,4 +76,23 @@ export async function markNotificationRead(id: string, userId: string): Promise<
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   await connectDB();
   await notificationRepository.markAllRead(userId);
+}
+
+/** Personal per-category preferences (Settings > Notifications) — every key defaults to enabled when unset. */
+export async function getOwnNotificationPreferences(
+  companyId: string,
+  userId: string,
+): Promise<Record<NotificationType, boolean>> {
+  await connectDB();
+  const raw = await userRepository.getOwnNotificationPreferences(companyId, userId);
+  return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, raw[type] !== false])) as Record<NotificationType, boolean>;
+}
+
+export async function updateOwnNotificationPreferences(
+  companyId: string,
+  userId: string,
+  prefs: UpdateNotificationPreferencesInput,
+): Promise<void> {
+  await connectDB();
+  await userRepository.updateOwnNotificationPreferences(companyId, userId, prefs);
 }

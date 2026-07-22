@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { Types } from "mongoose";
 import { Job, Applicant, Interview } from "@/models";
-import type { JobStatus, JobType, ExperienceLevel, WorkMode } from "@/constants/job";
+import type { JobStatus, JobType, ExperienceLevel, WorkMode, PromotionChannel } from "@/constants/job";
+
+export type PromotionLogEntry = {
+  _id: string;
+  channel: PromotionChannel;
+  customChannel: string | null;
+  postedAt: string;
+  url: string | null;
+  notes: string | null;
+  loggedByName: string | null;
+};
 
 export type JobRow = {
   _id: string;
@@ -24,9 +34,23 @@ export type JobRow = {
   skills: string[];
   responsibilities: string[];
   featured: boolean;
+  teamMemberIds: string[];
+  promotionLog: PromotionLogEntry[];
 };
 
 type RawJobRow = Record<string, unknown> & { _id: unknown };
+
+function serializePromotionLogEntry(entry: Record<string, unknown> & { _id: unknown }): PromotionLogEntry {
+  return {
+    _id: String(entry._id),
+    channel: entry.channel as PromotionChannel,
+    customChannel: (entry.customChannel as string | undefined) ?? null,
+    postedAt: (entry.postedAt as Date).toISOString(),
+    url: (entry.url as string | undefined) ?? null,
+    notes: (entry.notes as string | undefined) ?? null,
+    loggedByName: (entry.loggedByName as string | undefined) ?? null,
+  };
+}
 
 // The one load-bearing spot for graceful fallbacks on the 7 app-only fields
 // below — an n8n-synced job predates all of them, so every consumer (table,
@@ -54,6 +78,10 @@ function serializeJobRow(row: RawJobRow): JobRow {
     skills: Array.isArray(row.skills) ? (row.skills as string[]) : [],
     responsibilities: Array.isArray(row.responsibilities) ? (row.responsibilities as string[]) : [],
     featured: Boolean(row.featured),
+    teamMemberIds: Array.isArray(row.teamMemberIds) ? (row.teamMemberIds as unknown[]).map(String) : [],
+    promotionLog: Array.isArray(row.promotionLog)
+      ? (row.promotionLog as Array<Record<string, unknown> & { _id: unknown }>).map(serializePromotionLogEntry)
+      : [],
   };
 }
 
@@ -241,6 +269,41 @@ export const jobRepository = {
   },
   async delete(companyId: string, id: string): Promise<void> {
     await Job.findOneAndDelete({ _id: id, companyId });
+  },
+  async updateTeamMembers(companyId: string, id: string, memberIds: string[]): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { teamMemberIds: memberIds },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
+  async addPromotionLogEntry(
+    companyId: string,
+    id: string,
+    entry: {
+      channel: PromotionChannel;
+      customChannel?: string;
+      url?: string;
+      notes?: string;
+      loggedBy?: string;
+      loggedByName: string;
+    },
+  ): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { $push: { promotionLog: { ...entry, postedAt: new Date() } } },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
+  async removePromotionLogEntry(companyId: string, id: string, entryId: string): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { $pull: { promotionLog: { _id: new Types.ObjectId(entryId) } } },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
   },
   countApplicants(companyId: string, jobId: string): Promise<number> {
     return Applicant.countDocuments({ companyId, jobId });

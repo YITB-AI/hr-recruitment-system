@@ -1,5 +1,6 @@
 import { userRepository } from "@/server/repositories/user.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
+import { isNotificationTypeEnabled } from "@/lib/notification-preferences";
 import { ACTIVITY_ENTITY_TYPES, type UserRole } from "@/models";
 import type { NotificationType, NotificationPriority } from "@/constants/notification";
 
@@ -29,8 +30,13 @@ async function fanOutNotification(
 ): Promise<void> {
   const recipients = await userRepository.findByRoles(companyId, [...roles]);
   if (recipients.length === 0) return;
+
+  const prefsByUser = await userRepository.getNotificationPreferences(recipients.map((r) => r._id));
+  const enabledRecipients = recipients.filter((r) => isNotificationTypeEnabled(prefsByUser.get(r._id), options.type));
+  if (enabledRecipients.length === 0) return;
+
   await notificationRepository.createMany(
-    recipients.map((recipient) => ({
+    enabledRecipients.map((recipient) => ({
       companyId,
       userId: recipient._id,
       title,

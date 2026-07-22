@@ -2,8 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createJobSchema, updateJobSchema } from "@/validators/job";
-import { createJob, updateJob, archiveJob, restoreJob, deleteJob, syncJobs, syncAll } from "@/features/jobs/services/job.service";
+import { createJobSchema, updateJobSchema, updateJobTeamSchema, logJobPromotionSchema, removeJobPromotionLogEntrySchema } from "@/validators/job";
+import {
+  createJob,
+  updateJob,
+  archiveJob,
+  restoreJob,
+  deleteJob,
+  syncJobs,
+  syncAll,
+  updateJobTeam,
+  logJobPromotion,
+  removeJobPromotionLogEntry,
+} from "@/features/jobs/services/job.service";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -91,5 +102,50 @@ export async function syncAllAction(): Promise<ActionResult> {
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to sync" };
+  }
+}
+
+export async function updateJobTeamAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateJobTeamSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await updateJobTeam(parsed.data);
+    revalidatePath(`/jobs/${parsed.data.jobId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update team" };
+  }
+}
+
+export async function logJobPromotionAction(input: unknown): Promise<ActionResult> {
+  const parsed = logJobPromotionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await logJobPromotion(parsed.data);
+    revalidatePath(`/jobs/${parsed.data.jobId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to log promotion" };
+  }
+}
+
+export async function removeJobPromotionLogEntryAction(input: unknown): Promise<ActionResult> {
+  const parsed = removeJobPromotionLogEntrySchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await removeJobPromotionLogEntry(parsed.data.jobId, parsed.data.entryId);
+    revalidatePath(`/jobs/${parsed.data.jobId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to remove entry" };
   }
 }

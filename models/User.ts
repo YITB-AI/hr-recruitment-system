@@ -59,6 +59,11 @@ const userSchema = new Schema(
     // it's set only via scripts/create-company.ts's own operator (never
     // exposed on the company-creation form) or directly in the database.
     isPlatformAdmin: { type: Boolean, default: false },
+    // Personal, per-category in-app notification preferences — distinct
+    // from Setting.notifications' company-wide SMS/Email channel toggles.
+    // A Map so new NotificationTypes added later don't need a migration;
+    // a missing key defaults to enabled (see lib/staff-notify.ts).
+    notificationPreferences: { type: Map, of: Boolean },
   },
   { timestamps: true },
 );

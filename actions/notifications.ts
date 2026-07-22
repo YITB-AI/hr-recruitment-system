@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { markNotificationRead, markAllNotificationsRead } from "@/features/notifications/services/notification.service";
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+  updateOwnNotificationPreferences,
+} from "@/features/notifications/services/notification.service";
+import { updateNotificationPreferencesSchema } from "@/validators/notification-preferences";
 import { getCurrentUser } from "@/lib/current-user";
 
 export type ActionResult = { success: true } | { success: false; error: string };
@@ -27,5 +32,21 @@ export async function markAllNotificationsReadAction(): Promise<ActionResult> {
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to update notifications" };
+  }
+}
+
+export async function updateNotificationPreferencesAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateNotificationPreferencesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    await updateOwnNotificationPreferences(user.companyId, user.id, parsed.data);
+    revalidatePath("/settings");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update preferences" };
   }
 }
