@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ChevronRight, ChevronLeft, CalendarClock, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, CalendarClock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,11 +55,12 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   if (!applicant) notFound();
 
   const { companyId } = await getCurrentUser();
-  const [interviews, applicantStatuses, applicantActivity] = await Promise.all([
+  const [interviews, applicantStatuses, applicantSources] = await Promise.all([
     interviewRepository.findByApplicantId(companyId, id),
     listActiveStatuses("applicant"),
-    activityLogRepository.findByEntity(companyId, "applicant", id, 50),
+    listActiveStatuses("applicant_source"),
   ]);
+  const sourceLabel = applicantSources.find((s) => s.key === applicant.source)?.name ?? applicant.source;
   const latestInterviewId = interviews[0]?._id ?? null;
   const [latestEmails, interviewActivityById] = await Promise.all([
     emailLogRepository.findLatestByInterviewIds(companyId, interviews.map((i) => i._id)),
@@ -131,27 +132,42 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
               <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden scrollbar-hide">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="ai-analysis">AI Analysis</TabsTrigger>
-                <TabsTrigger value="documents">Documents</TabsTrigger>
-                <TabsTrigger value="interviews">Interviews</TabsTrigger>
-                <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="communication">Communication</TabsTrigger>
-                <TabsTrigger value="resume">Resume</TabsTrigger>
-                <TabsTrigger value="experience">Experience</TabsTrigger>
                 <TabsTrigger value="education">Education</TabsTrigger>
+                <TabsTrigger value="experience">Experience</TabsTrigger>
+                <TabsTrigger value="resume">Resume</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                <TabsTrigger value="communication">Communication</TabsTrigger>
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="pt-6">
-                <ApplicantOverview applicant={applicant} />
+                <ApplicantOverview applicant={applicant} sourceLabel={sourceLabel} />
               </TabsContent>
 
               <TabsContent value="ai-analysis" className="pt-6">
                 <AiAnalysisPanel analysis={resumeAnalysis} />
               </TabsContent>
 
+              <TabsContent value="education" className="pt-6">
+                <ApplicantEducationTab education={applicant.educationHistory} certifications={applicant.certificationsHistory} />
+              </TabsContent>
+
+              <TabsContent value="experience" className="pt-6">
+                <ApplicantExperienceTab entries={applicant.experienceHistory} />
+              </TabsContent>
+
+              <TabsContent value="resume" className="pt-6">
+                <CvViewerTab resumeUrl={applicant.resumeUrl} />
+              </TabsContent>
+
               <TabsContent value="documents" className="pt-6">
                 <ApplicantDocumentsTab documents={documents} />
+              </TabsContent>
+
+              <TabsContent value="notes" className="pt-6">
+                <ApplicantNotesTab applicantId={applicant._id} notes={notes} />
               </TabsContent>
 
               <TabsContent value="interviews" className="pt-6">
@@ -190,52 +206,12 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 )}
               </TabsContent>
 
-              <TabsContent value="notes" className="pt-6">
-                <ApplicantNotesTab applicantId={applicant._id} notes={notes} />
-              </TabsContent>
-
-              <TabsContent value="activity" className="pt-6">
-                {applicantActivity.length === 0 ? (
-                  <EmptyState icon={History} title="No activity yet" description="Changes to this applicant will show up here." />
-                ) : (
-                  <ul className="divide-y">
-                    {applicantActivity.map((entry) => (
-                      <li key={entry._id} className="py-3">
-                        <p className="text-sm">{entry.message}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(entry.createdAt).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                          {entry.actorName ? ` · ${entry.actorName}` : ""}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </TabsContent>
-
-              <TabsContent value="timeline" className="pt-6">
-                <ApplicantHistoryTab applicantId={applicant._id} entries={history} />
-              </TabsContent>
-
               <TabsContent value="communication" className="pt-6">
                 <ApplicantCommunicationHistoryTab entries={communicationHistory} />
               </TabsContent>
 
-              <TabsContent value="resume" className="pt-6">
-                <CvViewerTab resumeUrl={applicant.resumeUrl} />
-              </TabsContent>
-
-              <TabsContent value="experience" className="pt-6">
-                <ApplicantExperienceTab entries={applicant.experienceHistory} />
-              </TabsContent>
-
-              <TabsContent value="education" className="pt-6">
-                <ApplicantEducationTab education={applicant.educationHistory} certifications={applicant.certificationsHistory} />
+              <TabsContent value="timeline" className="pt-6">
+                <ApplicantHistoryTab applicantId={applicant._id} entries={history} />
               </TabsContent>
             </Tabs>
           </CardContent>

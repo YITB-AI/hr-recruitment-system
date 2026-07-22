@@ -135,7 +135,7 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
             {errors.interviewerNames && <p className="text-xs text-destructive">{errors.interviewerNames.message}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="meetingLink">Meeting Link</Label>
+            <Label htmlFor="meetingLink">Meeting Link (Optional)</Label>
             <Input id="meetingLink" placeholder="https://meet.google.com/..." {...register("meetingLink")} />
             {errors.meetingLink && <p className="text-xs text-destructive">{errors.meetingLink.message}</p>}
           </div>

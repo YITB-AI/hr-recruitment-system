@@ -1,7 +1,4 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { APPLICANT_SOURCES } from "@/constants/applicant-source";
-
-export { APPLICANT_SOURCES };
 
 // n8n's resume-parsing pipeline writes these three sub-documents directly
 // into MongoDB (its own driver, not through this schema) — field names
@@ -48,7 +45,10 @@ const applicantSchema = new Schema(
     // service layer (see features/applicants/services/applicant.service.ts)
     // instead of a compile-time list.
     status: { type: String, default: "new", index: true },
-    source: { type: String, enum: APPLICANT_SOURCES, default: "website" },
+    // No schema-level enum, same reasoning as status above — source keys
+    // are now managed per company via the Status collection (module
+    // "applicant_source", Settings > Statuses), not a compile-time list.
+    source: { type: String, default: "website" },
     location: { type: String, trim: true },
     resumeUrl: { type: String },
     linkedinUrl: { type: String },

@@ -17,7 +17,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-sm font-medium">{value}</p>
+        <p className="truncate text-sm font-medium" title={value}>{value}</p>
       </div>
     </div>
   );

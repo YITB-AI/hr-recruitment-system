@@ -58,7 +58,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
 
   await connectDB();
   const actor = await getCurrentUser();
-  const [tableData, kanbanData, savedViews, jobs, applicantStatuses] = await Promise.all([
+  const [tableData, kanbanData, savedViews, jobs, applicantStatuses, applicantSources] = await Promise.all([
     isKanban
       ? Promise.resolve(null)
       : getApplicantsPageData({
@@ -73,6 +73,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
     listSavedViews(),
     jobRepository.findAllForPicker(actor.companyId),
     listActiveStatuses("applicant"),
+    listActiveStatuses("applicant_source"),
   ]);
 
   function buildBaseQuery() {
@@ -143,7 +144,7 @@ export default async function ApplicantsPage({ searchParams }: ApplicantsPagePro
 
       <div className="overflow-hidden rounded-2xl border bg-card">
         <div className="border-b p-4">
-          <ApplicantFilters jobs={jobs} savedViews={savedViews} />
+          <ApplicantFilters jobs={jobs} savedViews={savedViews} sources={applicantSources} />
         </div>
         {isKanban && kanbanData ? (
           <ApplicantsKanbanBoard initialData={kanbanData} />

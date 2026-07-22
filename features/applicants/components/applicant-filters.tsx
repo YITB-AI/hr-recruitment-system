@@ -31,13 +31,21 @@ import {
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useStatusLookup } from "@/components/shared/status-config-provider";
-import { APPLICANT_SOURCES, APPLICANT_SOURCE_LABELS } from "@/constants/applicant-source";
 import { createSavedViewAction, deleteSavedViewAction } from "@/actions/saved-views";
 import type { SavedViewRow } from "@/server/repositories/saved-view.repository";
+import type { StatusRow } from "@/server/repositories/status.repository";
 
 type Job = { _id: string; title: string };
 
-export function ApplicantFilters({ jobs, savedViews }: { jobs: Job[]; savedViews: SavedViewRow[] }) {
+export function ApplicantFilters({
+  jobs,
+  savedViews,
+  sources,
+}: {
+  jobs: Job[];
+  savedViews: SavedViewRow[];
+  sources: StatusRow[];
+}) {
   const { statuses } = useStatusLookup();
   const STATUS_TABS = [
     { value: undefined, label: "All Applicants" },
@@ -107,7 +115,7 @@ export function ApplicantFilters({ jobs, savedViews }: { jobs: Job[]; savedViews
   const jobItems = [{ value: "__all__", label: "All Jobs" }, ...jobs.map((j) => ({ value: j._id, label: j.title }))];
   const sourceItems = [
     { value: "__all__", label: "All Sources" },
-    ...APPLICANT_SOURCES.map((s) => ({ value: s, label: APPLICANT_SOURCE_LABELS[s] })),
+    ...sources.map((s) => ({ value: s.key, label: s.name })),
   ];
 
   return (

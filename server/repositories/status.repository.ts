@@ -71,6 +71,16 @@ const DEFAULT_SEEDS: Record<StatusModule, Array<{ key: string; name: string; col
     { key: "terminated", name: "Terminated", color: "#d03b3b" },
     { key: "inactive", name: "Inactive", color: "#71717a" },
   ],
+  // Existing keys on real Applicant.source documents (was previously a
+  // fixed Mongoose enum backed by constants/applicant-source.ts) — never
+  // renamed. Companies can now add their own source types on top of these.
+  applicant_source: [
+    { key: "website", name: "Website", color: "#2a78d6", icon: "Globe" },
+    { key: "linkedin", name: "LinkedIn", color: "#0a66c2", icon: "Linkedin" },
+    { key: "referral", name: "Referral", color: "#0ca30c", icon: "Users" },
+    { key: "job_board", name: "Job Board", color: "#7c3aed", icon: "Briefcase" },
+    { key: "other", name: "Other", color: "#71717a", icon: "MoreHorizontal" },
+  ],
 };
 
 async function seedDefaults(companyId: string, module: StatusModule): Promise<void> {

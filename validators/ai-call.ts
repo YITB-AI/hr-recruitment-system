@@ -17,6 +17,6 @@ export const requestAiCallSchema = z.object({
   // here would make the resolver's output type diverge from useForm's input
   // type in ai-call-dialog.tsx — react-hook-form/zodResolver don't like that).
   interviewerNames: z.string().min(1, "At least one interviewer name is required"),
-  meetingLink: z.url({ message: "Enter a valid URL" }),
+  meetingLink: z.url({ message: "Enter a valid URL" }).optional().or(z.literal("")),
 });
 export type RequestAiCallInput = z.infer<typeof requestAiCallSchema>;

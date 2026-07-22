@@ -65,6 +65,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     teamMembers,
     applicantStatuses,
     employeeStatuses,
+    applicantSources,
     roleSummaries,
     orphanedApplicants,
     departments,
@@ -79,6 +80,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     userRepository.findAll(actor.companyId),
     isAdmin ? listStatuses("applicant") : Promise.resolve(null),
     isAdmin ? listStatuses("employee") : Promise.resolve(null),
+    isAdmin ? listStatuses("applicant_source") : Promise.resolve(null),
     isAdmin ? listRoleSummaries() : Promise.resolve(null),
     isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
     isAdmin ? listDepartments() : Promise.resolve(null),
@@ -175,9 +177,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 </TabsContent>
               )}
 
-              {isAdmin && applicantStatuses && employeeStatuses && (
+              {isAdmin && applicantStatuses && employeeStatuses && applicantSources && (
                 <TabsContent value="statuses">
-                  <StatusManagementPanel statusesByModule={{ applicant: applicantStatuses, employee: employeeStatuses }} />
+                  <StatusManagementPanel
+                    statusesByModule={{
+                      applicant: applicantStatuses,
+                      employee: employeeStatuses,
+                      applicant_source: applicantSources,
+                    }}
+                  />
                 </TabsContent>
               )}
 

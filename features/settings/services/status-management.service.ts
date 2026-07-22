@@ -18,9 +18,9 @@ function slugify(name: string): string {
 }
 
 async function countUsage(companyId: string, module: StatusModule, key: string): Promise<number> {
-  return module === "applicant"
-    ? Applicant.countDocuments({ companyId, status: key })
-    : Employee.countDocuments({ companyId, employmentStatus: key });
+  if (module === "applicant") return Applicant.countDocuments({ companyId, status: key });
+  if (module === "applicant_source") return Applicant.countDocuments({ companyId, source: key });
+  return Employee.countDocuments({ companyId, employmentStatus: key });
 }
 
 export async function listStatuses(module: StatusModule, includeInactive = true): Promise<StatusRow[]> {

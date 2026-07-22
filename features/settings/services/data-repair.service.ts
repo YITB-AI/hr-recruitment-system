@@ -1,6 +1,5 @@
 import { Types } from "mongoose";
 import { connectDB } from "@/server/db/connect";
-import { APPLICANT_SOURCES } from "@/constants/applicant-source";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { resumeAnalysisRepository } from "@/server/repositories/resume-analysis.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
@@ -301,7 +300,10 @@ export async function autoRepairIncompleteApplicants(): Promise<{ repaired: numb
 
   for (const row of rawRows) {
     const fix: { source?: string; tags?: string[]; status?: string } = {};
-    if (!row.source || !(APPLICANT_SOURCES as readonly string[]).includes(row.source as string)) {
+    // Source keys are company-managed (Status collection, module
+    // "applicant_source") — any non-empty value is valid, only a genuinely
+    // missing/empty one needs the same default a normal create would apply.
+    if (!row.source) {
       fix.source = "website";
     }
     if (!Array.isArray(row.tags)) {

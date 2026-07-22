@@ -30,7 +30,6 @@ export function QuickActionsPanel({
   jobTitle,
   latestInterviewId,
 }: QuickActionsPanelProps) {
-  const hasPhone = Boolean(phone);
   const [isPending, startTransition] = useTransition();
   const [sending, setSending] = useState<SendKind>(null);
 
@@ -96,12 +95,12 @@ export function QuickActionsPanel({
       <Button
         variant="outline"
         className="w-full justify-start"
-        disabled={sending === "sms" || !hasPhone}
-        title={hasPhone ? undefined : "No phone number on file"}
+        disabled
+        title="Send SMS is currently disabled"
         onClick={() => handleSend("sms")}
       >
         <MessageSquareText />
-        {sending === "sms" ? "Sending..." : "Send SMS"}
+        Send SMS
       </Button>
 
       <AiCallDialog applicantId={applicantId} name={name} phone={phone} email={email} jobTitle={jobTitle} />

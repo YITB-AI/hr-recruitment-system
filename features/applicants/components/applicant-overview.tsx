@@ -12,7 +12,6 @@ import {
   Trophy,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import type { ApplicantDetailRow } from "@/server/repositories/applicant.repository";
 
 function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
@@ -36,7 +35,7 @@ function resumeFileName(url: string): string {
   }
 }
 
-export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow }) {
+export function ApplicantOverview({ applicant, sourceLabel }: { applicant: ApplicantDetailRow; sourceLabel: string }) {
   const hasLinks = applicant.linkedinUrl || applicant.githubUrl || applicant.portfolioUrl || applicant.socialMediaUrls.length > 0;
   const companyCount = applicant.experienceHistory.length;
 
@@ -55,7 +54,7 @@ export function ApplicantOverview({ applicant }: { applicant: ApplicantDetailRow
               year: "numeric",
             })}
           />
-          <Field icon={Globe} label="Source" value={APPLICANT_SOURCE_LABELS[applicant.source as ApplicantSource] ?? applicant.source} />
+          <Field icon={Globe} label="Source" value={sourceLabel} />
         </div>
       </div>
 

@@ -19,7 +19,6 @@ import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-miles
 import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
 import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
 import type { CalculationType } from "@/constants/document-template";
-import { APPLICANT_SOURCE_LABELS, type ApplicantSource } from "@/constants/applicant-source";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
@@ -131,8 +130,12 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord, dateFormat
       return record.joiningDate ? formatDateWithPreset(record.joiningDate, dateFormat) : undefined;
     case "applicant_status":
       return record.status ?? undefined;
+    // Source keys are now company-managed (Status collection, module
+    // "applicant_source") rather than a static label map — this helper is a
+    // plain sync function with no DB access, so it returns the raw key here,
+    // same as applicant_status just above.
     case "source":
-      return record.source ? APPLICANT_SOURCE_LABELS[record.source as ApplicantSource] ?? record.source : undefined;
+      return record.source ?? undefined;
     case "applied_date":
       return record.appliedAt ? formatDateWithPreset(record.appliedAt, dateFormat) : undefined;
     case "location":
