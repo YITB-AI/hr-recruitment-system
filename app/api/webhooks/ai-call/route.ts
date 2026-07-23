@@ -52,17 +52,34 @@ export async function POST(request: Request) {
   }
 
   await connectDB();
-  const followup = await applicantFollowupRepository.findByIdUnscoped(parsed.data.followupId);
-  if (!followup || followup.type !== "call") {
-    return NextResponse.json({ error: "Unknown followupId" }, { status: 404 });
+
+  // Precise path: n8n echoed back the followupId we handed it in the
+  // original outbound trigger. Falls through to the applicantId-based
+  // lookup below if omitted, or if it doesn't resolve to a real call row —
+  // some n8n workflows can't reliably carry a MongoDB ObjectId through
+  // every branch, so this can't be the only way in.
+  let followup = parsed.data.followupId ? await applicantFollowupRepository.findByIdUnscoped(parsed.data.followupId) : null;
+  if (followup && followup.type !== "call") followup = null;
+
+  if (followup) {
+    // The load-bearing tenant-isolation check for this path: companyId/
+    // applicantId always come from the row we just loaded, never from the
+    // request body — this just cross-checks the body's applicantId
+    // matches, to catch a misconfigured n8n workflow (or a tampered
+    // followupId) rather than silently acting on the wrong applicant.
+    if (followup.applicantId !== parsed.data.applicantId) {
+      return NextResponse.json({ error: "applicantId does not match followupId" }, { status: 422 });
+    }
+  } else {
+    // Fallback: resolve by applicantId alone — at most one call is ever
+    // actively in flight per applicant (see the dedup guard in
+    // ai-call.service.ts's requestAiCall), so this is unambiguous. Tenant
+    // identity still comes entirely from the resolved row, never the body.
+    followup = await applicantFollowupRepository.findLatestCallByApplicantId(parsed.data.applicantId);
   }
-  // The load-bearing tenant-isolation check: companyId/applicantId always
-  // come from the row we just loaded, never from the request body — this
-  // just cross-checks the body's applicantId matches, to catch a
-  // misconfigured n8n workflow (or a tampered followupId) rather than
-  // silently acting on the wrong applicant.
-  if (followup.applicantId !== parsed.data.applicantId) {
-    return NextResponse.json({ error: "applicantId does not match followupId" }, { status: 422 });
+
+  if (!followup) {
+    return NextResponse.json({ error: "No active call found for this followupId/applicantId" }, { status: 404 });
   }
 
   switch (parsed.data.event) {

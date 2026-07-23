@@ -110,10 +110,13 @@ export const openApiSpec = {
         tags: ["Webhooks"],
         summary: "Report AI call progress/outcome back to the app",
         description:
-          "Called by n8n's AI Call workflow — never by this app. followupId and applicantId are the values " +
-          "originally sent to n8n in the outbound ai-call webhook trigger; the request is rejected if they " +
-          "don't both resolve to the same ApplicantFollowup row (tenant identity is always taken from that " +
-          "row, never trusted from the body). A duplicate or out-of-order event for an already-terminal row " +
+          "Called by n8n's AI Call workflow — never by this app. applicantId is always required — it's the " +
+          "value originally sent to n8n in the outbound ai-call webhook trigger. followupId (also sent in that " +
+          "same trigger) is OPTIONAL: if provided, it must resolve to a real call row belonging to the same " +
+          "applicantId; if omitted, or if it doesn't resolve, the app falls back to resolving the most recent " +
+          "AI call for that applicantId instead (for n8n workflows that can't reliably generate/carry a " +
+          "MongoDB ObjectId through every branch). Tenant identity is always taken from the resolved row, " +
+          "never trusted from the body. A duplicate or out-of-order event for an already-terminal row " +
           "(completed/failed) is accepted as a no-op, not an error.",
         security: [{ callbackSecret: [] }],
         requestBody: {
@@ -124,19 +127,19 @@ export const openApiSpec = {
                 oneOf: [
                   {
                     type: "object",
-                    required: ["event", "followupId", "applicantId"],
+                    required: ["event", "applicantId"],
                     properties: {
                       event: { type: "string", enum: ["started"] },
-                      followupId: { type: "string" },
+                      followupId: { type: "string", description: "Optional — see endpoint description" },
                       applicantId: { type: "string" },
                     },
                   },
                   {
                     type: "object",
-                    required: ["event", "followupId", "applicantId", "outcome"],
+                    required: ["event", "applicantId", "outcome"],
                     properties: {
                       event: { type: "string", enum: ["completed"] },
-                      followupId: { type: "string" },
+                      followupId: { type: "string", description: "Optional — see endpoint description" },
                       applicantId: { type: "string" },
                       outcome: {
                         type: "string",
@@ -162,10 +165,10 @@ export const openApiSpec = {
                   },
                   {
                     type: "object",
-                    required: ["event", "followupId", "applicantId"],
+                    required: ["event", "applicantId"],
                     properties: {
                       event: { type: "string", enum: ["failed"] },
-                      followupId: { type: "string" },
+                      followupId: { type: "string", description: "Optional — see endpoint description" },
                       applicantId: { type: "string" },
                       error: { type: "string" },
                     },
@@ -179,7 +182,7 @@ export const openApiSpec = {
           "200": { description: "Accepted (including duplicate/out-of-order no-ops)" },
           "400": { description: "Malformed JSON body" },
           "401": { description: "Missing or incorrect X-Callback-Secret" },
-          "404": { description: "followupId doesn't resolve to any ApplicantFollowup row" },
+          "404": { description: "Neither followupId nor applicantId resolves to any AI call row" },
           "413": { description: "Body too large" },
           "422": { description: "Body failed schema validation, or applicantId doesn't match the followupId row" },
         },

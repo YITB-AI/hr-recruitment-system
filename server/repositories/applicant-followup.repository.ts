@@ -122,6 +122,22 @@ export const applicantFollowupRepository = {
     const row = await ApplicantFollowup.findById(id).lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
+  // Fallback identity resolution for the same inbound webhook, for n8n
+  // workflows that can't reliably generate/echo back a MongoDB ObjectId
+  // (followupId) of their own — applicantId alone (already a value n8n
+  // has, since we send it in every outbound ai-call trigger payload) is
+  // enough. Newest-first, any status (not just ACTIVE_STATUSES) — a
+  // duplicated/retried "completed"/"failed" callback for a call that
+  // already finished must still resolve to that same row so applyEvent's
+  // once-terminal guard can no-op it safely, rather than 404ing here and
+  // making a genuinely-idempotent retry look like a real failure.
+  // Deliberately unscoped for the same reason as findByIdUnscoped above.
+  async findLatestCallByApplicantId(applicantId: string): Promise<ApplicantFollowupRow | null> {
+    const row = await ApplicantFollowup.findOne({ applicantId, type: "call" })
+      .sort({ createdAt: -1 })
+      .lean<RawRow | null>();
+    return row ? serialize(row) : null;
+  },
   // Once-terminal state machine: a row that already reached "completed" or
   // "failed" can never be moved again, so a duplicated or out-of-order n8n
   // callback can't re-apply side effects (e.g. a double status change or a
