@@ -5,6 +5,7 @@ export const generalSettingsSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   timezone: z.string().min(1),
   dateFormat: z.string().min(1),
+  companyAddress: z.string().max(500).optional().or(z.literal("")),
 });
 export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;
 

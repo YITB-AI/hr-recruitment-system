@@ -14,6 +14,8 @@ import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { convertDocxToPdf, launchSharedPdfBrowser } from "@/lib/pdf-conversion";
 import type { Browser } from "puppeteer-core";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
+import { injectLetterheadHeader } from "@/lib/docx-letterhead";
+import path from "node:path";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
@@ -301,6 +303,10 @@ async function generateOne(
     images[key] = { buffer, width: pending.width, height: pending.height };
   }
 
+  // templateBuffer already has the company letterhead header fully baked
+  // in (once, by the caller, before this per-recipient path runs — see
+  // withLetterhead) whenever the company has one configured — no
+  // per-recipient work needed for it here.
   const outputBuffer = renderTemplate(templateBuffer, resolvedValues, images);
 
   const fileName = `${template.name.replace(/\s+/g, "_")}_${recipientRecord.name.replace(/\s+/g, "_")}.docx`;
@@ -389,6 +395,30 @@ export async function uploadTemplateImage(buffer: Buffer, originalName: string):
   return `/api/files/${storageKey}`;
 }
 
+// Computed once per generate call (single or whole bulk batch), never per
+// recipient — injecting the header is pure/recipient-independent, and
+// re-fetching the same logo bytes N times for an N-recipient batch would
+// be wasted work. Returns templateBuffer unchanged when the company hasn't
+// uploaded a letterhead logo yet (Settings > General) — documents render
+// exactly as before in that case. The company name still shows (text-only
+// header) even with no logo, as long as a name is set.
+async function withLetterhead(
+  templateBuffer: Buffer,
+  setting: { logoUrl: string | null; companyName: string; companyAddress: string | null },
+): Promise<Buffer> {
+  const text = [setting.companyName, setting.companyAddress].filter(Boolean).join(" — ");
+  if (!text) return templateBuffer;
+
+  const logo = setting.logoUrl
+    ? {
+        buffer: await readFileByKey(setting.logoUrl.replace("/api/files/", "")),
+        extension: path.extname(setting.logoUrl).replace(".", "") || "png",
+      }
+    : null;
+
+  return injectLetterheadHeader(templateBuffer, logo, text);
+}
+
 export async function generateDocument(
   templateId: string,
   recipient: DocumentRecipient,
@@ -404,7 +434,8 @@ export async function generateDocument(
     settingRepository.get(actor.companyId),
   ]);
   if (!template) throw new Error("Template not found");
-  const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
+  const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
+  const templateBuffer = await withLetterhead(rawTemplateBuffer, setting);
 
   const created = await generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
@@ -445,7 +476,8 @@ export async function generateDocumentsBulk(
   // same template file, so there's no reason to re-fetch it from Blob
   // storage per recipient (previously: N identical network fetches for an
   // N-recipient batch).
-  const templateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
+  const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
+  const templateBuffer = await withLetterhead(rawTemplateBuffer, setting);
 
   const batchId = randomUUID();
   const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
