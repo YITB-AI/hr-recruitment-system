@@ -77,7 +77,7 @@ const jobSchema = new Schema(
 // Compound indexes matching job.repository.ts's actual tenant-scoped query
 // shapes (findAllForCompanyPaginated's {companyId, archivedAt, status?}) —
 // companyId alone can't serve these efficiently. (countCreatedBetween's
-// $expr/$toDate comparison on the string-typed createdAt/updatedAt fields
+// $expr/$convert comparison on the string-typed createdAt/updatedAt fields
 // can't use any index regardless — that's an n8n data-shape constraint,
 // not something an index can fix.)
 jobSchema.index({ companyId: 1, archivedAt: 1 });

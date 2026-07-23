@@ -125,10 +125,22 @@ const SORT_MAP: Record<NonNullable<JobListFilters["sort"]>, Record<string, 1 | -
   title_desc: { title: -1 },
 };
 
-// createdAt is stored as an ISO string (n8n's convention), not a BSON date,
-// so range queries convert it via $expr/$toDate rather than comparing
-// directly against Date instances.
-//
+// createdAt/updatedAt are stored as strings (n8n's convention), not BSON
+// dates, so range queries convert them via $expr rather than comparing
+// directly against Date instances. n8n writes them directly via its own
+// MongoDB node with no format guarantee — a real, recurring incident (not
+// hypothetical) confirmed a job's updatedAt landing as
+// "Wed Jul 22 2026 22:27:37 GMT+0000 (Coordinated Universal Time)" (JS's
+// Date.prototype.toString() output) instead of an ISO string. $toDate
+// throws on that shape, and since these run inside $expr on
+// countDocuments/an aggregate, ONE malformed job took down every stat card
+// on the Jobs list for the whole company. $convert's onError/onNull fall
+// back to the epoch instead — a bad string just sorts as "not in range"
+// rather than crashing the query for every other job in the same company.
+function dateExpr(field: string) {
+  return { $convert: { input: field, to: "date", onError: new Date(0), onNull: new Date(0) } };
+}
+
 // Job is the one collection where companyId is NOT a required first
 // parameter on every function — see the comment on companyId in
 // models/Job.ts. countTotal/countCreatedBetween/findAll below are scoped to
@@ -144,8 +156,8 @@ export const jobRepository = {
       companyId,
       $expr: {
         $and: [
-          { $gte: [{ $toDate: "$createdAt" }, start] },
-          { $lt: [{ $toDate: "$createdAt" }, end] },
+          { $gte: [dateExpr("$createdAt"), start] },
+          { $lt: [dateExpr("$createdAt"), end] },
         ],
       },
     });
@@ -153,8 +165,8 @@ export const jobRepository = {
   countByStatus(companyId: string, status: string, includeArchived = false) {
     return Job.countDocuments({ companyId, status, ...(includeArchived ? {} : { archivedAt: { $exists: false } }) });
   },
-  // Same $expr/$toDate conversion as countCreatedBetween — updatedAt is an
-  // ISO string here too, not a BSON date.
+  // Same $expr/date-conversion pattern as countCreatedBetween — updatedAt is
+  // an ISO string here too, not a BSON date.
   countByStatusUpdatedBetween(companyId: string, status: string, start: Date, end: Date) {
     return Job.countDocuments({
       companyId,
@@ -162,8 +174,8 @@ export const jobRepository = {
       archivedAt: { $exists: false },
       $expr: {
         $and: [
-          { $gte: [{ $toDate: "$updatedAt" }, start] },
-          { $lt: [{ $toDate: "$updatedAt" }, end] },
+          { $gte: [dateExpr("$updatedAt"), start] },
+          { $lt: [dateExpr("$updatedAt"), end] },
         ],
       },
     });
