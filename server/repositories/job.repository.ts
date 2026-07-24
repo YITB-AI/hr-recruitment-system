@@ -36,6 +36,7 @@ export type JobRow = {
   featured: boolean;
   teamMemberIds: string[];
   promotionLog: PromotionLogEntry[];
+  hrRequirements: string[];
 };
 
 type RawJobRow = Record<string, unknown> & { _id: unknown };
@@ -82,6 +83,7 @@ function serializeJobRow(row: RawJobRow): JobRow {
     promotionLog: Array.isArray(row.promotionLog)
       ? (row.promotionLog as Array<Record<string, unknown> & { _id: unknown }>).map(serializePromotionLogEntry)
       : [],
+    hrRequirements: Array.isArray(row.hrRequirements) ? (row.hrRequirements as string[]) : [],
   };
 }
 
@@ -286,6 +288,14 @@ export const jobRepository = {
     const row = await Job.findOneAndUpdate(
       { _id: id, companyId },
       { teamMemberIds: memberIds },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
+  async updateHrRequirements(companyId: string, id: string, hrRequirements: string[]): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { hrRequirements },
       { returnDocument: "after" },
     ).lean<RawJobRow | null>();
     return row ? serializeJobRow(row) : null;

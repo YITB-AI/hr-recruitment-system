@@ -39,7 +39,8 @@ export async function uploadLetterhead(name: string, file: File): Promise<Letter
   if (isPdf) {
     try {
       buffer = await renderPdfFirstPageToPng(rawBuffer);
-    } catch {
+    } catch (error) {
+      console.error("PDF letterhead rasterization failed:", error);
       throw new Error("Couldn't render this PDF — make sure it's a valid, unencrypted PDF file");
     }
     storageFileName = "letterhead.png";

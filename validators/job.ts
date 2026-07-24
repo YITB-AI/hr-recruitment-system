@@ -55,6 +55,12 @@ export const updateJobTeamSchema = z.object({
 });
 export type UpdateJobTeamInput = z.infer<typeof updateJobTeamSchema>;
 
+export const updateJobHrRequirementsSchema = z.object({
+  jobId: z.string().min(1),
+  hrRequirements: z.array(z.string().max(500)).max(50),
+});
+export type UpdateJobHrRequirementsInput = z.infer<typeof updateJobHrRequirementsSchema>;
+
 export const logJobPromotionSchema = z
   .object({
     jobId: z.string().min(1),

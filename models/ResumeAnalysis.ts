@@ -20,6 +20,17 @@ const resumeAnalysisSchema = new Schema(
     // Also already written by n8n on every real analysis, never declared
     // here — a bullet-point rationale distinct from `summary`'s prose.
     statusReason: { type: String },
+    // Optional, provisional shape for matching against a job's HR
+    // Requirements (see Job.hrRequirements) — analogous to
+    // overallScore/jdMatchPercentage above, but scoped to HR's own
+    // additional requirements rather than the public job description.
+    // Absent on every analysis written before this field existed and on
+    // any job with no HR requirements configured — render conditionally,
+    // never as a fake 0%/empty section. Swap for whatever n8n's HR-
+    // requirements-matching workflow actually emits once that's built.
+    hrRequirementsMatchPercentage: { type: Number },
+    matchedRequirements: { type: [String], default: [] },
+    missingRequirements: { type: [String], default: [] },
   },
   { timestamps: true },
 );

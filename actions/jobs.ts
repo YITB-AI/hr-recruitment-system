@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createJobSchema, updateJobSchema, updateJobTeamSchema, logJobPromotionSchema, removeJobPromotionLogEntrySchema } from "@/validators/job";
+import {
+  createJobSchema,
+  updateJobSchema,
+  updateJobTeamSchema,
+  updateJobHrRequirementsSchema,
+  logJobPromotionSchema,
+  removeJobPromotionLogEntrySchema,
+} from "@/validators/job";
 import {
   createJob,
   updateJob,
@@ -12,6 +19,7 @@ import {
   syncJobs,
   syncAll,
   updateJobTeam,
+  updateJobHrRequirements,
   logJobPromotion,
   removeJobPromotionLogEntry,
 } from "@/features/jobs/services/job.service";
@@ -117,6 +125,21 @@ export async function updateJobTeamAction(input: unknown): Promise<ActionResult>
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to update team" };
+  }
+}
+
+export async function updateJobHrRequirementsAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateJobHrRequirementsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await updateJobHrRequirements(parsed.data);
+    revalidatePath(`/jobs/${parsed.data.jobId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update HR requirements" };
   }
 }
 

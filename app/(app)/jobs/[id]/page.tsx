@@ -15,6 +15,7 @@ import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
 import { ShareJobButton } from "@/features/jobs/components/share-job-button";
 import { HiringPipeline } from "@/features/jobs/components/hiring-pipeline";
 import { JobTeamTab } from "@/features/jobs/components/job-team-tab";
+import { JobHrRequirementsTab } from "@/features/jobs/components/job-hr-requirements-tab";
 import { JobPromoteTab } from "@/features/jobs/components/job-promote-tab";
 import { getJobDetail } from "@/features/jobs/services/job.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
@@ -52,7 +53,8 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
     companyUsers,
     sourceBreakdown,
   } = detail;
-  const { companyId } = await getCurrentUser();
+  const { companyId, role } = await getCurrentUser();
+  const isHr = role === "admin" || role === "hr";
   const [activity, applicantStatuses] = await Promise.all([
     activityLogRepository.findByEntity(companyId, "job", id, 30),
     listActiveStatuses("applicant"),
@@ -163,6 +165,7 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="applicants">Applicants</TabsTrigger>
                   <TabsTrigger value="job-details">Job Details</TabsTrigger>
+                  {isHr && <TabsTrigger value="hr-requirements">HR Requirements</TabsTrigger>}
                   <TabsTrigger value="team">Team</TabsTrigger>
                   <TabsTrigger value="promote">Promote</TabsTrigger>
                   <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -272,6 +275,12 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                     </div>
                   )}
                 </TabsContent>
+
+                {isHr && (
+                  <TabsContent value="hr-requirements" className="pt-6">
+                    <JobHrRequirementsTab jobId={job._id} hrRequirements={job.hrRequirements} />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="team" className="pt-6">
                   <JobTeamTab jobId={job._id} teamMembers={teamMembers} companyUsers={companyUsers} />

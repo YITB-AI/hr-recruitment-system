@@ -70,6 +70,13 @@ const jobSchema = new Schema(
     // role, e.g. recruiter/interviewer, already carries most of that meaning).
     teamMemberIds: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
     promotionLog: { type: [promotionLogEntrySchema], default: [] },
+    // HR-only hiring requirements, distinct from the public `description` —
+    // an array of discrete requirement strings (same shape as
+    // `responsibilities`) rather than one free-text blob, so an eventual
+    // AI-written matchedRequirements/missingRequirements on ResumeAnalysis
+    // (see that model's comment) are natural subsets of this list rather
+    // than free-text spans it would have to invent boundaries for.
+    hrRequirements: { type: [String], default: [] },
   },
   { timestamps: false },
 );

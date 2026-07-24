@@ -12,7 +12,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 import { computeTrend, getMonthWindows } from "@/lib/trend";
-import type { CreateJobInput, UpdateJobInput, UpdateJobTeamInput, LogJobPromotionInput } from "@/validators/job";
+import type { CreateJobInput, UpdateJobInput, UpdateJobTeamInput, LogJobPromotionInput, UpdateJobHrRequirementsInput } from "@/validators/job";
 
 const REPAIR_INTERVAL_MS = 5 * 60 * 1000;
 // "New" applicants for a job's list-row count — matches the 7-day window
@@ -246,6 +246,27 @@ export async function updateJobTeam(input: UpdateJobTeamInput): Promise<JobRow> 
     entityType: "job",
     entityId: job._id,
     message: `${actor.name} updated the hiring team for "${job.title}"`,
+  });
+
+  return job;
+}
+
+export async function updateJobHrRequirements(input: UpdateJobHrRequirementsInput): Promise<JobRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "job.hr_requirements.manage");
+
+  const job = await jobRepository.updateHrRequirements(actor.companyId, input.jobId, input.hrRequirements);
+  if (!job) throw new Error("Job not found");
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "job.hr_requirements_updated",
+    entityType: "job",
+    entityId: job._id,
+    message: `${actor.name} updated the HR requirements for "${job.title}"`,
   });
 
   return job;

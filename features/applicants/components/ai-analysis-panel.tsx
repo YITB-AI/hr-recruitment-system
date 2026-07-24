@@ -1,4 +1,4 @@
-import { Sparkles, ThumbsUp, ThumbsDown, AlertTriangle, ListChecks } from "lucide-react";
+import { Sparkles, ThumbsUp, ThumbsDown, AlertTriangle, ListChecks, ClipboardCheck, ClipboardX } from "lucide-react";
 import { ScoreRing } from "@/components/shared/score-ring";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { ResumeAnalysisRow } from "@/server/repositories/resume-analysis.repository";
@@ -81,6 +81,46 @@ export function AiAnalysisPanel({ analysis }: { analysis: ResumeAnalysisRow | nu
           </div>
         )}
       </div>
+
+      {analysis.hrRequirementsMatchPercentage != null && (
+        <div>
+          <div className="mb-3 flex items-center gap-3">
+            <ScoreRing value={analysis.hrRequirementsMatchPercentage} size={56} />
+            <div>
+              <h3 className="text-sm font-semibold">HR Requirements Match</h3>
+              <p className="text-xs text-muted-foreground">Based on the job&apos;s HR-only hiring requirements.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {analysis.matchedRequirements.length > 0 && (
+              <div>
+                <h4 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                  <ClipboardCheck className="size-4 text-[var(--success)]" />
+                  Matched Requirements
+                </h4>
+                <ul className="space-y-1.5 text-sm text-foreground/80">
+                  {analysis.matchedRequirements.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {analysis.missingRequirements.length > 0 && (
+              <div>
+                <h4 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                  <ClipboardX className="size-4 text-destructive" />
+                  Missing Requirements
+                </h4>
+                <ul className="space-y-1.5 text-sm text-foreground/80">
+                  {analysis.missingRequirements.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {analysis.recommendation && (
         <div>

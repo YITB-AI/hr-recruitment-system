@@ -11,6 +11,9 @@ export type ResumeAnalysisRow = {
   summary: string | null;
   recommendation: string | null;
   statusReason: string | null;
+  hrRequirementsMatchPercentage: number | null;
+  matchedRequirements: string[];
+  missingRequirements: string[];
 };
 
 type RawRow = {
@@ -23,6 +26,9 @@ type RawRow = {
   summary?: string;
   recommendation?: string;
   statusReason?: string;
+  hrRequirementsMatchPercentage?: number;
+  matchedRequirements?: string[];
+  missingRequirements?: string[];
 };
 
 // NOT companyId-scoped here, unlike other repositories — like Job, this
@@ -36,7 +42,9 @@ export const resumeAnalysisRepository = {
   async findByApplicantId(applicantId: string): Promise<ResumeAnalysisRow | null> {
     const row = await ResumeAnalysis.findOne({ applicantId })
       .sort({ createdAt: -1 })
-      .select("overallScore jdMatchPercentage strengths missingSkills weaknesses summary recommendation statusReason")
+      .select(
+        "overallScore jdMatchPercentage strengths missingSkills weaknesses summary recommendation statusReason hrRequirementsMatchPercentage matchedRequirements missingRequirements",
+      )
       .lean<RawRow | null>();
 
     if (!row) return null;
@@ -51,6 +59,9 @@ export const resumeAnalysisRepository = {
       summary: row.summary ?? null,
       recommendation: row.recommendation ?? null,
       statusReason: row.statusReason ?? null,
+      hrRequirementsMatchPercentage: row.hrRequirementsMatchPercentage ?? null,
+      matchedRequirements: Array.isArray(row.matchedRequirements) ? row.matchedRequirements : [],
+      missingRequirements: Array.isArray(row.missingRequirements) ? row.missingRequirements : [],
     };
   },
 

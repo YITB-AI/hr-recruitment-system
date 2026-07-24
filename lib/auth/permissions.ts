@@ -24,6 +24,7 @@ export const PERMISSION_ACTIONS = [
   "user.manage",
   "job.create",
   "job.manage",
+  "job.hr_requirements.manage",
   "status.manage",
   "department.manage",
   "employee_type.manage",
@@ -56,6 +57,7 @@ const ROLE_PERMISSIONS: Record<UserRole, "*" | Set<PermissionAction>> = {
     "interview.delete",
     "job.create",
     "job.manage",
+    "job.hr_requirements.manage",
   ]),
   recruiter: new Set([
     "document.generate",
