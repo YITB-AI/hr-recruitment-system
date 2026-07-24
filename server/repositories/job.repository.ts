@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { Types } from "mongoose";
 import { Job, Applicant, Interview } from "@/models";
-import type { JobStatus, JobType, ExperienceLevel, WorkMode, PromotionChannel } from "@/constants/job";
+import type {
+  JobStatus,
+  JobType,
+  ExperienceLevel,
+  WorkMode,
+  PromotionChannel,
+  JobPostingPlatform,
+  JobPostingStatus,
+} from "@/constants/job";
 
 export type PromotionLogEntry = {
   _id: string;
@@ -11,6 +19,17 @@ export type PromotionLogEntry = {
   url: string | null;
   notes: string | null;
   loggedByName: string | null;
+};
+
+export type PlatformPosting = {
+  _id: string;
+  platform: JobPostingPlatform;
+  status: JobPostingStatus;
+  externalPostId: string | null;
+  externalPostUrl: string | null;
+  error: string | null;
+  requestedByName: string | null;
+  publishedAt: string | null;
 };
 
 export type JobRow = {
@@ -36,6 +55,8 @@ export type JobRow = {
   featured: boolean;
   teamMemberIds: string[];
   promotionLog: PromotionLogEntry[];
+  platformPostings: PlatformPosting[];
+  postToIndeed: boolean;
   hrRequirements: string[];
 };
 
@@ -50,6 +71,19 @@ function serializePromotionLogEntry(entry: Record<string, unknown> & { _id: unkn
     url: (entry.url as string | undefined) ?? null,
     notes: (entry.notes as string | undefined) ?? null,
     loggedByName: (entry.loggedByName as string | undefined) ?? null,
+  };
+}
+
+function serializePlatformPosting(entry: Record<string, unknown> & { _id: unknown }): PlatformPosting {
+  return {
+    _id: String(entry._id),
+    platform: entry.platform as JobPostingPlatform,
+    status: (entry.status as JobPostingStatus) || "pending",
+    externalPostId: (entry.externalPostId as string | undefined) ?? null,
+    externalPostUrl: (entry.externalPostUrl as string | undefined) ?? null,
+    error: (entry.error as string | undefined) ?? null,
+    requestedByName: (entry.requestedByName as string | undefined) ?? null,
+    publishedAt: entry.publishedAt ? (entry.publishedAt as Date).toISOString() : null,
   };
 }
 
@@ -83,6 +117,10 @@ function serializeJobRow(row: RawJobRow): JobRow {
     promotionLog: Array.isArray(row.promotionLog)
       ? (row.promotionLog as Array<Record<string, unknown> & { _id: unknown }>).map(serializePromotionLogEntry)
       : [],
+    platformPostings: Array.isArray(row.platformPostings)
+      ? (row.platformPostings as Array<Record<string, unknown> & { _id: unknown }>).map(serializePlatformPosting)
+      : [],
+    postToIndeed: Boolean(row.postToIndeed),
     hrRequirements: Array.isArray(row.hrRequirements) ? (row.hrRequirements as string[]) : [],
   };
 }
@@ -299,6 +337,61 @@ export const jobRepository = {
       { returnDocument: "after" },
     ).lean<RawJobRow | null>();
     return row ? serializeJobRow(row) : null;
+  },
+  async setPostToIndeed(companyId: string, id: string, postToIndeed: boolean): Promise<JobRow | null> {
+    const row = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { postToIndeed },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return row ? serializeJobRow(row) : null;
+  },
+  // Adds a new platformPostings entry for a platform this job has never been
+  // published to before, or updates the existing one in place — a job only
+  // ever has at most one attempt-record per platform (the latest one always
+  // wins/overwrites, it isn't a history of every attempt).
+  async upsertPlatformPosting(
+    companyId: string,
+    id: string,
+    entry: {
+      platform: JobPostingPlatform;
+      status: JobPostingStatus;
+      externalPostId?: string;
+      externalPostUrl?: string;
+      error?: string;
+      requestedBy?: string;
+      requestedByName?: string;
+    },
+  ): Promise<JobRow | null> {
+    const publishedAt = entry.status === "published" ? new Date() : undefined;
+    const updateExisting = await Job.findOneAndUpdate(
+      { _id: id, companyId, "platformPostings.platform": entry.platform },
+      {
+        $set: {
+          "platformPostings.$.status": entry.status,
+          "platformPostings.$.externalPostId": entry.externalPostId,
+          "platformPostings.$.externalPostUrl": entry.externalPostUrl,
+          "platformPostings.$.error": entry.error,
+          "platformPostings.$.requestedBy": entry.requestedBy,
+          "platformPostings.$.requestedByName": entry.requestedByName,
+          ...(publishedAt ? { "platformPostings.$.publishedAt": publishedAt } : {}),
+        },
+      },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    if (updateExisting) return serializeJobRow(updateExisting);
+
+    const inserted = await Job.findOneAndUpdate(
+      { _id: id, companyId },
+      { $push: { platformPostings: { ...entry, publishedAt } } },
+      { returnDocument: "after" },
+    ).lean<RawJobRow | null>();
+    return inserted ? serializeJobRow(inserted) : null;
+  },
+  /** Open, opted-in jobs for the public Indeed XML feed — see app/api/job-feeds. */
+  async findAllForIndeedFeed(companyId: string): Promise<JobRow[]> {
+    const rows = await Job.find({ companyId, postToIndeed: true, status: "Open", archivedAt: { $exists: false } }).lean<RawJobRow[]>();
+    return rows.map(serializeJobRow);
   },
   async addPromotionLogEntry(
     companyId: string,

@@ -1,18 +1,34 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   updateWebhookConfigSchema,
   updateEmailConfigSchema,
+  updateLinkedinConfigSchema,
+  updateFacebookAppCredentialsSchema,
+  updateXAppCredentialsSchema,
   type UpdateWebhookConfigInput,
   type UpdateEmailConfigInput,
+  type UpdateLinkedinConfigInput,
+  type UpdateFacebookAppCredentialsInput,
+  type UpdateXAppCredentialsInput,
 } from "@/validators/company-integration-config";
-import { updateWebhookConfigAction, updateEmailConfigAction } from "@/actions/company-integration-config";
+import {
+  updateWebhookConfigAction,
+  updateEmailConfigAction,
+  updateLinkedinConfigAction,
+  updateFacebookAppCredentialsAction,
+  updateXAppCredentialsAction,
+  setIndeedFeedEnabledAction,
+} from "@/actions/company-integration-config";
 import type { CompanyIntegrationConfigRow } from "@/server/repositories/company-integration-config.repository";
 import type { WebhookAction } from "@/config/webhooks";
 
@@ -156,12 +172,204 @@ function EmailConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
   );
 }
 
-export function CompanyIntegrationConfigPanel({ config }: { config: CompanyIntegrationConfigRow }) {
+function LinkedinConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateLinkedinConfigInput>({
+    resolver: zodResolver(updateLinkedinConfigSchema),
+    defaultValues: { organizationUrn: config.linkedin.organizationUrn ?? "" },
+  });
+
+  async function onSubmit(values: UpdateLinkedinConfigInput) {
+    const result = await updateLinkedinConfigAction(values);
+    if (result.success) toast.success("LinkedIn configuration saved");
+    else toast.error(result.error);
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 rounded-xl border p-4">
+      <div>
+        <h4 className="text-sm font-semibold">LinkedIn</h4>
+        <p className="text-xs text-muted-foreground">
+          LinkedIn&apos;s real job-posting API requires a Talent Solutions partnership this app doesn&apos;t have — publishing
+          opens a pre-filled LinkedIn share link for you to post yourself, it&apos;s never fully automatic.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="organizationUrn">Organization URN (optional, for future partner API use)</Label>
+        <Input id="organizationUrn" placeholder="urn:li:organization:..." {...register("organizationUrn")} />
+      </div>
+      <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
+        {isSubmitting ? "Saving..." : "Save"}
+      </Button>
+    </form>
+  );
+}
+
+function FacebookConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateFacebookAppCredentialsInput>({
+    resolver: zodResolver(updateFacebookAppCredentialsSchema),
+    defaultValues: { appId: config.facebook.appId ?? "", appSecret: "" },
+  });
+
+  async function onSubmit(values: UpdateFacebookAppCredentialsInput) {
+    const result = await updateFacebookAppCredentialsAction(values);
+    if (result.success) toast.success("Facebook app credentials saved");
+    else toast.error(result.error);
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <div>
+        <h4 className="text-sm font-semibold">Facebook</h4>
+        <p className="text-xs text-muted-foreground">
+          Requires your own Meta for Developers app. Meta&apos;s review for the posting permission requires business
+          verification and can take real time — posting will fail with a clear error until that&apos;s approved.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="fb-appId">App ID</Label>
+            <Input id="fb-appId" {...register("appId")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fb-appSecret">App Secret</Label>
+            <Input id="fb-appSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("appSecret")} />
+          </div>
+        </div>
+        <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Credentials"}
+        </Button>
+      </form>
+      <div className="flex items-center gap-2 border-t pt-3">
+        <Button size="sm" nativeButton={false} render={<a href="/api/social/facebook/connect" />}>
+          <ExternalLink className="size-4" />
+          {config.facebook.connected ? "Reconnect Page" : "Connect Page"}
+        </Button>
+        {config.facebook.connected && (
+          <span className="text-xs text-muted-foreground">Connected: Page {config.facebook.pageId}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function XConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+  const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateXAppCredentialsInput>({
+    resolver: zodResolver(updateXAppCredentialsSchema),
+    defaultValues: { apiKey: config.x.apiKey ?? "", apiSecret: "" },
+  });
+
+  async function onSubmit(values: UpdateXAppCredentialsInput) {
+    const result = await updateXAppCredentialsAction(values);
+    if (result.success) toast.success("X app credentials saved");
+    else toast.error(result.error);
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <div>
+        <h4 className="text-sm font-semibold">X (Twitter)</h4>
+        <p className="text-xs text-muted-foreground">
+          Requires your own X developer app. Whether your current API tier permits posting is something to confirm on
+          X&apos;s pricing page.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="x-apiKey">API Key (Client ID)</Label>
+            <Input id="x-apiKey" {...register("apiKey")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="x-apiSecret">API Secret</Label>
+            <Input id="x-apiSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("apiSecret")} />
+          </div>
+        </div>
+        <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Credentials"}
+        </Button>
+      </form>
+      <div className="flex items-center gap-2 border-t pt-3">
+        <Button size="sm" nativeButton={false} render={<a href="/api/social/x/connect" />}>
+          <ExternalLink className="size-4" />
+          {config.x.connected ? "Reconnect Account" : "Connect Account"}
+        </Button>
+        {config.x.connected && <span className="text-xs text-muted-foreground">Connected</span>}
+      </div>
+    </div>
+  );
+}
+
+function IndeedConfigForm({ config, feedUrl }: { config: CompanyIntegrationConfigRow; feedUrl: string }) {
+  const [isPending, startTransition] = useTransition();
+  const [enabled, setEnabled] = useState(config.indeed.feedEnabled);
+
+  function handleToggle(checked: boolean) {
+    setEnabled(checked);
+    startTransition(async () => {
+      const result = await setIndeedFeedEnabledAction(checked);
+      if (!result.success) {
+        toast.error(result.error);
+        setEnabled(!checked);
+      }
+    });
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(feedUrl);
+    toast.success("Feed URL copied");
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-semibold">Indeed</h4>
+          <p className="text-xs text-muted-foreground">
+            No OAuth — Indeed uses a public XML feed. Enable it, register the URL below once in your Indeed employer
+            account, then opt individual jobs into it from each job&apos;s Promote tab.
+          </p>
+        </div>
+        <Switch checked={enabled} onCheckedChange={handleToggle} disabled={isPending} />
+      </div>
+      {enabled && (
+        <div className="flex items-center gap-2">
+          <Input readOnly value={feedUrl} className="font-mono text-xs" />
+          <Button type="button" size="icon-sm" variant="outline" onClick={handleCopy}>
+            <Copy className="size-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CompanyIntegrationConfigPanel({
+  config,
+  companySlug,
+  appBaseUrl,
+}: {
+  config: CompanyIntegrationConfigRow;
+  companySlug: string;
+  appBaseUrl: string;
+}) {
+  const feedUrl = `${appBaseUrl}/api/job-feeds/${companySlug}/indeed.xml`;
+
   return (
     <div className="space-y-8">
       <WebhookConfigForm config={config} />
       <div className="border-t pt-6">
         <EmailConfigForm config={config} />
+      </div>
+      <div className="border-t pt-6">
+        <h3 className="mb-1 text-sm font-semibold">Social Media Integration</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Used for multi-platform job posting from a Job&apos;s Promote tab.</p>
+        <div className="max-w-xl space-y-4">
+          <LinkedinConfigForm config={config} />
+          <FacebookConfigForm config={config} />
+          <XConfigForm config={config} />
+          <IndeedConfigForm config={config} feedUrl={feedUrl} />
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,13 @@ import {
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
-import type { UpdateWebhookConfigInput, UpdateEmailConfigInput } from "@/validators/company-integration-config";
+import type {
+  UpdateWebhookConfigInput,
+  UpdateEmailConfigInput,
+  UpdateLinkedinConfigInput,
+  UpdateFacebookAppCredentialsInput,
+  UpdateXAppCredentialsInput,
+} from "@/validators/company-integration-config";
 
 export async function getCompanyIntegrationConfig(): Promise<CompanyIntegrationConfigRow> {
   await connectDB();
@@ -52,4 +58,32 @@ export async function updateEmailConfig(input: UpdateEmailConfigInput): Promise<
   });
 
   return updated;
+}
+
+export async function updateLinkedinConfig(input: UpdateLinkedinConfigInput): Promise<CompanyIntegrationConfigRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  return companyIntegrationConfigRepository.updateLinkedin(actor.companyId, input);
+}
+
+export async function updateFacebookAppCredentials(input: UpdateFacebookAppCredentialsInput): Promise<CompanyIntegrationConfigRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  return companyIntegrationConfigRepository.updateFacebookAppCredentials(actor.companyId, input);
+}
+
+export async function updateXAppCredentials(input: UpdateXAppCredentialsInput): Promise<CompanyIntegrationConfigRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  return companyIntegrationConfigRepository.updateXAppCredentials(actor.companyId, input);
+}
+
+export async function setIndeedFeedEnabled(feedEnabled: boolean): Promise<CompanyIntegrationConfigRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+  return companyIntegrationConfigRepository.setIndeedFeedEnabled(actor.companyId, feedEnabled);
 }

@@ -287,7 +287,13 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                 </TabsContent>
 
                 <TabsContent value="promote" className="pt-6">
-                  <JobPromoteTab jobId={job._id} promotionLog={job.promotionLog} sourceBreakdown={sourceBreakdown} />
+                  <JobPromoteTab
+                    jobId={job._id}
+                    promotionLog={job.promotionLog}
+                    sourceBreakdown={sourceBreakdown}
+                    platformPostings={job.platformPostings}
+                    postToIndeed={job.postToIndeed}
+                  />
                 </TabsContent>
 
                 <TabsContent value="activity" className="pt-6">

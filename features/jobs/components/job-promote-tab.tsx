@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, ExternalLink } from "lucide-react";
+import { Megaphone, Plus, Trash2, ExternalLink, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { EmptyState } from "@/components/shared/empty-state";
 import { HiringPipeline } from "@/features/jobs/components/hiring-pipeline";
 import { logJobPromotionAction, removeJobPromotionLogEntryAction } from "@/actions/jobs";
+import { publishJobToPlatformAction, setPostToIndeedAction } from "@/actions/job-posting";
 import { logJobPromotionSchema, type LogJobPromotionInput } from "@/validators/job";
-import { PROMOTION_CHANNELS, PROMOTION_CHANNEL_LABELS } from "@/constants/job";
-import type { PromotionLogEntry } from "@/server/repositories/job.repository";
+import { PROMOTION_CHANNELS, PROMOTION_CHANNEL_LABELS, JOB_POSTING_PLATFORMS, JOB_POSTING_PLATFORM_LABELS } from "@/constants/job";
+import type { PromotionLogEntry, PlatformPosting } from "@/server/repositories/job.repository";
+import { Switch } from "@/components/ui/switch";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -110,14 +112,111 @@ function LogPromotionDialog({ jobId }: { jobId: string }) {
   );
 }
 
+function PublishToJobBoards({ jobId, platformPostings, postToIndeed }: { jobId: string; platformPostings: PlatformPosting[]; postToIndeed: boolean }) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const postingByPlatform = new Map(platformPostings.map((p) => [p.platform, p]));
+
+  function handlePublish(platform: (typeof JOB_POSTING_PLATFORMS)[number]) {
+    setPending(platform);
+    startTransition(async () => {
+      const result = await publishJobToPlatformAction(jobId, platform);
+      setPending(null);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.result.ok) {
+        toast.success(`Published to ${JOB_POSTING_PLATFORM_LABELS[platform]}`);
+      } else if (result.result.requiresManualAction) {
+        window.open(result.result.requiresManualAction.url, "_blank", "noopener,noreferrer");
+        toast.info(result.result.error);
+      } else {
+        toast.error(result.result.error);
+      }
+    });
+  }
+
+  function handleToggleIndeed(checked: boolean) {
+    startTransition(async () => {
+      const result = await setPostToIndeedAction(jobId, checked);
+      if (!result.success) toast.error(result.error);
+    });
+  }
+
+  return (
+    <div>
+      <h3 className="mb-4 text-sm font-medium">Publish to Job Boards</h3>
+      <div className="divide-y rounded-xl border">
+        {JOB_POSTING_PLATFORMS.map((platform) => {
+          const posting = postingByPlatform.get(platform);
+          if (platform === "indeed") {
+            return (
+              <div key={platform} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">{JOB_POSTING_PLATFORM_LABELS[platform]}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Indeed uses a public XML feed, not a per-job publish action — enable it and configure the feed URL in
+                    Settings &gt; Integrations, then opt this job in here.
+                  </p>
+                </div>
+                <Switch checked={postToIndeed} onCheckedChange={handleToggleIndeed} disabled={isPending} />
+              </div>
+            );
+          }
+          return (
+            <div key={platform} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">{JOB_POSTING_PLATFORM_LABELS[platform]}</p>
+                {posting && (
+                  <p className="text-xs text-muted-foreground">
+                    {posting.status === "published" && posting.externalPostUrl ? (
+                      <a href={posting.externalPostUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        View post
+                      </a>
+                    ) : posting.status === "failed" ? (
+                      <span className="text-destructive">{posting.error}</span>
+                    ) : (
+                      posting.status
+                    )}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isPending && pending === platform}
+                onClick={() => handlePublish(platform)}
+              >
+                {isPending && pending === platform ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : platform === "linkedin" ? (
+                  <ExternalLink className="size-4" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+                {platform === "linkedin" ? "Open LinkedIn to Post" : "Publish"}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function JobPromoteTab({
   jobId,
   promotionLog,
   sourceBreakdown,
+  platformPostings,
+  postToIndeed,
 }: {
   jobId: string;
   promotionLog: PromotionLogEntry[];
   sourceBreakdown: Array<{ label: string; count: number }>;
+  platformPostings: PlatformPosting[];
+  postToIndeed: boolean;
 }) {
   const totalApplicants = sourceBreakdown.reduce((sum, row) => sum + row.count, 0);
 
@@ -129,6 +228,8 @@ export function JobPromoteTab({
 
   return (
     <div className="space-y-8">
+      <PublishToJobBoards jobId={jobId} platformPostings={platformPostings} postToIndeed={postToIndeed} />
+
       <div>
         <h3 className="mb-4 text-sm font-medium">Where Applicants Came From</h3>
         {sourceBreakdown.length === 0 ? (

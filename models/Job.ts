@@ -1,5 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { EXPERIENCE_LEVELS, WORK_MODES, PROMOTION_CHANNELS } from "@/constants/job";
+import { EXPERIENCE_LEVELS, WORK_MODES, PROMOTION_CHANNELS, JOB_POSTING_PLATFORMS, JOB_POSTING_STATUSES } from "@/constants/job";
 
 // A single self-reported "we posted this job to X" log line — Promote tab.
 // No real job-board/social API integration exists, so this is a manual
@@ -15,6 +15,27 @@ const promotionLogEntrySchema = new Schema(
     notes: { type: String, trim: true },
     loggedBy: { type: Schema.Types.ObjectId, ref: "User" },
     loggedByName: { type: String },
+  },
+  { timestamps: true },
+);
+
+// A real API-driven publish attempt to one job board — distinct from
+// promotionLogEntrySchema above (that's a terminal, user-authored fact,
+// never updated after creation, only removed). This has a real in-place-
+// updated lifecycle (pending -> publishing -> published/failed) plus
+// fields (external post id, structured error) the manual log has no use
+// for — mixing the two shapes would force every consumer to branch on
+// "is this manual or API-driven" on every read.
+const platformPostingSchema = new Schema(
+  {
+    platform: { type: String, enum: JOB_POSTING_PLATFORMS, required: true },
+    status: { type: String, enum: JOB_POSTING_STATUSES, default: "pending" },
+    externalPostId: { type: String },
+    externalPostUrl: { type: String },
+    error: { type: String },
+    requestedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    requestedByName: { type: String },
+    publishedAt: { type: Date },
   },
   { timestamps: true },
 );
@@ -70,6 +91,12 @@ const jobSchema = new Schema(
     // role, e.g. recruiter/interviewer, already carries most of that meaning).
     teamMemberIds: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
     promotionLog: { type: [promotionLogEntrySchema], default: [] },
+    platformPostings: { type: [platformPostingSchema], default: [] },
+    // Deliberate opt-in — including a job in the public Indeed XML feed
+    // (app/api/job-feeds/[companySlug]/indeed.xml) is per-job, not automatic
+    // for every open job, so nothing appears in a public feed the admin
+    // didn't explicitly choose to publish there.
+    postToIndeed: { type: Boolean, default: false },
     // HR-only hiring requirements, distinct from the public `description` —
     // an array of discrete requirement strings (same shape as
     // `responsibilities`) rather than one free-text blob, so an eventual

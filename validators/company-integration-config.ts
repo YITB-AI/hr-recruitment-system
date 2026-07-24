@@ -31,3 +31,20 @@ export const updateEmailConfigSchema = z.object({
   smtpPassword: z.string().optional(),
 });
 export type UpdateEmailConfigInput = z.infer<typeof updateEmailConfigSchema>;
+
+export const updateLinkedinConfigSchema = z.object({
+  organizationUrn: z.string().max(200).optional(),
+});
+export type UpdateLinkedinConfigInput = z.infer<typeof updateLinkedinConfigSchema>;
+
+export const updateFacebookAppCredentialsSchema = z.object({
+  appId: z.string().min(1, "App ID is required"),
+  appSecret: z.string().min(1, "App Secret is required"),
+});
+export type UpdateFacebookAppCredentialsInput = z.infer<typeof updateFacebookAppCredentialsSchema>;
+
+export const updateXAppCredentialsSchema = z.object({
+  apiKey: z.string().min(1, "API Key is required"),
+  apiSecret: z.string().min(1, "API Secret is required"),
+});
+export type UpdateXAppCredentialsInput = z.infer<typeof updateXAppCredentialsSchema>;

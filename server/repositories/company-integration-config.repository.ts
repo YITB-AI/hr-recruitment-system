@@ -188,4 +188,103 @@ export const companyIntegrationConfigRepository = {
     const doc = await CompanyIntegrationConfig.findOneAndUpdate({ companyId }, update, { returnDocument: "after" });
     return serialize(doc!.toObject());
   },
+
+  // --- Social media / job-board provider config (lib/job-posting/*) ---
+  async updateLinkedin(companyId: string, input: { organizationUrn?: string }): Promise<CompanyIntegrationConfigRow> {
+    await getOrCreate(companyId);
+    const setOps: Record<string, unknown> = {};
+    if (input.organizationUrn?.trim()) setOps["linkedin.organizationUrn"] = input.organizationUrn.trim();
+    const doc = await CompanyIntegrationConfig.findOneAndUpdate({ companyId }, { $set: setOps }, { returnDocument: "after" });
+    return serialize(doc!.toObject());
+  },
+  // Manually-entered app credentials (before OAuth) — appId/appSecret are
+  // the company's own Meta for Developers app, entered once so the connect
+  // flow below knows which app to authorize against.
+  async updateFacebookAppCredentials(companyId: string, input: { appId: string; appSecret: string }): Promise<CompanyIntegrationConfigRow> {
+    await getOrCreate(companyId);
+    const doc = await CompanyIntegrationConfig.findOneAndUpdate(
+      { companyId },
+      { $set: { "facebook.appId": input.appId.trim(), "facebook.appSecretEncrypted": encryptSecret(input.appSecret.trim()) } },
+      { returnDocument: "after" },
+    );
+    return serialize(doc!.toObject());
+  },
+  async getFacebookAppCredentials(companyId: string): Promise<{ appId: string; appSecret: string } | null> {
+    const doc = await CompanyIntegrationConfig.findOne({ companyId })
+      .select("facebook.appId facebook.appSecretEncrypted")
+      .lean<{ facebook?: { appId?: string; appSecretEncrypted?: string } } | null>();
+    if (!doc?.facebook?.appId || !doc.facebook.appSecretEncrypted) return null;
+    return { appId: doc.facebook.appId, appSecret: decryptSecret(doc.facebook.appSecretEncrypted) };
+  },
+  // Written by the OAuth callback route once the connect flow completes.
+  async saveFacebookPageConnection(
+    companyId: string,
+    input: { pageId: string; pageAccessToken: string; tokenExpiresAt?: Date },
+  ): Promise<void> {
+    await CompanyIntegrationConfig.findOneAndUpdate(
+      { companyId },
+      {
+        $set: {
+          "facebook.pageId": input.pageId,
+          "facebook.pageAccessTokenEncrypted": encryptSecret(input.pageAccessToken),
+          ...(input.tokenExpiresAt ? { "facebook.tokenExpiresAt": input.tokenExpiresAt } : {}),
+        },
+      },
+    );
+  },
+  async getResolvedFacebookConfig(companyId: string): Promise<{ pageId: string; pageAccessToken: string } | null> {
+    const doc = await CompanyIntegrationConfig.findOne({ companyId })
+      .select("facebook.pageId facebook.pageAccessTokenEncrypted")
+      .lean<{ facebook?: { pageId?: string; pageAccessTokenEncrypted?: string } } | null>();
+    if (!doc?.facebook?.pageId || !doc.facebook.pageAccessTokenEncrypted) return null;
+    return { pageId: doc.facebook.pageId, pageAccessToken: decryptSecret(doc.facebook.pageAccessTokenEncrypted) };
+  },
+
+  async updateXAppCredentials(companyId: string, input: { apiKey: string; apiSecret: string }): Promise<CompanyIntegrationConfigRow> {
+    await getOrCreate(companyId);
+    const doc = await CompanyIntegrationConfig.findOneAndUpdate(
+      { companyId },
+      { $set: { "x.apiKey": input.apiKey.trim(), "x.apiSecretEncrypted": encryptSecret(input.apiSecret.trim()) } },
+      { returnDocument: "after" },
+    );
+    return serialize(doc!.toObject());
+  },
+  async getXAppCredentials(companyId: string): Promise<{ apiKey: string; apiSecret: string } | null> {
+    const doc = await CompanyIntegrationConfig.findOne({ companyId })
+      .select("x.apiKey x.apiSecretEncrypted")
+      .lean<{ x?: { apiKey?: string; apiSecretEncrypted?: string } } | null>();
+    if (!doc?.x?.apiKey || !doc.x.apiSecretEncrypted) return null;
+    return { apiKey: doc.x.apiKey, apiSecret: decryptSecret(doc.x.apiSecretEncrypted) };
+  },
+  async saveXTokens(companyId: string, input: { accessToken: string; accessTokenSecret: string }): Promise<void> {
+    await CompanyIntegrationConfig.findOneAndUpdate(
+      { companyId },
+      {
+        $set: {
+          "x.accessTokenEncrypted": encryptSecret(input.accessToken),
+          "x.accessTokenSecretEncrypted": encryptSecret(input.accessTokenSecret),
+        },
+      },
+    );
+  },
+  async getResolvedXTokens(companyId: string): Promise<{ accessToken: string; accessTokenSecret: string } | null> {
+    const doc = await CompanyIntegrationConfig.findOne({ companyId })
+      .select("x.accessTokenEncrypted x.accessTokenSecretEncrypted")
+      .lean<{ x?: { accessTokenEncrypted?: string; accessTokenSecretEncrypted?: string } } | null>();
+    if (!doc?.x?.accessTokenEncrypted || !doc.x.accessTokenSecretEncrypted) return null;
+    return {
+      accessToken: decryptSecret(doc.x.accessTokenEncrypted),
+      accessTokenSecret: decryptSecret(doc.x.accessTokenSecretEncrypted),
+    };
+  },
+
+  async setIndeedFeedEnabled(companyId: string, feedEnabled: boolean): Promise<CompanyIntegrationConfigRow> {
+    await getOrCreate(companyId);
+    const doc = await CompanyIntegrationConfig.findOneAndUpdate(
+      { companyId },
+      { $set: { "indeed.feedEnabled": feedEnabled } },
+      { returnDocument: "after" },
+    );
+    return serialize(doc!.toObject());
+  },
 };

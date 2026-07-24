@@ -255,7 +255,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
               {isAdmin && integrationConfig && (
                 <TabsContent value="integrations">
-                  <CompanyIntegrationConfigPanel config={integrationConfig} />
+                  <CompanyIntegrationConfigPanel
+                    config={integrationConfig}
+                    companySlug={company?.slug ?? ""}
+                    appBaseUrl={process.env.APP_BASE_URL || ""}
+                  />
                 </TabsContent>
               )}
 

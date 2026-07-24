@@ -38,3 +38,20 @@ export const PROMOTION_CHANNEL_LABELS: Record<PromotionChannel, string> = {
   social_media: "Social Media",
   other: "Other",
 };
+
+// Real API-driven job-board distribution — see lib/job-posting/* — distinct
+// from PROMOTION_CHANNELS above (that's a manual, self-reported audit log;
+// this is a genuine per-platform publish attempt with a real lifecycle:
+// pending -> publishing -> published/failed, plus an external post id/url).
+export const JOB_POSTING_PLATFORMS = ["linkedin", "indeed", "facebook", "x"] as const;
+export type JobPostingPlatform = (typeof JOB_POSTING_PLATFORMS)[number];
+
+export const JOB_POSTING_PLATFORM_LABELS: Record<JobPostingPlatform, string> = {
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  facebook: "Facebook",
+  x: "X (Twitter)",
+};
+
+export const JOB_POSTING_STATUSES = ["pending", "publishing", "published", "failed"] as const;
+export type JobPostingStatus = (typeof JOB_POSTING_STATUSES)[number];
