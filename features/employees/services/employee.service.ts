@@ -14,6 +14,7 @@ import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import { notifyHrStaff } from "@/lib/staff-notify";
 import type { EmployeeFormInput } from "@/validators/employee";
+import type { SessionUser } from "@/types/user";
 
 async function assertValidEmploymentStatus(companyId: string, status: string): Promise<void> {
   const row = await statusRepository.findByKey(companyId, "employee", status);
@@ -88,9 +89,13 @@ export async function listManagerOptions() {
   return employeeRepository.findAllForPicker(companyId);
 }
 
-export async function createEmployee(input: EmployeeFormInput): Promise<EmployeeDetailRow> {
-  await connectDB();
-  const actor = await getCurrentUser();
+// Everything a create needs except the per-record HR notification —
+// extracted so bulk import (employee-import.service.ts) can create many
+// rows in a loop without firing one notification per row, while still
+// getting identical validation/resolution/audit-log behavior to a single
+// manual create. createEmployee (below) is this plus one notification;
+// its own behavior is unchanged.
+export async function createEmployeeCore(actor: SessionUser, input: EmployeeFormInput): Promise<EmployeeDetailRow> {
   requireRole(actor, "employee.create");
   await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
   const departmentName = await resolveDepartmentName(actor.companyId, input.departmentId);
@@ -123,6 +128,14 @@ export async function createEmployee(input: EmployeeFormInput): Promise<Employee
     entityId: created._id,
     message: `${actor.name} added ${created.name} (${created.employeeCode}) to ${created.department}`,
   });
+
+  return created;
+}
+
+export async function createEmployee(input: EmployeeFormInput): Promise<EmployeeDetailRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  const created = await createEmployeeCore(actor, input);
 
   await notifyHrStaff(actor.companyId, "New employee added", `${created.name} (${created.employeeCode}) was added to ${created.department}.`, {
     type: "employee",

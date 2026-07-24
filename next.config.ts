@@ -23,7 +23,17 @@ const nextConfig: NextConfig = {
   // failed generation on dax-hr.vercel.app — the deployed function was only
   // ~3.6MB, nowhere near enough to contain the ~50MB+ compressed binary).
   outputFileTracingIncludes: {
-    "/*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/*": [
+      "./node_modules/@sparticuz/chromium/bin/**/*",
+      // pdfjs-dist's Node "fake worker" fallback (lib/pdf-to-image.ts, via
+      // its legacy Node build) dynamically imports its own worker script
+      // relative to itself at runtime — invisible to the tracer's static
+      // analysis, same root cause as chromium's binary above. Without this,
+      // rasterizing an uploaded PDF letterhead throws "Setting up fake
+      // worker failed: Cannot find module '.../pdf.worker.mjs'" in
+      // production (confirmed via a real failed upload on dax-hr.vercel.app).
+      "./node_modules/pdfjs-dist/legacy/build/*",
+    ],
   },
   experimental: {
     serverActions: {

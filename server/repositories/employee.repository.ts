@@ -253,4 +253,21 @@ export const employeeRepository = {
   async delete(companyId: string, id: string): Promise<void> {
     await Employee.findOneAndDelete({ _id: id, companyId });
   },
+
+  // GLOBAL, not companyId-scoped — matches the schema's global unique index
+  // on `email` (line 13 above). Used by bulk import's per-row duplicate
+  // check before attempting a create that would otherwise fail with a
+  // raw duplicate-key error.
+  async existsByEmail(email: string): Promise<boolean> {
+    const count = await Employee.countDocuments({ email: email.toLowerCase() });
+    return count > 0;
+  },
+  // For bulk import's optional "Manager Employee Code" column — the
+  // referenced employee must already exist in the system before the
+  // import runs (referencing another row within the same import file is
+  // not supported).
+  async findByCode(companyId: string, employeeCode: string): Promise<{ _id: string; name: string } | null> {
+    const row = await Employee.findOne({ companyId, employeeCode }).select("name").lean<{ _id: unknown; name: string } | null>();
+    return row ? { _id: String(row._id), name: row.name } : null;
+  },
 };

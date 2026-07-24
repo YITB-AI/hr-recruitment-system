@@ -2,8 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { employeeFormSchema } from "@/validators/employee";
+import { employeeFormSchema, type EmployeeFormInput } from "@/validators/employee";
 import { createEmployee, updateEmployee, deleteEmployee } from "@/features/employees/services/employee.service";
+import {
+  validateEmployeeImport,
+  commitEmployeeImport,
+  type ImportRowResult,
+  type ImportCommitResultItem,
+} from "@/features/employees/services/employee-import.service";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -58,6 +64,33 @@ export async function updateEmployeeAction(id: string, formData: FormData): Prom
   revalidatePath("/employees");
   revalidatePath(`/employees/${id}`);
   redirect(`/employees/${id}`);
+}
+
+export async function validateEmployeeImportAction(
+  formData: FormData,
+): Promise<{ success: true; rows: ImportRowResult[] } | { success: false; error: string }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { success: false, error: "Choose a .csv or .xlsx file first" };
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { rows } = await validateEmployeeImport(buffer, file.name);
+    return { success: true, rows };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to read this file" };
+  }
+}
+
+export async function commitEmployeeImportAction(
+  rows: Array<{ row: number; input: EmployeeFormInput }>,
+): Promise<{ success: true; successCount: number; results: ImportCommitResultItem[] } | { success: false; error: string }> {
+  try {
+    const { successCount, results } = await commitEmployeeImport(rows);
+    revalidatePath("/employees");
+    return { success: true, successCount, results };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to import employees" };
+  }
 }
 
 export async function deleteEmployeeAction(id: string): Promise<ActionResult> {
