@@ -7,6 +7,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { EmployeeStats } from "@/features/employees/components/employee-stats";
 import { EmployeeFilters } from "@/features/employees/components/employee-filters";
 import { EmployeesTable } from "@/features/employees/components/employees-table";
+import { EmployeeImportDialog } from "@/features/employees/components/employee-import-dialog";
 import { getEmployeesPageData } from "@/features/employees/services/employee.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
@@ -63,6 +64,7 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
               <Download className="size-4" />
               Export
             </Button>
+            <EmployeeImportDialog />
             <Button nativeButton={false} render={<Link href="/employees/new" />}>
               <Plus className="size-4" />
               Add Employee

@@ -10,8 +10,16 @@ const nextConfig: NextConfig = {
   // into — they need to stay as plain node_modules requires at runtime.
   // @napi-rs/canvas (lib/pdf-to-image.ts, via pdfjs-dist's Node canvas
   // factory) ships a prebuilt native .node binary the same way chromium
-  // does — kept un-bundled for the same reason.
-  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium", "@napi-rs/canvas"],
+  // does — kept un-bundled for the same reason. pdfjs-dist is excluded too:
+  // its Node "fake worker" fallback does a dynamic `import()` of its own
+  // pdf.worker.mjs relative to itself, and when Next's own bundler is
+  // allowed to process that import it rewrites the specifier into a chunk
+  // reference (e.g. ".next/server/chunks/ssr/pdf.worker.mjs") that's never
+  // actually emitted there — confirmed via a real failed upload on
+  // dax-hr.vercel.app even after adding outputFileTracingIncludes below,
+  // which alone wasn't enough because the path being requested was already
+  // wrong, not just missing from the bundle.
+  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium", "@napi-rs/canvas", "pdfjs-dist"],
   // serverExternalPackages alone keeps chromium un-bundled, but Next's own
   // output file tracer (@vercel/nft) still decides which files ship in each
   // route's deployed function by static import/require/fs analysis —
