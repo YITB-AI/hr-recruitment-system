@@ -6,6 +6,7 @@ import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
+import { checkConflicts, createCalendarEventsForInterview, deleteCalendarEventsForInterview } from "@/features/calendar/services/calendar.service";
 import type { ScheduleInterviewInput, RescheduleInterviewInput } from "@/validators/interview";
 import type { InterviewType } from "@/constants/interview";
 import type { SessionUser } from "@/types/user";
@@ -25,6 +26,12 @@ export async function deleteInterview(interviewId: string): Promise<void> {
   if (!interview) throw new Error("Interview not found");
 
   await interviewRepository.softDelete(actor.companyId, interviewId);
+  // Best-effort — a calendar API failure must never block the delete itself.
+  if (interview.calendarEvents.length > 0) {
+    await deleteCalendarEventsForInterview(interview.calendarEvents).catch((error) => {
+      console.error("Failed to delete calendar events for a deleted interview:", error);
+    });
+  }
 
   await activityLogRepository.create({
     companyId: actor.companyId,
@@ -61,6 +68,17 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
   const scheduledAt = new Date(`${input.date}T${input.time}:00`);
   if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid date/time");
 
+  // Warn, don't hard-block: third-party free/busy data can be stale,
+  // privacy-restricted, or just an "OOO" placeholder, and an interviewer
+  // with no connected calendar would otherwise produce a false "no
+  // conflict" signal either way — a hard block on data this unreliable is
+  // worse than a dismissible, logged warning.
+  const conflictingUserIds = await checkConflicts(input.interviewerIds, scheduledAt, input.durationMinutes).catch((error) => {
+    console.error("Failed to check calendar conflicts:", error);
+    return [];
+  });
+  const hadConflictWarning = conflictingUserIds.length > 0;
+
   const interview = await interviewRepository.create(actor.companyId, {
     applicantId: input.applicantId,
     jobId: applicant.jobId._id,
@@ -70,9 +88,25 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
     durationMinutes: input.durationMinutes,
     meetingLink: input.meetingLink || undefined,
     notes: input.notes || undefined,
+    hadConflictWarning,
   });
 
   await applicantRepository.updateStatus(actor.companyId, input.applicantId, "interview");
+
+  // Best-effort — a calendar API failure must never fail the schedule itself.
+  const calendarEvents = await createCalendarEventsForInterview({
+    interviewerIds: input.interviewerIds,
+    summary: `Interview: ${applicant.name} — ${applicant.jobId.title}`,
+    description: input.notes || undefined,
+    scheduledAt,
+    durationMinutes: input.durationMinutes,
+  }).catch((error) => {
+    console.error("Failed to create calendar events for a scheduled interview:", error);
+    return [];
+  });
+  if (calendarEvents.length > 0) {
+    await interviewRepository.update(actor.companyId, String(interview._id), { calendarEvents });
+  }
 
   await activityLogRepository.create({
     companyId: actor.companyId,
@@ -90,6 +124,15 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
     `${applicant.name}'s interview for ${applicant.jobId.title} has been scheduled.`,
     { type: "interview", priority: "normal", entityType: "interview", entityId: String(interview._id) },
   );
+
+  if (hadConflictWarning) {
+    await notifyStaffForReview(
+      actor.companyId,
+      "Interview scheduled with a calendar conflict",
+      `${applicant.name}'s interview for ${applicant.jobId.title} was scheduled, but at least one interviewer has a conflicting calendar event at that time — review if needed.`,
+      { type: "interview", priority: "high", entityType: "interview", entityId: String(interview._id) },
+    );
+  }
 
   return interview;
 }
@@ -133,6 +176,13 @@ export async function rescheduleInterviewCore(actor: SessionUser, input: Resched
   if (!applicant.jobId) throw new Error("Applicant has no linked job");
 
   await interviewRepository.update(actor.companyId, input.oldInterviewId, { status: "rescheduled" });
+  // Best-effort, deliberately delete + recreate (not "move") — consistent
+  // with the old interview being genuinely superseded, not edited.
+  if (oldInterview.calendarEvents.length > 0) {
+    await deleteCalendarEventsForInterview(oldInterview.calendarEvents).catch((error) => {
+      console.error("Failed to delete the old interview's calendar events during reschedule:", error);
+    });
+  }
 
   const newInterview = await interviewRepository.create(actor.companyId, {
     applicantId: input.applicantId,
@@ -144,6 +194,20 @@ export async function rescheduleInterviewCore(actor: SessionUser, input: Resched
     meetingLink: input.meetingLink || undefined,
     notes: input.notes || undefined,
   });
+
+  const newCalendarEvents = await createCalendarEventsForInterview({
+    interviewerIds: input.interviewerIds,
+    summary: `Interview: ${applicant.name} — ${applicant.jobId.title}`,
+    description: input.notes || undefined,
+    scheduledAt: input.scheduledAt,
+    durationMinutes: input.durationMinutes,
+  }).catch((error) => {
+    console.error("Failed to create calendar events for a rescheduled interview:", error);
+    return [];
+  });
+  if (newCalendarEvents.length > 0) {
+    await interviewRepository.update(actor.companyId, String(newInterview._id), { calendarEvents: newCalendarEvents });
+  }
 
   const suffix = input.systemInitiated ? " (auto-rescheduled based on an AI call)" : " (rescheduled from a prior interview)";
 

@@ -1,5 +1,8 @@
 import { Interview } from "@/models";
 import type { InterviewType } from "@/constants/interview";
+import type { CalendarProvider } from "@/models/CalendarConnection";
+
+export type InterviewCalendarEvent = { userId: string; provider: CalendarProvider; externalEventId: string };
 
 export type InterviewRow = {
   _id: string;
@@ -12,6 +15,8 @@ export type InterviewRow = {
   interviewerIds: string[];
   applicantId: { _id: string; name: string; email: string } | null;
   jobId: { _id: string; title: string } | null;
+  calendarEvents: InterviewCalendarEvent[];
+  hadConflictWarning: boolean;
 };
 
 export type UpcomingInterviewRow = InterviewRow;
@@ -37,6 +42,14 @@ function serialize(row: RawRow): InterviewRow {
       ? { _id: String(row.applicantId._id), name: row.applicantId.name, email: row.applicantId.email ?? "" }
       : null,
     jobId: row.jobId ? { _id: String(row.jobId._id), title: row.jobId.title } : null,
+    calendarEvents: Array.isArray(row.calendarEvents)
+      ? (row.calendarEvents as Array<Record<string, unknown>>).map((e) => ({
+          userId: String(e.userId),
+          provider: e.provider as CalendarProvider,
+          externalEventId: e.externalEventId as string,
+        }))
+      : [],
+    hadConflictWarning: Boolean(row.hadConflictWarning),
   };
 }
 
@@ -49,6 +62,7 @@ export type CreateInterviewInput = {
   durationMinutes: number;
   meetingLink?: string;
   notes?: string;
+  hadConflictWarning?: boolean;
 };
 
 export type UpdateInterviewInput = Partial<{
@@ -57,6 +71,7 @@ export type UpdateInterviewInput = Partial<{
   durationMinutes: number;
   meetingLink: string;
   notes: string;
+  calendarEvents: InterviewCalendarEvent[];
 }>;
 
 // Every function takes companyId first and filters by it — see the
