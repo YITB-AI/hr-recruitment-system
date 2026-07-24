@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { ApplicantFollowup } from "@/models";
 import type { FollowupType, FollowupStatus, FollowupOutcome } from "@/constants/followup";
+import type { AiCallType } from "@/constants/ai-call";
 
 export type ApplicantFollowupRow = {
   _id: string;
@@ -16,6 +17,7 @@ export type ApplicantFollowupRow = {
   interviewId: string | null;
   interviewerNames: string[];
   meetingLink: string | null;
+  callType: AiCallType | null;
   retryCount: number;
   createdByName: string | null;
   createdAt: Date;
@@ -26,6 +28,8 @@ export type ApplicantFollowupRow = {
   startedAt: Date | null;
   completedAt: Date | null;
   proposedInterviewAt: Date | null;
+  salaryExpectation: number | null;
+  salaryWithinRange: boolean | null;
 };
 
 type RawRow = Record<string, unknown> & { _id: unknown; applicantId: unknown };
@@ -45,6 +49,7 @@ function serialize(row: RawRow): ApplicantFollowupRow {
     interviewId: row.interviewId ? String(row.interviewId) : null,
     interviewerNames: (row.interviewerNames as string[] | undefined) ?? [],
     meetingLink: (row.meetingLink as string | undefined) ?? null,
+    callType: (row.callType as AiCallType | undefined) ?? null,
     retryCount: (row.retryCount as number | undefined) ?? 0,
     createdByName: (row.createdByName as string | undefined) ?? null,
     createdAt: row.createdAt as Date,
@@ -55,6 +60,8 @@ function serialize(row: RawRow): ApplicantFollowupRow {
     startedAt: (row.startedAt as Date | undefined) ?? null,
     completedAt: (row.completedAt as Date | undefined) ?? null,
     proposedInterviewAt: (row.proposedInterviewAt as Date | undefined) ?? null,
+    salaryExpectation: (row.salaryExpectation as number | undefined) ?? null,
+    salaryWithinRange: (row.salaryWithinRange as boolean | undefined) ?? null,
   };
 }
 
@@ -71,6 +78,7 @@ export type CreateApplicantFollowupInput = {
   interviewId?: string;
   interviewerNames?: string[];
   meetingLink?: string;
+  callType?: AiCallType;
   retryCount?: number;
   createdBy?: string;
   createdByName: string;
@@ -93,6 +101,8 @@ export type ApplyFollowupEventPatch = Partial<{
   startedAt: Date;
   completedAt: Date;
   proposedInterviewAt: Date;
+  salaryExpectation: number;
+  salaryWithinRange: boolean;
 }>;
 
 // "in_progress" counts as active for dedup purposes too — otherwise a

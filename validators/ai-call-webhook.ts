@@ -31,6 +31,11 @@ export const aiCallWebhookSchema = z.discriminatedUnion("event", [
     summary: z.string().max(MAX_TEXT_LENGTH).optional(),
     recordingUrl: z.string().url().optional(),
     proposedInterviewAt: z.string().datetime().optional(),
+    // The candidate's stated salary expectation, reported back by n8n's AI
+    // after asking — the actual range comparison against the job's
+    // salaryMin/salaryMax happens backend-side (call-outcome.service.ts),
+    // not here.
+    salaryExpectation: z.number().nonnegative().optional(),
     notes: z.string().max(MAX_TEXT_LENGTH).optional(),
     // Some AI-call platforms report the outcome as freeform text n8n
     // couldn't map to one of the known values — kept for audit visibility,

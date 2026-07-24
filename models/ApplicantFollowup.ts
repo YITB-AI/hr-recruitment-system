@@ -1,5 +1,6 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES } from "@/constants/followup";
+import { AI_CALL_TYPES } from "@/constants/ai-call";
 
 export { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES };
 
@@ -34,6 +35,9 @@ const applicantFollowupSchema = new Schema(
     // AI Call only, same convention as message/requestedAt above.
     interviewerNames: [{ type: String }],
     meetingLink: { type: String },
+    // The call's purpose (screening/HR/technical/etc.), selected by HR
+    // before triggering — call-only, same convention as message/meetingLink.
+    callType: { type: String, enum: AI_CALL_TYPES },
     retryCount: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     createdByName: { type: String },
@@ -47,6 +51,14 @@ const applicantFollowupSchema = new Schema(
     startedAt: { type: Date },
     completedAt: { type: Date },
     proposedInterviewAt: { type: Date },
+    // The candidate's stated salary expectation and whether it falls within
+    // the job's posted salaryMin/salaryMax — n8n's AI just asks and reports
+    // the raw number back; the range comparison is backend business logic
+    // (computed in call-outcome.service.ts). salaryWithinRange is left
+    // undefined (not false) when the job has no configured range at all, or
+    // no expectation was reported — "can't determine" is not "out of range".
+    salaryExpectation: { type: Number },
+    salaryWithinRange: { type: Boolean },
   },
   { timestamps: true, collection: "applicant_followup_status" },
 );

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { EMAIL_TEMPLATE_LABELS } from "@/constants/email";
 import { FOLLOWUP_OUTCOME_LABELS } from "@/constants/followup";
+import { AI_CALL_TYPE_LABELS } from "@/constants/ai-call";
 import type { CommunicationEntry } from "@/features/applicants/services/applicant.service";
 
 const CHANNEL_ICONS = { email: Mail, call: Phone, sms: MessageSquareText, whatsapp: MessageSquareText } as const;
@@ -65,6 +66,9 @@ export function ApplicantCommunicationHistoryTab({ entries }: { entries: Communi
                   <StatusBadge isFailed={false} label={FOLLOWUP_OUTCOME_LABELS[entry.followup.outcome]} />
                 ) : (
                   <StatusBadge isFailed={isFailed} label={entry.followup.status} />
+                )}
+                {entry.channel === "call" && entry.followup.callType && (
+                  <Badge variant="outline">{AI_CALL_TYPE_LABELS[entry.followup.callType]}</Badge>
                 )}
               </div>
 

@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { AI_CALL_TYPES } from "@/constants/ai-call";
 
 export const requestAiCallSchema = z.object({
   applicantId: z.string().min(1),
   name: z.string().min(1, "Name is required"),
+  callType: z.enum(AI_CALL_TYPES, { message: "Select a call type" }),
   phone: z
     .string()
     .min(1, "Phone number is required")

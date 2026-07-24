@@ -3,6 +3,7 @@ import { applicantRepository } from "@/server/repositories/applicant.repository"
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
+import { aiCallQuestionRepository } from "@/server/repositories/ai-call-question.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
@@ -51,6 +52,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
 
   const company = await companyRepository.findById(actor.companyId);
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
+  const customQuestions = await aiCallQuestionRepository.findActiveOrdered(actor.companyId);
 
   // Reuse an existing, still-active Interview for this applicant if one
   // exists (of any type — "check whether an interview already exists" is
@@ -84,6 +86,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     requestedAt: scheduledAt,
     interviewerNames,
     meetingLink: input.meetingLink,
+    callType: input.callType,
     retryCount,
     createdBy: actor.id === "system" ? undefined : actor.id,
     createdByName: actor.name,
@@ -105,6 +108,8 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
       message: input.message,
       interviewerNames,
       meetingLink: input.meetingLink,
+      callType: input.callType,
+      customQuestions,
       userId: actor.id === "system" ? null : actor.id,
       createdBy: actor.name,
     },

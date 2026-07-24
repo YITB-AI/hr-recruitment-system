@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
 import type { ScheduleInterviewInput, RescheduleInterviewInput } from "@/validators/interview";
+import type { InterviewType } from "@/constants/interview";
+import type { SessionUser } from "@/types/user";
 
 export async function listInterviews() {
   await connectDB();
@@ -92,14 +94,32 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
   return interview;
 }
 
+type RescheduleCoreInput = {
+  oldInterviewId: string;
+  applicantId: string;
+  interviewerIds: string[];
+  type: InterviewType;
+  scheduledAt: Date;
+  durationMinutes: number;
+  meetingLink?: string;
+  notes?: string;
+  // Only true for the AI-call-driven caller (call-outcome.service.ts) —
+  // changes the second activity-log entry's wording so it's clear the move
+  // wasn't a human action.
+  systemInitiated?: boolean;
+};
+
 // The old interview is marked "rescheduled" (superseded, not edited in
 // place) and a brand new row is created for the new date/time — preserves
 // history instead of overwriting scheduledAt, matching this codebase's
 // append-only audit posture and the fact that "rescheduled" already exists
-// as a distinct status value from "cancelled".
-export async function rescheduleInterview(input: RescheduleInterviewInput) {
-  await connectDB();
-  const actor = await getCurrentUser();
+// as a distinct status value from "cancelled". Shared by the human-facing
+// rescheduleInterview below (via its Zod-validated action) and by
+// call-outcome.service.ts's AI-driven reschedule — the latter already has a
+// real Date (from the webhook's proposedInterviewAt), not a date/time string
+// pair, so it calls this directly rather than going through a string round
+// trip that could introduce a timezone bug.
+export async function rescheduleInterviewCore(actor: SessionUser, input: RescheduleCoreInput) {
   requireRole(actor, "interview.schedule");
 
   const oldInterview = await interviewRepository.findById(actor.companyId, input.oldInterviewId);
@@ -112,9 +132,6 @@ export async function rescheduleInterview(input: RescheduleInterviewInput) {
   if (!applicant) throw new Error("Applicant not found");
   if (!applicant.jobId) throw new Error("Applicant has no linked job");
 
-  const scheduledAt = new Date(`${input.date}T${input.time}:00`);
-  if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid date/time");
-
   await interviewRepository.update(actor.companyId, input.oldInterviewId, { status: "rescheduled" });
 
   const newInterview = await interviewRepository.create(actor.companyId, {
@@ -122,11 +139,13 @@ export async function rescheduleInterview(input: RescheduleInterviewInput) {
     jobId: applicant.jobId._id,
     interviewerIds: input.interviewerIds,
     type: input.type,
-    scheduledAt,
+    scheduledAt: input.scheduledAt,
     durationMinutes: input.durationMinutes,
     meetingLink: input.meetingLink || undefined,
     notes: input.notes || undefined,
   });
+
+  const suffix = input.systemInitiated ? " (auto-rescheduled based on an AI call)" : " (rescheduled from a prior interview)";
 
   await activityLogRepository.create({
     companyId: actor.companyId,
@@ -135,7 +154,7 @@ export async function rescheduleInterview(input: RescheduleInterviewInput) {
     action: "interview.rescheduled",
     entityType: "interview",
     entityId: input.oldInterviewId,
-    message: `Interview for ${applicant.name} rescheduled to ${scheduledAt.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
+    message: `Interview for ${applicant.name} rescheduled to ${input.scheduledAt.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
   });
   await activityLogRepository.create({
     companyId: actor.companyId,
@@ -144,8 +163,18 @@ export async function rescheduleInterview(input: RescheduleInterviewInput) {
     action: "interview.scheduled",
     entityType: "interview",
     entityId: newInterview._id,
-    message: `Interview scheduled for ${applicant.name} — ${applicant.jobId.title} (rescheduled from a prior interview)`,
+    message: `Interview scheduled for ${applicant.name} — ${applicant.jobId.title}${suffix}`,
   });
 
   return newInterview;
+}
+
+export async function rescheduleInterview(input: RescheduleInterviewInput) {
+  await connectDB();
+  const actor = await getCurrentUser();
+
+  const scheduledAt = new Date(`${input.date}T${input.time}:00`);
+  if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid date/time");
+
+  return rescheduleInterviewCore(actor, { ...input, scheduledAt });
 }

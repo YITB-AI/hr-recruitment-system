@@ -1,11 +1,14 @@
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server/repositories/applicant-followup.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
+import { jobRepository } from "@/server/repositories/job.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { isValidStatusKey } from "@/features/settings/services/status-management.service";
 import { changeApplicantStatus } from "@/features/applicants/services/applicant.service";
+import { rescheduleInterviewCore } from "@/features/interviews/services/interview.service";
 import { notifyStaffForReview } from "@/lib/staff-notify";
 import { FOLLOWUP_OUTCOME_LABELS, type FollowupOutcome } from "@/constants/followup";
+import type { InterviewType } from "@/constants/interview";
 import type { SessionUser } from "@/types/user";
 import type { AiCallWebhookInput } from "@/validators/ai-call-webhook";
 
@@ -169,13 +172,52 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
   // actually notice (the ActivityLog entry only surfaces on the applicant's
   // own Activity tab) — so each one now also notifies staff via the bell
   // icon, the same notifyStaffForReview() used by the branches above.
-  reschedule_requested: (ctx) =>
-    notifyStaffForReview(
+  // Upgraded from notify-only: when the call reported a concrete new time
+  // AND this call has a real Interview record backing it that isn't already
+  // terminal, actually supersede it via the same rescheduleInterviewCore the
+  // human "Reschedule Interview" button uses — carrying over the old
+  // interview's interviewerIds/type/duration/meetingLink as-is (an
+  // ai_screening placeholder's empty interviewerIds just carries over empty,
+  // which is fine, not a bug). Staff still get a courtesy notification
+  // either way — this is an automatic action taken on their behalf, not a
+  // silent one. Falls back to today's notify-only behavior (no concrete
+  // time given, or the reschedule attempt itself fails) rather than losing
+  // the outcome.
+  reschedule_requested: async (ctx) => {
+    if (ctx.body.proposedInterviewAt && ctx.followup.interviewId) {
+      try {
+        const oldInterview = await interviewRepository.findById(ctx.followup.companyId, ctx.followup.interviewId);
+        if (oldInterview && oldInterview.status !== "rescheduled" && oldInterview.status !== "cancelled") {
+          await rescheduleInterviewCore(ctx.actor, {
+            oldInterviewId: ctx.followup.interviewId,
+            applicantId: ctx.followup.applicantId,
+            interviewerIds: oldInterview.interviewerIds,
+            type: oldInterview.type as InterviewType,
+            scheduledAt: new Date(ctx.body.proposedInterviewAt),
+            durationMinutes: oldInterview.durationMinutes,
+            meetingLink: oldInterview.meetingLink ?? undefined,
+            notes: oldInterview.notes ?? undefined,
+            systemInitiated: true,
+          });
+          await notifyStaffForReview(
+            ctx.followup.companyId,
+            "AI call: interview automatically rescheduled",
+            `${ctx.applicantName}'s interview was automatically moved to ${new Date(ctx.body.proposedInterviewAt).toLocaleString()} based on the AI call — review if needed.`,
+            { type: "interview", priority: "normal", entityType: "applicant", entityId: ctx.followup.applicantId },
+          );
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to auto-reschedule from AI call, falling back to notify-only:", error);
+      }
+    }
+    await notifyStaffForReview(
       ctx.followup.companyId,
       "AI call: reschedule requested",
       `${ctx.applicantName} asked to reschedule the call — review and follow up.`,
       { type: "application", priority: "normal", entityType: "applicant", entityId: ctx.followup.applicantId },
-    ),
+    );
+  },
   callback_requested: (ctx) =>
     notifyStaffForReview(
       ctx.followup.companyId,
@@ -207,6 +249,24 @@ const OUTCOME_HANDLERS: Record<FollowupOutcome, (ctx: OutcomeContext) => Promise
 };
 
 export async function handleCallCompleted(followup: ApplicantFollowupRow, body: CompletedEvent): Promise<void> {
+  // Resolved before the terminal applyEvent write below (not after) so the
+  // computed salaryWithinRange can land in the same once-only write as
+  // status:"completed" — applyEvent can never successfully move this row a
+  // second time once it's terminal, so there'd be no later write to attach
+  // it to.
+  const applicant = await applicantRepository.findById(followup.companyId, followup.applicantId);
+  const job = applicant?.jobId ? await jobRepository.findById(followup.companyId, applicant.jobId._id) : null;
+
+  let salaryWithinRange: boolean | undefined;
+  if (body.salaryExpectation !== undefined && job && (job.salaryMin != null || job.salaryMax != null)) {
+    const min = job.salaryMin ?? -Infinity;
+    const max = job.salaryMax ?? Infinity;
+    salaryWithinRange = body.salaryExpectation >= min && body.salaryExpectation <= max;
+  }
+  // If the job has no configured salary range at all, salaryWithinRange
+  // stays undefined ("can't determine"), not false — no mismatch
+  // notification fires in that case.
+
   const applied = await applicantFollowupRepository.applyEvent(followup._id, {
     status: "completed",
     outcome: body.outcome,
@@ -215,14 +275,26 @@ export async function handleCallCompleted(followup: ApplicantFollowupRow, body: 
     recordingUrl: body.recordingUrl,
     proposedInterviewAt: body.proposedInterviewAt ? new Date(body.proposedInterviewAt) : undefined,
     completedAt: new Date(),
+    salaryExpectation: body.salaryExpectation,
+    salaryWithinRange,
   });
   if (!applied) return; // already terminal — duplicate/late "completed" is a no-op
 
-  const applicant = await applicantRepository.findById(followup.companyId, followup.applicantId);
   const applicantName = applicant?.name ?? "the applicant";
   const actor = systemActorFor(followup.companyId);
 
   await OUTCOME_HANDLERS[body.outcome]({ followup, applicantName, actor, body });
+
+  // Orthogonal to the outcome dispatch above — runs regardless of which
+  // outcome fired, only when the expectation is confirmed out of range.
+  if (salaryWithinRange === false) {
+    await notifyStaffForReview(
+      followup.companyId,
+      "AI call: salary expectation out of range",
+      `${applicantName} stated a salary expectation outside ${job?.title ?? "the job"}'s posted range — HR review needed.`,
+      { type: "application", priority: "high", entityType: "applicant", entityId: followup.applicantId },
+    );
+  }
 
   await logCallEvent(
     followup.companyId,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { PhoneCall } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { requestAiCallSchema, type RequestAiCallInput } from "@/validators/ai-call";
 import { requestAiCallAction } from "@/actions/ai-call";
+import { AI_CALL_TYPES, AI_CALL_TYPE_LABELS } from "@/constants/ai-call";
+
+const CALL_TYPE_ITEMS = AI_CALL_TYPES.map((t) => ({ value: t, label: AI_CALL_TYPE_LABELS[t] }));
 
 function defaultDate() {
   return new Date().toISOString().slice(0, 10);
@@ -44,6 +48,7 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<RequestAiCallInput>({
@@ -54,6 +59,7 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
       phone,
       email,
       jobTitle: jobTitle ?? "",
+      callType: "initial_screening",
       callDate: defaultDate(),
       callTime: defaultTime(),
       message: "",
@@ -106,6 +112,28 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
               <Label htmlFor="jobTitle">Job Title</Label>
               <Input id="jobTitle" {...register("jobTitle")} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Call Type</Label>
+            <Controller
+              control={control}
+              name="callType"
+              render={({ field }) => (
+                <Select items={CALL_TYPE_ITEMS} value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CALL_TYPE_ITEMS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.callType && <p className="text-xs text-destructive">{errors.callType.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

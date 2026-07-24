@@ -22,3 +22,4 @@ export * from "./Department";
 export * from "./EmployeeType";
 export * from "./RepairRunState";
 export * from "./Letterhead";
+export * from "./AiCallQuestion";
