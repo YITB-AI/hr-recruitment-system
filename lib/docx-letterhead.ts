@@ -1,18 +1,20 @@
 import PizZip from "pizzip";
+import { getImageDimensions } from "@/lib/image-dimensions";
 
-// Auto-injects a logo + company-info header into a .docx template IN
-// MEMORY at generation time, so every generated document carries the
-// company's letterhead without an admin ever having to edit the template
-// file itself in Word.
+// Auto-injects a company-uploaded letterhead IMAGE into a .docx template's
+// Word header, IN MEMORY at generation time, so every generated document
+// carries it without an admin ever having to edit the template file itself.
+// The uploaded image is a COMPLETE, pre-designed letterhead (logo + name +
+// address + whatever decoration, however the admin designed it) — this
+// embeds it as-is, full page width, aspect-ratio preserved. No separate
+// logo/text composition; the admin's image already carries whatever
+// branding it needs.
 //
-// Does NOT reuse docxtemplater-image-module-free's {{%tag}} mechanism —
-// confirmed by direct testing that this free fork only wires up image
-// substitution for the document BODY, silently leaving an empty run for
-// an image tag placed inside a header/footer part (no error, no image).
-// Instead this hand-builds the final drawing/media/relationship XML
-// directly at injection time, with the real logo bytes and real
-// name/address text already baked in — no docxtemplater render pass
-// touches the header at all.
+// Hand-builds the final drawing/media/relationship XML directly, rather
+// than relying on docxtemplater-image-module-free's {{%tag}} substitution
+// — confirmed by direct testing that this free fork only wires up image
+// replacement for the document BODY, silently leaving an empty run for an
+// image tag placed inside a header/footer part (no error, no image).
 
 const HEADER_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header";
 const IMAGE_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
@@ -26,14 +28,16 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   bmp: "image/bmp",
 };
 
-// 9525 EMU per pixel at 96 DPI — the standard OOXML drawingml conversion.
-// ~1.6in x 0.5in, sized to sit comfortably above a one-page HR letter
-// without crowding the body.
-const EMU_PER_PX = 9525;
-export const LETTERHEAD_LOGO_WIDTH_EMU = 150 * EMU_PER_PX;
-export const LETTERHEAD_LOGO_HEIGHT_EMU = 50 * EMU_PER_PX;
+// 914400 EMU = 1 inch (the standard OOXML drawingml conversion). 6.5in
+// matches a US Letter page's text width inside standard 1in margins
+// (8.5in - 1in - 1in) — the letterhead spans the full content width, height
+// auto-scaled to the image's real aspect ratio so it never looks stretched.
+const LETTERHEAD_WIDTH_EMU = Math.round(6.5 * 914400);
+// Fallback used only if the uploaded image's real dimensions can't be read
+// (corrupt/unrecognized format) — a reasonable banner aspect ratio.
+const FALLBACK_ASPECT_RATIO = 6.5 / 1.2;
 
-export type LetterheadLogo = { buffer: Buffer; extension: string };
+export type LetterheadImage = { buffer: Buffer; extension: string };
 
 function nextFreeRelId(relsXml: string): string {
   const ids = Array.from(relsXml.matchAll(/Id="rId(\d+)"/g)).map((m) => Number(m[1]));
@@ -49,16 +53,12 @@ function nextFreeHeaderFileName(zip: PizZip): string {
 
 function nextFreeMediaFileName(zip: PizZip, extension: string): string {
   let n = 1;
-  while (zip.file(`word/media/letterhead_logo${n}.${extension}`)) n++;
-  return `letterhead_logo${n}.${extension}`;
+  while (zip.file(`word/media/letterhead${n}.${extension}`)) n++;
+  return `letterhead${n}.${extension}`;
 }
 
-function escapeXml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function buildDrawingXml(relId: string): string {
-  return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${LETTERHEAD_LOGO_WIDTH_EMU}" cy="${LETTERHEAD_LOGO_HEIGHT_EMU}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="Letterhead Logo" descr="Letterhead Logo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Letterhead Logo"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${LETTERHEAD_LOGO_WIDTH_EMU}" cy="${LETTERHEAD_LOGO_HEIGHT_EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
+function buildDrawingXml(relId: string, widthEmu: number, heightEmu: number): string {
+  return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${widthEmu}" cy="${heightEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="Letterhead" descr="Letterhead"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Letterhead"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${widthEmu}" cy="${heightEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
 }
 
 /**
@@ -72,17 +72,14 @@ function buildDrawingXml(relId: string): string {
  * added to it (true multi-section documents only get the FIRST section's
  * sectPr touched — a documented, accepted simplification; real
  * single-page HR letters are always single-section). When there's no
- * `<w:sectPr>` at all — confirmed to be the common case for this app's
- * own seed/test-script-authored templates, as opposed to genuine
- * Word-saved files, which always have one — a minimal one (just the
- * headerReference; Word supplies its own defaults for pgSz/pgMar/etc.,
- * all of which are optional per the OOXML schema) is appended as the
- * last child of `<w:body>`, which is also schema-correct.
- *
- * `logo` is optional — when omitted, only the text (company name/
- * address) is injected, right-aligned in the header, no image.
+ * `<w:sectPr>` at all — the common case for this app's own seed/
+ * test-script-authored templates, as opposed to genuine Word-saved files,
+ * which always have one — a minimal one (just the headerReference; Word
+ * supplies its own defaults for pgSz/pgMar/etc., all optional per the
+ * OOXML schema) is appended as the last child of `<w:body>`, also
+ * schema-correct.
  */
-export function injectLetterheadHeader(buffer: Buffer, logo: LetterheadLogo | null, text: string): Buffer {
+export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadImage): Buffer {
   let zip: PizZip;
   try {
     zip = new PizZip(buffer);
@@ -94,6 +91,7 @@ export function injectLetterheadHeader(buffer: Buffer, logo: LetterheadLogo | nu
   const contentTypesFile = zip.file("[Content_Types].xml");
   if (!documentXmlFile || !contentTypesFile) return buffer;
   const documentXml = documentXmlFile.asText();
+  if (!documentXml.includes("</w:body>")) return buffer;
 
   const docRelsPath = "word/_rels/document.xml.rels";
   const docRelsFile = zip.file(docRelsPath);
@@ -103,9 +101,6 @@ export function injectLetterheadHeader(buffer: Buffer, logo: LetterheadLogo | nu
   if (docRelsXml.includes(HEADER_REL_TYPE)) return buffer;
 
   const sectPrMatch = documentXml.match(/<w:sectPr(\s[^>]*)?(\/?)>/);
-  const hasSectPr = sectPrMatch !== null;
-  if (!hasSectPr && !documentXml.includes("</w:body>")) return buffer; // not a readable document body at all
-
   const headerFileName = nextFreeHeaderFileName(zip);
   const headerRelId = nextFreeRelId(docRelsXml);
 
@@ -117,35 +112,24 @@ export function injectLetterheadHeader(buffer: Buffer, logo: LetterheadLogo | nu
     );
   }
 
-  // Header rels are scoped to the header part alone (rIds restart at 1
-  // there, independent of document.xml.rels), so this is always the
-  // logo's relationship id when a logo is present.
-  const headerRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${
-    logo ? `<Relationship Id="rId1" Type="${IMAGE_REL_TYPE}" Target="media/${nextFreeMediaFileName(zip, logo.extension)}"/>` : ""
-  }</Relationships>`;
-
-  let drawingXml = "";
-  if (logo) {
-    const contentType = EXTENSION_CONTENT_TYPES[logo.extension.toLowerCase()] ?? "image/png";
-    if (!contentTypesXml.includes(`Extension="${logo.extension}"`)) {
-      contentTypesXml = contentTypesXml.replace(
-        "</Types>",
-        `<Default Extension="${logo.extension}" ContentType="${contentType}"/></Types>`,
-      );
-    }
-    const mediaFileName = nextFreeMediaFileName(zip, logo.extension);
-    zip.file(`word/media/${mediaFileName}`, logo.buffer, { binary: true });
-    drawingXml = buildDrawingXml("rId1");
+  const extension = letterhead.extension.toLowerCase();
+  const contentType = EXTENSION_CONTENT_TYPES[extension] ?? "image/png";
+  if (!contentTypesXml.includes(`Extension="${extension}"`)) {
+    contentTypesXml = contentTypesXml.replace("</Types>", `<Default Extension="${extension}" ContentType="${contentType}"/></Types>`);
   }
+
+  const dimensions = getImageDimensions(letterhead.buffer);
+  const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : FALLBACK_ASPECT_RATIO;
+  const heightEmu = Math.round(LETTERHEAD_WIDTH_EMU / aspectRatio);
+
+  const mediaFileName = nextFreeMediaFileName(zip, extension);
+  zip.file(`word/media/${mediaFileName}`, letterhead.buffer, { binary: true });
+
+  const headerRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${IMAGE_REL_TYPE}" Target="media/${mediaFileName}"/></Relationships>`;
 
   const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-  <w:p>
-    <w:pPr><w:tabs><w:tab w:val="right" w:pos="9000"/></w:tabs></w:pPr>
-    <w:r>${drawingXml}</w:r>
-    <w:r><w:tab/><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>
-  </w:p>
-  <w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="AAAAAA"/></w:pBdr></w:pPr></w:p>
+  <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${buildDrawingXml("rId1", LETTERHEAD_WIDTH_EMU, heightEmu)}</w:r></w:p>
 </w:hdr>`;
 
   const newDocRelsXml = docRelsXml.replace(

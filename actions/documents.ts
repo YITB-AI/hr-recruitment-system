@@ -30,6 +30,7 @@ export async function generateDocumentAction(input: unknown): Promise<GenerateDo
       parsed.data.templateId,
       { type: "employee", id: parsed.data.employeeId },
       parsed.data.values,
+      parsed.data.letterheadId,
     );
     revalidatePath("/documents");
     return { success: true, document };
@@ -49,7 +50,12 @@ export async function generateDocumentsBulkAction(input: unknown): Promise<Gener
   }
 
   try {
-    const { batchId, results } = await generateDocumentsBulk(parsed.data.templateId, parsed.data.recipients, parsed.data.values);
+    const { batchId, results } = await generateDocumentsBulk(
+      parsed.data.templateId,
+      parsed.data.recipients,
+      parsed.data.values,
+      parsed.data.letterheadId,
+    );
     revalidatePath("/documents");
     revalidatePath("/documents/history");
     return { success: true, batchId, results };

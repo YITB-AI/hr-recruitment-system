@@ -4,7 +4,6 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { getCurrentUser } from "@/lib/current-user";
 import { verifySession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/permissions";
-import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY } from "@/constants/appearance";
 
 import type { GeneralSettingsInput, NotificationSettingsInput, AppearanceSettingsInput } from "@/validators/settings";
@@ -67,34 +66,6 @@ export async function updateGeneralSettings(input: GeneralSettingsInput): Promis
   requireRole(actor, "settings.manage");
   const updated = await settingRepository.update(actor.companyId, input);
   await logSettingsChange(actor.companyId, "general", updated._id);
-  return updated;
-}
-
-const LOGO_FOLDER = "company-logos";
-const MAX_LOGO_BYTES = 5 * 1024 * 1024;
-const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-
-// The company-wide letterhead logo (Settings > General) — self-service for
-// any company admin, distinct from the platform-admin-only Company.logoUrl
-// set via Settings > Companies (tenant management, a different concept).
-// Auto-applied to every generated document's header — see
-// lib/docx-letterhead.ts and generate-document.service.ts's withLetterhead.
-export async function uploadCompanyLogo(file: File): Promise<SettingRow> {
-  if (!ALLOWED_LOGO_TYPES.has(file.type)) throw new Error("Only PNG, JPEG, or WEBP images are supported");
-  if (file.size > MAX_LOGO_BYTES) throw new Error("Image must be smaller than 5MB");
-
-  await connectDB();
-  const actor = await getCurrentUser();
-  requireRole(actor, "settings.manage");
-
-  const existing = await settingRepository.get(actor.companyId);
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { storageKey } = await saveFile(LOGO_FOLDER, file.name, buffer);
-  const logoUrl = `/api/files/${storageKey}`;
-
-  const updated = await settingRepository.update(actor.companyId, { logoUrl });
-  if (existing.logoUrl) await deleteFileByKey(existing.logoUrl.replace("/api/files/", ""));
-  await logSettingsChange(actor.companyId, "letterhead logo", updated._id);
   return updated;
 }
 

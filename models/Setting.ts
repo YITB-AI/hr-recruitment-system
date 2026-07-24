@@ -14,9 +14,6 @@ const settingSchema = new Schema(
     timezone: { type: String, default: "Asia/Karachi" },
     dateFormat: { type: String, default: "MMM D, YYYY" },
     logoUrl: { type: String },
-    // Company mailing/return address, shown alongside logoUrl in the
-    // auto-injected document letterhead — see lib/docx-letterhead.ts.
-    companyAddress: { type: String, trim: true },
     features: {
       aiResumeAnalysis: { type: Boolean, default: true },
       smsNotifications: { type: Boolean, default: true },

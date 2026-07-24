@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { GeneralSettingsForm } from "@/features/settings/components/general-settings-form";
 import { NotificationSettingsForm } from "@/features/settings/components/notification-settings-form";
 import { NotificationPreferencesForm } from "@/features/notifications/components/notification-preferences-form";
+import { LetterheadManagementPanel } from "@/features/settings/components/letterhead-management-panel";
 import { AppearanceSettingsForm } from "@/features/settings/components/appearance-settings-form";
 import { UsersTable } from "@/features/settings/components/users-table";
 import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-table";
@@ -38,6 +39,7 @@ import { listDepartments } from "@/features/settings/services/department.service
 import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
 import { getOwnNotificationPreferences } from "@/features/notifications/services/notification.service";
+import { listLetterheads } from "@/features/settings/services/letterhead.service";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { getCurrentUser } from "@/lib/current-user";
@@ -73,6 +75,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     departments,
     employeeTypes,
     notificationPreferences,
+    letterheads,
   ] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
@@ -89,6 +92,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isAdmin ? listDepartments() : Promise.resolve(null),
     isAdmin ? listEmployeeTypes() : Promise.resolve(null),
     getOwnNotificationPreferences(actor.companyId, actor.id),
+    listLetterheads(),
   ]);
   const allPermissionActions = getAllPermissionActions();
 
@@ -163,8 +167,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
           <Card className="flex-1">
             <CardContent className="pt-6">
-              <TabsContent value="general">
+              <TabsContent value="general" className="space-y-8">
                 <GeneralSettingsForm settings={settings} />
+                <div className="border-t pt-6">
+                  <LetterheadManagementPanel letterheads={letterheads} />
+                </div>
               </TabsContent>
 
               <TabsContent value="appearance">

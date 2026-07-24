@@ -22,6 +22,7 @@ export const generateDocumentSchema = z.object({
   templateId: z.string().min(1, "Select a template"),
   employeeId: z.string().min(1, "Select an employee"),
   values: z.record(z.string(), fieldValueSchema),
+  letterheadId: z.string().optional(),
 });
 
 export type GenerateDocumentInput = z.infer<typeof generateDocumentSchema>;
@@ -38,6 +39,7 @@ export const bulkGenerateDocumentSchema = z.object({
     )
     .min(1, "Select at least one recipient"),
   values: z.record(z.string(), fieldValueSchema),
+  letterheadId: z.string().optional(),
 });
 
 export type BulkGenerateDocumentInput = z.infer<typeof bulkGenerateDocumentSchema>;

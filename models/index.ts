@@ -21,3 +21,4 @@ export * from "./Note";
 export * from "./Department";
 export * from "./EmployeeType";
 export * from "./RepairRunState";
+export * from "./Letterhead";

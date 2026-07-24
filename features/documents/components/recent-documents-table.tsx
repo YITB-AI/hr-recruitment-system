@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { deleteGeneratedDocumentAction } from "@/actions/documents";
+import { withDownloadFilename } from "@/lib/download-url";
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
 
 const STATUS_VARIANT: Record<string, "secondary" | "outline"> = {
@@ -84,16 +85,20 @@ export function RecentDocumentsTable({ documents }: { documents: GeneratedDocume
             </td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-1">
-                {(doc.pdfUrl || doc.fileUrl) && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    nativeButton={false}
-                    render={<a href={(doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#"} download />}
-                  >
-                    <Download className="size-4" />
-                  </Button>
-                )}
+                {(doc.pdfUrl || doc.fileUrl) && (() => {
+                  const downloadName = doc.pdfStatus === "ready" ? doc.fileName.replace(/\.docx$/, ".pdf") : doc.fileName;
+                  const rawUrl = (doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#";
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      nativeButton={false}
+                      render={<a href={rawUrl === "#" ? rawUrl : withDownloadFilename(rawUrl, downloadName)} download={downloadName} />}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                  );
+                })()}
                 <DeleteButton id={doc._id} />
               </div>
             </td>

@@ -18,6 +18,7 @@ import { WizardSteps } from "@/features/documents/components/wizard-steps";
 import { TemplateFieldRenderer, type FieldValue } from "@/features/documents/components/template-field-input";
 import { BulkGenerateResults } from "@/features/documents/components/bulk-generate-results";
 import { generateDocumentAction, generateDocumentsBulkAction } from "@/actions/documents";
+import { withDownloadFilename } from "@/lib/download-url";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
 import { formatDateWithPreset } from "@/lib/date-format";
@@ -28,6 +29,7 @@ import type { ApplicantPickerRow } from "@/server/repositories/applicant.reposit
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
 import type { BulkGenerateResultItem, CalculatedFieldValue } from "@/features/documents/services/generate-document.service";
 import type { DepartmentRow } from "@/server/repositories/department.repository";
+import type { LetterheadRow } from "@/server/repositories/letterhead.repository";
 
 const CALCULATION_TYPE_ITEMS = CALCULATION_TYPES.map((type) => ({ value: type, label: CALCULATION_TYPE_LABELS[type] }));
 const DEFAULT_CALCULATED_CONFIG: CalculatedFieldValue = { calculationType: "fixed", value: 0 };
@@ -37,6 +39,7 @@ type GenerateDocumentWizardProps = {
   employees: EmployeeRow[];
   applicants: ApplicantPickerRow[];
   departments: DepartmentRow[];
+  letterheads: LetterheadRow[];
   initialTemplateId?: string;
   initialEmployeeId?: string;
 };
@@ -48,10 +51,15 @@ type SelectedRecipient = { type: "employee" | "applicant"; id: string; name: str
 // types values that aren't already on file (termination date, reason, etc).
 // (Bulk mode does the equivalent per-recipient server-side — see
 // resolveKnownFieldValue in generate-document.service.ts.)
-// dateFormat is the field's own override (only meaningful for a "date"-type
-// field) — omitted for every other field, which keeps the original
-// hardcoded long-form milestone preview unchanged.
-function autoFillFromEmployee(key: string, employee: EmployeeRow, dateFormat?: string): string | undefined {
+//
+// Date-type fields are ALWAYS filled in ISO (YYYY-MM-DD) here, regardless
+// of the field's own configured dateFormat — a native <input type="date">
+// silently rejects/blanks any non-ISO value, which made these fields look
+// empty in step 2 even though the correct value was already set (it still
+// generated correctly, since the server reformats whatever string it's
+// given using the field's real preset). formatFieldValueForPreview applies
+// the field's actual preset for the human-readable step-3 preview instead.
+function autoFillFromEmployee(key: string, employee: EmployeeRow): string | undefined {
   switch (key.toLowerCase()) {
     case "employee_name":
     case "name":
@@ -72,7 +80,7 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow, dateFormat?: s
     case "gross_salary":
       return String(employee.grossSalary);
     case "joining_date":
-      return employee.joiningDate ? formatDateWithPreset(new Date(employee.joiningDate), dateFormat) : undefined;
+      return employee.joiningDate ? formatDateWithPreset(new Date(employee.joiningDate), "YYYY-MM-DD") : undefined;
     case "probation_end_date":
     case "confirmation_date":
     case "increment_eligibility_date":
@@ -81,13 +89,13 @@ function autoFillFromEmployee(key: string, employee: EmployeeRow, dateFormat?: s
       const milestones = getEmployeeMilestones(new Date(employee.joiningDate), employee.employmentType);
       switch (key.toLowerCase()) {
         case "probation_end_date":
-          return formatMilestoneDate(milestones.probationEndDate, dateFormat);
+          return formatMilestoneDate(milestones.probationEndDate, "YYYY-MM-DD");
         case "confirmation_date":
-          return formatMilestoneDate(milestones.confirmationDate, dateFormat);
+          return formatMilestoneDate(milestones.confirmationDate, "YYYY-MM-DD");
         case "increment_eligibility_date":
-          return formatMilestoneDate(milestones.incrementEligibilityDate, dateFormat);
+          return formatMilestoneDate(milestones.incrementEligibilityDate, "YYYY-MM-DD");
         case "contract_renewal_date":
-          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, dateFormat) : undefined;
+          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, "YYYY-MM-DD") : undefined;
         default:
           return undefined;
       }
@@ -103,13 +111,20 @@ function hasPreviewableValue(field: { type: string }, value: FieldValue | undefi
   return typeof value === "string" && value.trim() !== "";
 }
 
-function formatFieldValueForPreview(field: { type: string }, value: FieldValue | undefined): string {
+function formatFieldValueForPreview(field: { type: string; dateFormat?: string }, value: FieldValue | undefined): string {
   if (field.type === "conditional") return value ? "Yes" : "No";
   if (field.type === "table") {
     const rows = Array.isArray(value) ? value : [];
     return rows.length > 0 ? `${rows.length} row${rows.length === 1 ? "" : "s"}` : "—";
   }
   if (field.type === "image") return typeof value === "string" && value ? "Uploaded" : "—";
+  if (field.type === "date" && typeof value === "string" && value) {
+    // value is always ISO here (see autoFillFromEmployee) — reformat with
+    // the field's own preset for a human-readable preview, matching what
+    // the actual generated document will show.
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : formatDateWithPreset(parsed, field.dateFormat);
+  }
   return typeof value === "string" && value ? value : "—";
 }
 
@@ -118,12 +133,18 @@ export function GenerateDocumentWizard({
   employees,
   applicants,
   departments,
+  letterheads,
   initialTemplateId,
   initialEmployeeId,
 }: GenerateDocumentWizardProps) {
   const [step, setStep] = useState(1);
   const [templateId, setTemplateId] = useState(initialTemplateId ?? "");
   const [employeeId, setEmployeeId] = useState(initialEmployeeId ?? "");
+  // No selector needed when there's 0 or 1 letterhead — 1 is applied
+  // automatically server-side (see resolveLetterhead), 0 means nothing to
+  // pick. A selector only appears (and is required) when there's real
+  // ambiguity, i.e. more than one uploaded.
+  const [letterheadId, setLetterheadId] = useState(letterheads.length === 1 ? letterheads[0]._id : "");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<SelectedRecipient[]>([]);
   const [recipientFilter, setRecipientFilter] = useState("");
@@ -140,6 +161,7 @@ export function GenerateDocumentWizard({
   // an `items` lookup — without this it showed the employee/template's raw
   // ObjectId instead of its name.
   const templateItems = useMemo(() => templates.map((t) => ({ value: t._id, label: t.name })), [templates]);
+  const letterheadItems = useMemo(() => letterheads.map((l) => ({ value: l._id, label: l.name })), [letterheads]);
   const employeeItems = useMemo(
     () => employees.map((e) => ({ value: e._id, label: `${e.name} — ${e.designation}` })),
     [employees],
@@ -197,7 +219,7 @@ export function GenerateDocumentWizard({
         next[field.key] = false;
       } else {
         next[field.key] =
-          bulkMode ? "" : (selectedEmployee && autoFillFromEmployee(field.key, selectedEmployee, field.dateFormat)) ?? "";
+          bulkMode ? "" : (selectedEmployee && autoFillFromEmployee(field.key, selectedEmployee)) ?? "";
       }
     }
     setValues(next);
@@ -251,7 +273,12 @@ export function GenerateDocumentWizard({
     if (!selectedTemplate || !selectedEmployee) return;
 
     startGenerating(async () => {
-      const response = await generateDocumentAction({ templateId, employeeId, values: buildValuesPayload() });
+      const response = await generateDocumentAction({
+        templateId,
+        employeeId,
+        values: buildValuesPayload(),
+        letterheadId: letterheadId || undefined,
+      });
       if (!response.success) {
         toast.error(response.error);
         return;
@@ -270,6 +297,7 @@ export function GenerateDocumentWizard({
         templateId,
         recipients: selectedRecipients,
         values: buildValuesPayload(),
+        letterheadId: letterheadId || undefined,
       });
       if (!response.success) {
         toast.error(response.error);
@@ -382,6 +410,24 @@ export function GenerateDocumentWizard({
             </div>
           )}
 
+          {letterheads.length > 1 && (
+            <div className="space-y-1.5">
+              <Label>Letterhead</Label>
+              <Select items={letterheadItems} value={letterheadId} onValueChange={(v) => setLetterheadId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select which letterhead to use" />
+                </SelectTrigger>
+                <SelectContent>
+                  {letterheads.map((l) => (
+                    <SelectItem key={l._id} value={l._id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex items-start gap-2 rounded-lg bg-accent/60 p-3 text-sm text-accent-foreground">
             <Info className="mt-0.5 size-4 shrink-0" />
             {bulkMode
@@ -391,7 +437,11 @@ export function GenerateDocumentWizard({
 
           <div className="flex justify-end">
             <Button
-              disabled={!templateId || (bulkMode ? selectedRecipients.length === 0 : !employeeId)}
+              disabled={
+                !templateId ||
+                (bulkMode ? selectedRecipients.length === 0 : !employeeId) ||
+                (letterheads.length > 1 && !letterheadId)
+              }
               onClick={() => setStep(2)}
             >
               Next: Fill Details
@@ -583,13 +633,19 @@ export function GenerateDocumentWizard({
             <p className="text-sm text-muted-foreground">{result.fileName}</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              nativeButton={false}
-              render={<a href={(result.pdfStatus === "ready" && result.pdfUrl) || result.fileUrl || "#"} download />}
-            >
-              <Download className="size-4" />
-              {result.pdfStatus === "ready" ? "Download PDF" : "Download"}
-            </Button>
+            {(() => {
+              const downloadName = result.pdfStatus === "ready" ? result.fileName.replace(/\.docx$/, ".pdf") : result.fileName;
+              const rawUrl = (result.pdfStatus === "ready" && result.pdfUrl) || result.fileUrl || "#";
+              return (
+                <Button
+                  nativeButton={false}
+                  render={<a href={rawUrl === "#" ? rawUrl : withDownloadFilename(rawUrl, downloadName)} download={downloadName} />}
+                >
+                  <Download className="size-4" />
+                  {result.pdfStatus === "ready" ? "Download PDF" : "Download"}
+                </Button>
+              );
+            })()}
             <Button variant="outline" onClick={reset}>
               <RotateCcw className="size-4" />
               Generate Another

@@ -1,6 +1,7 @@
 import { Download, FileText } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { withDownloadFilename } from "@/lib/download-url";
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
 
 export function ApplicantDocumentsTab({ documents }: { documents: GeneratedDocumentRow[] }) {
@@ -38,15 +39,19 @@ export function ApplicantDocumentsTab({ documents }: { documents: GeneratedDocum
             <Badge variant="outline" className="capitalize">
               {doc.status}
             </Badge>
-            {(doc.pdfUrl || doc.fileUrl) && (
-              <a
-                href={(doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#"}
-                download
-                className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <Download className="size-4" />
-              </a>
-            )}
+            {(doc.pdfUrl || doc.fileUrl) && (() => {
+              const downloadName = doc.pdfStatus === "ready" ? doc.fileName.replace(/\.docx$/, ".pdf") : doc.fileName;
+              const rawUrl = (doc.pdfStatus === "ready" && doc.pdfUrl) || doc.fileUrl || "#";
+              return (
+                <a
+                  href={rawUrl === "#" ? rawUrl : withDownloadFilename(rawUrl, downloadName)}
+                  download={downloadName}
+                  className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Download className="size-4" />
+                </a>
+              );
+            })()}
           </div>
         </li>
       ))}

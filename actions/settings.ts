@@ -10,7 +10,6 @@ import {
   updateGeneralSettings,
   updateNotificationSettings,
   updateAppearanceSettings,
-  uploadCompanyLogo,
 } from "@/features/settings/services/settings.service";
 import { assignJobToCompany } from "@/features/settings/services/job-mapping.service";
 import { repairOrphanedApplicant } from "@/features/settings/services/data-repair.service";
@@ -59,20 +58,6 @@ export async function updateAppearanceSettingsAction(input: unknown): Promise<Ac
   // Appearance is applied on <html> in the root layout, so every route needs
   // to re-render, not just /settings.
   revalidatePath("/", "layout");
-  return { success: true };
-}
-
-export async function uploadCompanyLogoAction(formData: FormData): Promise<ActionResult> {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { success: false, error: "Choose an image file first" };
-
-  try {
-    await uploadCompanyLogo(file);
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Failed to upload logo" };
-  }
-
-  revalidatePath("/settings");
   return { success: true };
 }
 

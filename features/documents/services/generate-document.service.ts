@@ -5,6 +5,7 @@ import { employeeRepository } from "@/server/repositories/employee.repository";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { settingRepository } from "@/server/repositories/setting.repository";
+import { letterheadRepository } from "@/server/repositories/letterhead.repository";
 import {
   generatedDocumentRepository,
   type GeneratedDocumentRow,
@@ -309,7 +310,12 @@ async function generateOne(
   // per-recipient work needed for it here.
   const outputBuffer = renderTemplate(templateBuffer, resolvedValues, images);
 
-  const fileName = `${template.name.replace(/\s+/g, "_")}_${recipientRecord.name.replace(/\s+/g, "_")}.docx`;
+  // Employee name + template name + date, per the requested naming
+  // convention — sanitized the same way template.name/recipient.name
+  // already were, so nothing downstream (storage, download links) needs
+  // to special-case this format.
+  const generatedDateStamp = new Date().toISOString().slice(0, 10);
+  const fileName = `${recipientRecord.name.replace(/\s+/g, "_")}_${template.name.replace(/\s+/g, "_")}_${generatedDateStamp}.docx`;
   const { storageKey } = await saveFile(DOCUMENT_FOLDER, fileName, outputBuffer);
 
   const created = await generatedDocumentRepository.create(actor.companyId, {
@@ -395,34 +401,43 @@ export async function uploadTemplateImage(buffer: Buffer, originalName: string):
   return `/api/files/${storageKey}`;
 }
 
+// Resolves which letterhead (if any) applies to this generate call.
+// Explicit letterheadId wins when given (and belongs to this company);
+// otherwise, if exactly one letterhead exists for the company, it's used
+// automatically — the UI only needs to ask the admin to pick when there's
+// real ambiguity (more than one uploaded). No letterheads at all is a
+// silent no-op, matching this app's "never fabricate/guess" convention.
+async function resolveLetterhead(companyId: string, letterheadId?: string): Promise<{ buffer: Buffer; extension: string } | null> {
+  let letterhead;
+  if (letterheadId) {
+    letterhead = await letterheadRepository.findById(companyId, letterheadId);
+  } else {
+    const all = await letterheadRepository.findAllForCompany(companyId);
+    letterhead = all.length === 1 ? all[0] : null; // ambiguous with no explicit choice — don't guess
+  }
+  if (!letterhead) return null;
+
+  return {
+    buffer: await readFileByKey(letterhead.imageUrl.replace("/api/files/", "")),
+    extension: path.extname(letterhead.imageUrl).replace(".", "") || "png",
+  };
+}
+
 // Computed once per generate call (single or whole bulk batch), never per
 // recipient — injecting the header is pure/recipient-independent, and
-// re-fetching the same logo bytes N times for an N-recipient batch would
-// be wasted work. Returns templateBuffer unchanged when the company hasn't
-// uploaded a letterhead logo yet (Settings > General) — documents render
-// exactly as before in that case. The company name still shows (text-only
-// header) even with no logo, as long as a name is set.
-async function withLetterhead(
-  templateBuffer: Buffer,
-  setting: { logoUrl: string | null; companyName: string; companyAddress: string | null },
-): Promise<Buffer> {
-  const text = [setting.companyName, setting.companyAddress].filter(Boolean).join(" — ");
-  if (!text) return templateBuffer;
-
-  const logo = setting.logoUrl
-    ? {
-        buffer: await readFileByKey(setting.logoUrl.replace("/api/files/", "")),
-        extension: path.extname(setting.logoUrl).replace(".", "") || "png",
-      }
-    : null;
-
-  return injectLetterheadHeader(templateBuffer, logo, text);
+// re-fetching the same image bytes N times for an N-recipient batch would
+// be wasted work. Returns templateBuffer unchanged when no letterhead
+// applies — documents render exactly as before in that case.
+async function withLetterhead(templateBuffer: Buffer, companyId: string, letterheadId?: string): Promise<Buffer> {
+  const letterhead = await resolveLetterhead(companyId, letterheadId);
+  return letterhead ? injectLetterheadHeader(templateBuffer, letterhead) : templateBuffer;
 }
 
 export async function generateDocument(
   templateId: string,
   recipient: DocumentRecipient,
   values: FieldValueMap,
+  letterheadId?: string,
 ): Promise<GeneratedDocumentRow> {
   await connectDB();
   const actor = await getCurrentUser();
@@ -435,7 +450,7 @@ export async function generateDocument(
   ]);
   if (!template) throw new Error("Template not found");
   const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
-  const templateBuffer = await withLetterhead(rawTemplateBuffer, setting);
+  const templateBuffer = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
 
   const created = await generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
@@ -461,6 +476,7 @@ export async function generateDocumentsBulk(
   templateId: string,
   recipients: DocumentRecipient[],
   values: FieldValueMap,
+  letterheadId?: string,
 ): Promise<{ batchId: string; results: BulkGenerateResultItem[] }> {
   await connectDB();
   const actor = await getCurrentUser();
@@ -477,7 +493,7 @@ export async function generateDocumentsBulk(
   // storage per recipient (previously: N identical network fetches for an
   // N-recipient batch).
   const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
-  const templateBuffer = await withLetterhead(rawTemplateBuffer, setting);
+  const templateBuffer = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
 
   const batchId = randomUUID();
   const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
