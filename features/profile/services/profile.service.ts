@@ -187,11 +187,14 @@ async function notifyAdminsOfEmailChange(
     const companyName = company?.name ?? "your company";
     await Promise.all(
       admins.map((admin) =>
-        sendEmail({
-          to: admin.email,
-          subject: `🔔 Email change for ${actorName}`,
-          html: emailChangeAdminNoticeHtml({ actorName, companyName, oldEmail, newEmail }),
-        }),
+        sendEmail(
+          {
+            to: admin.email,
+            subject: `🔔 Email change for ${actorName}`,
+            html: emailChangeAdminNoticeHtml({ actorName, companyName, oldEmail, newEmail }),
+          },
+          companyId,
+        ),
       ),
     );
   } catch (error) {
@@ -233,11 +236,14 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
     expiresAt: new Date(Date.now() + CODE_TTL_MS),
   });
 
-  const sendResult = await sendEmail({
-    to: normalizedEmail,
-    subject: "🔐 Your verification code",
-    html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
-  });
+  const sendResult = await sendEmail(
+    {
+      to: normalizedEmail,
+      subject: "🔐 Your verification code",
+      html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
+    },
+    actor.companyId,
+  );
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
   await activityLogRepository.create({
@@ -277,11 +283,14 @@ export async function resendEmailChangeCode(): Promise<ProfileActionResult> {
     new Date(Date.now() + CODE_TTL_MS),
   );
 
-  const sendResult = await sendEmail({
-    to: user.pendingEmail,
-    subject: "🔐 Your verification code",
-    html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
-  });
+  const sendResult = await sendEmail(
+    {
+      to: user.pendingEmail,
+      subject: "🔐 Your verification code",
+      html: otpCodeEmailHtml({ userName: actor.name, code, purpose: "confirm your new email address" }),
+    },
+    actor.companyId,
+  );
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
   return { success: true };
@@ -367,11 +376,14 @@ export async function requestOwnEmailVerification(): Promise<ProfileActionResult
     new Date(Date.now() + CODE_TTL_MS),
   );
 
-  const sendResult = await sendEmail({
-    to: user.email,
-    subject: "🔐 Verify your email",
-    html: otpCodeEmailHtml({ userName: actor.name, code }),
-  });
+  const sendResult = await sendEmail(
+    {
+      to: user.email,
+      subject: "🔐 Verify your email",
+      html: otpCodeEmailHtml({ userName: actor.name, code }),
+    },
+    actor.companyId,
+  );
   if (!sendResult.ok) return { success: false, error: `Failed to send the verification email: ${sendResult.error}` };
 
   return { success: true };

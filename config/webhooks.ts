@@ -27,22 +27,34 @@ const WEBHOOK_ENV_VAR: Record<WebhookAction, string> = {
   "sync-all": "N8N_WEBHOOK_SYNC_ALL",
 };
 
-export function getWebhookUrl(action: WebhookAction): string {
+// Per-company override first (Settings > Integrations), falling back to the
+// shared global env var — lets a client run their own n8n workflow without
+// every other company's webhook config changing, while a company that
+// hasn't configured anything yet keeps working exactly as before this
+// existed. companyIntegrationConfigRepository is imported lazily (dynamic
+// import) to avoid a module-load-time dependency on Mongoose model
+// registration for callers that only need the pure env-var path (none exist
+// today, but keeps this module framework-agnostic the way it was before).
+export async function getWebhookUrl(action: WebhookAction, companyId: string): Promise<string> {
+  const { companyIntegrationConfigRepository } = await import("@/server/repositories/company-integration-config.repository");
+  const override = await companyIntegrationConfigRepository.getWebhookUrl(companyId, action);
   const envVar = WEBHOOK_ENV_VAR[action];
-  const url = process.env[envVar];
+  const url = override || process.env[envVar];
 
   if (!url) {
     throw new Error(
-      `${envVar} is not set. Add your n8n Cloud webhook URL for "${action}" to .env.local.`,
+      `No webhook URL configured for "${action}" — set it in Settings > Integrations, or add ${envVar} to .env.local.`,
     );
   }
 
   return url;
 }
 
-export function getWebhookAuthHeader(): { name: string; value: string } | null {
+export async function getWebhookAuthHeader(companyId: string): Promise<{ name: string; value: string } | null> {
+  const { companyIntegrationConfigRepository } = await import("@/server/repositories/company-integration-config.repository");
   const name = process.env.N8N_WEBHOOK_AUTH_HEADER_NAME;
-  const value = process.env.N8N_WEBHOOK_AUTH_HEADER_VALUE;
+  const overrideValue = await companyIntegrationConfigRepository.getWebhookAuthHeaderValue(companyId);
+  const value = overrideValue || process.env.N8N_WEBHOOK_AUTH_HEADER_VALUE;
   return name && value ? { name, value } : null;
 }
 

@@ -57,17 +57,20 @@ export async function createCompanyUser(input: CreateUserInput): Promise<CreateC
   // whoever added this user can always relay them manually if delivery fails.
   try {
     const company = await companyRepository.findById(actor.companyId);
-    const result = await sendEmail({
-      to: email,
-      subject: "🎉 Welcome to HR Platform — your account details",
-      html: welcomeEmailHtml({
-        recipientName: user.name,
-        companyName: company?.name ?? "your company",
-        companySlug: company?.slug ?? "",
-        email,
-        tempPassword,
-      }),
-    });
+    const result = await sendEmail(
+      {
+        to: email,
+        subject: "🎉 Welcome to HR Platform — your account details",
+        html: welcomeEmailHtml({
+          recipientName: user.name,
+          companyName: company?.name ?? "your company",
+          companySlug: company?.slug ?? "",
+          email,
+          tempPassword,
+        }),
+      },
+      actor.companyId,
+    );
     if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
   } catch (error) {
     console.error("Welcome email failed to send:", error);

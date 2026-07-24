@@ -76,17 +76,20 @@ async function main() {
   // guaranteed fallback delivery path either way.
   let emailSent = false;
   try {
-    const result = await sendEmail({
-      to: admin.email,
-      subject: "🎉 Welcome to HR Platform — your account details",
-      html: welcomeEmailHtml({
-        recipientName: admin.name,
-        companyName: company.name,
-        companySlug: company.slug,
-        email: admin.email,
-        tempPassword,
-      }),
-    });
+    const result = await sendEmail(
+      {
+        to: admin.email,
+        subject: "🎉 Welcome to HR Platform — your account details",
+        html: welcomeEmailHtml({
+          recipientName: admin.name,
+          companyName: company.name,
+          companySlug: company.slug,
+          email: admin.email,
+          tempPassword,
+        }),
+      },
+      company._id.toString(),
+    );
     emailSent = result.ok;
     if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
   } catch (error) {

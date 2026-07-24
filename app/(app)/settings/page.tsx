@@ -12,6 +12,7 @@ import {
   Briefcase,
   AlertTriangle,
   MessageCircleQuestion,
+  Plug,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +31,7 @@ import { StatusManagementPanel } from "@/features/settings/components/status-man
 import { DepartmentManagementPanel } from "@/features/settings/components/department-management-panel";
 import { EmployeeTypeManagementPanel } from "@/features/settings/components/employee-type-management-panel";
 import { AiCallQuestionManagementPanel } from "@/features/settings/components/ai-call-question-management-panel";
+import { CompanyIntegrationConfigPanel } from "@/features/settings/components/company-integration-config-panel";
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
@@ -40,6 +42,7 @@ import { listStatuses } from "@/features/settings/services/status-management.ser
 import { listDepartments } from "@/features/settings/services/department.service";
 import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
 import { listAiCallQuestions } from "@/features/settings/services/ai-call-question.service";
+import { getCompanyIntegrationConfig } from "@/features/settings/services/company-integration-config.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
 import { getOwnNotificationPreferences } from "@/features/notifications/services/notification.service";
 import { listLetterheads } from "@/features/settings/services/letterhead.service";
@@ -78,6 +81,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     departments,
     employeeTypes,
     aiCallQuestions,
+    integrationConfig,
     notificationPreferences,
     letterheads,
   ] = await Promise.all([
@@ -96,6 +100,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isAdmin ? listDepartments() : Promise.resolve(null),
     isAdmin ? listEmployeeTypes() : Promise.resolve(null),
     isAdmin ? listAiCallQuestions() : Promise.resolve(null),
+    isAdmin ? getCompanyIntegrationConfig() : Promise.resolve(null),
     getOwnNotificationPreferences(actor.companyId, actor.id),
     listLetterheads(),
   ]);
@@ -154,6 +159,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <TabsTrigger value="ai-call-questions" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
                 <MessageCircleQuestion className="size-4" />
                 AI Call Questions
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="integrations" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <Plug className="size-4" />
+                Integrations
               </TabsTrigger>
             )}
             {isPlatformAdmin && (
@@ -239,6 +250,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               {isAdmin && aiCallQuestions && (
                 <TabsContent value="ai-call-questions">
                   <AiCallQuestionManagementPanel questions={aiCallQuestions} />
+                </TabsContent>
+              )}
+
+              {isAdmin && integrationConfig && (
+                <TabsContent value="integrations">
+                  <CompanyIntegrationConfigPanel config={integrationConfig} />
                 </TabsContent>
               )}
 

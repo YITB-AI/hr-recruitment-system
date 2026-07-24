@@ -234,17 +234,22 @@ export async function createCompanyWithAdmin(input: {
   // Best-effort — the credentials are still returned below regardless, so
   // the platform admin can always relay them manually if delivery fails.
   try {
-    const result = await sendEmail({
-      to: email,
-      subject: "🎉 Welcome to HR Platform — your account details",
-      html: welcomeEmailHtml({
-        recipientName: input.adminName,
-        companyName: input.name,
-        companySlug: slug,
-        email,
-        tempPassword,
-      }),
-    });
+    // The NEW company's id, not actor.companyId (the platform admin's own
+    // company) — this email is on behalf of the company just created.
+    const result = await sendEmail(
+      {
+        to: email,
+        subject: "🎉 Welcome to HR Platform — your account details",
+        html: welcomeEmailHtml({
+          recipientName: input.adminName,
+          companyName: input.name,
+          companySlug: slug,
+          email,
+          tempPassword,
+        }),
+      },
+      companyDoc._id.toString(),
+    );
     if (!result.ok) console.error(`Welcome email failed to send: ${result.error}`);
   } catch (error) {
     console.error("Welcome email failed to send:", error);
