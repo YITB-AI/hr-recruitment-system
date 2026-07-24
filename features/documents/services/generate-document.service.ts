@@ -437,6 +437,13 @@ async function resolveLetterhead(companyId: string, letterheadId?: string): Prom
 // alongside the injected buffer (not just the buffer) because the PDF
 // conversion step below can't read a .docx header at all — it needs the
 // raw image bytes to reproduce the same letterhead a different way.
+//
+// injectLetterheadHeader returns templateBuffer BACK UNCHANGED (same
+// reference) when the template already has its own header — a template
+// like "Conformation Letter" that ships its own full-page design must
+// never get the centrally-managed letterhead overlaid either, or the PDF
+// path (which can't see that a no-op happened otherwise) would show it
+// even though the .docx correctly doesn't.
 async function withLetterhead(
   templateBuffer: Buffer,
   companyId: string,
@@ -444,7 +451,9 @@ async function withLetterhead(
 ): Promise<{ buffer: Buffer; letterheadImage: { buffer: Buffer; extension: string } | null }> {
   const letterhead = await resolveLetterhead(companyId, letterheadId);
   if (!letterhead) return { buffer: templateBuffer, letterheadImage: null };
-  return { buffer: injectLetterheadHeader(templateBuffer, letterhead), letterheadImage: letterhead };
+  const injectedBuffer = injectLetterheadHeader(templateBuffer, letterhead);
+  const wasInjected = injectedBuffer !== templateBuffer;
+  return { buffer: injectedBuffer, letterheadImage: wasInjected ? letterhead : null };
 }
 
 export async function generateDocument(

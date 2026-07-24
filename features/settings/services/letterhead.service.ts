@@ -4,10 +4,11 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { renderPdfFirstPageToPng } from "@/lib/pdf-to-image";
 
 const LETTERHEAD_FOLDER = "letterheads";
 const MAX_LETTERHEAD_BYTES = 5 * 1024 * 1024;
-const ALLOWED_LETTERHEAD_TYPES = new Set(["image/png", "image/jpeg"]);
+const ALLOWED_LETTERHEAD_TYPES = new Set(["image/png", "image/jpeg", "application/pdf"]);
 
 // Read-only — every role needs to see the available letterheads to pick
 // one when generating a document, so this is deliberately ungated (same
@@ -19,15 +20,35 @@ export async function listLetterheads(): Promise<LetterheadRow[]> {
 }
 
 export async function uploadLetterhead(name: string, file: File): Promise<LetterheadRow> {
-  if (!ALLOWED_LETTERHEAD_TYPES.has(file.type)) throw new Error("Only PNG or JPEG images are supported");
-  if (file.size > MAX_LETTERHEAD_BYTES) throw new Error("Image must be smaller than 5MB");
+  if (!ALLOWED_LETTERHEAD_TYPES.has(file.type)) throw new Error("Only PNG, JPEG, or PDF files are supported");
+  if (file.size > MAX_LETTERHEAD_BYTES) throw new Error("File must be smaller than 5MB");
 
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { storageKey } = await saveFile(LETTERHEAD_FOLDER, file.name, buffer);
+  const isPdf = file.type === "application/pdf";
+  const rawBuffer = Buffer.from(await file.arrayBuffer());
+  // The rest of the letterhead pipeline (lib/docx-letterhead.ts embedding
+  // into the .docx header, lib/pdf-conversion.ts prepending into the PDF
+  // preview) only ever deals with a raster image — a PDF upload is
+  // rasterized once, here, at upload time, so nothing downstream needs to
+  // know a PDF was ever involved.
+  let buffer: Buffer;
+  let storageFileName: string;
+  if (isPdf) {
+    try {
+      buffer = await renderPdfFirstPageToPng(rawBuffer);
+    } catch {
+      throw new Error("Couldn't render this PDF — make sure it's a valid, unencrypted PDF file");
+    }
+    storageFileName = "letterhead.png";
+  } else {
+    buffer = rawBuffer;
+    storageFileName = file.name;
+  }
+
+  const { storageKey } = await saveFile(LETTERHEAD_FOLDER, storageFileName, buffer);
   const imageUrl = `/api/files/${storageKey}`;
 
   const letterhead = await letterheadRepository.create({

@@ -55,9 +55,9 @@ export function LetterheadManagementPanel({ letterheads }: { letterheads: Letter
         <div>
           <h3 className="text-sm font-semibold">Letterheads</h3>
           <p className="text-xs text-muted-foreground">
-            Upload one or more complete letterhead images (logo + name + address, however you design them). If you upload just
-            one, it's used automatically on every generated document. Upload more than one and you'll be asked which to use each
-            time you generate a document.
+            Upload one or more complete letterheads — an image or a PDF (its first page is used) — with your logo, name, and
+            address however you design them. If you upload just one, it&apos;s used automatically on every generated document.
+            Upload more than one and you&apos;ll be asked which to use each time you generate a document.
           </p>
         </div>
         <Button size="sm" onClick={openCreate}>
@@ -98,17 +98,17 @@ export function LetterheadManagementPanel({ letterheads }: { letterheads: Letter
               <Input id="letterhead-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Letterhead" />
             </div>
             <div className="space-y-1.5">
-              <Label>Image</Label>
+              <Label>Image or PDF</Label>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg"
+                accept="image/png,image/jpeg,application/pdf"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
               <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="size-4" />
-                {file ? file.name : "Choose Image"}
+                {file ? file.name : "Choose File"}
               </Button>
             </div>
           </div>

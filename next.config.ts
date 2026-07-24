@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
   // puppeteer-core + @sparticuz/chromium (lib/pdf-conversion.ts) ship native
   // binaries/binary-loading logic that Next's bundler must not try to trace
   // into — they need to stay as plain node_modules requires at runtime.
-  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"],
+  // @napi-rs/canvas (lib/pdf-to-image.ts, via pdfjs-dist's Node canvas
+  // factory) ships a prebuilt native .node binary the same way chromium
+  // does — kept un-bundled for the same reason.
+  serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium", "@napi-rs/canvas"],
   // serverExternalPackages alone keeps chromium un-bundled, but Next's own
   // output file tracer (@vercel/nft) still decides which files ship in each
   // route's deployed function by static import/require/fs analysis —
