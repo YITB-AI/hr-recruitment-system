@@ -54,6 +54,19 @@ function computeLetterheadSize(aspectRatio: number): { widthEmu: number; heightE
   return { widthEmu, heightEmu };
 }
 
+/**
+ * Shared sizing so the letterhead renders at the IDENTICAL size in both
+ * the real .docx (via injectLetterheadHeader) and the PDF preview (via
+ * lib/pdf-conversion.ts, which can't read the .docx header at all — see
+ * that file's comment — so it needs the same numbers independently).
+ */
+export function getLetterheadDisplaySizeInches(buffer: Buffer): { widthIn: number; heightIn: number } {
+  const dimensions = getImageDimensions(buffer);
+  const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : FALLBACK_ASPECT_RATIO;
+  const { widthEmu, heightEmu } = computeLetterheadSize(aspectRatio);
+  return { widthIn: widthEmu / 914400, heightIn: heightEmu / 914400 };
+}
+
 export type LetterheadImage = { buffer: Buffer; extension: string };
 
 function nextFreeRelId(relsXml: string): string {
@@ -135,9 +148,9 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
     contentTypesXml = contentTypesXml.replace("</Types>", `<Default Extension="${extension}" ContentType="${contentType}"/></Types>`);
   }
 
-  const dimensions = getImageDimensions(letterhead.buffer);
-  const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : FALLBACK_ASPECT_RATIO;
-  const { widthEmu, heightEmu } = computeLetterheadSize(aspectRatio);
+  const { widthIn, heightIn } = getLetterheadDisplaySizeInches(letterhead.buffer);
+  const widthEmu = Math.round(widthIn * 914400);
+  const heightEmu = Math.round(heightIn * 914400);
 
   const mediaFileName = nextFreeMediaFileName(zip, extension);
   zip.file(`word/media/${mediaFileName}`, letterhead.buffer, { binary: true });

@@ -1,6 +1,7 @@
 import puppeteer, { type Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import mammoth from "mammoth";
+import { getLetterheadDisplaySizeInches } from "@/lib/docx-letterhead";
 
 // DOCX -> PDF with no external service and no Docker: mammoth turns the
 // .docx into HTML, then a headless Chromium prints that HTML to PDF.
@@ -38,13 +39,41 @@ const PRINT_STYLES = `
   p { margin: 0 0 8px; }
 `;
 
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  bmp: "image/bmp",
+};
+
+// mammoth (below) only ever reads a .docx's BODY — it has no support for
+// headers/footers at all, so the real letterhead embedded there by
+// lib/docx-letterhead.ts can never appear in this PDF path by reading the
+// .docx itself. This prepends the same letterhead image directly into the
+// HTML instead, at the identical size computed for the .docx version (see
+// getLetterheadDisplaySizeInches), so the PDF preview and the real .docx
+// visually agree. Appears once at the top of page 1 only — unlike a true
+// Word header, it does not repeat on every page of a multi-page document.
+function buildLetterheadImgTag(letterheadImage: { buffer: Buffer; extension: string }): string {
+  const { widthIn, heightIn } = getLetterheadDisplaySizeInches(letterheadImage.buffer);
+  const mimeType = EXTENSION_MIME_TYPES[letterheadImage.extension.toLowerCase()] ?? "image/png";
+  const base64 = letterheadImage.buffer.toString("base64");
+  return `<img src="data:${mimeType};base64,${base64}" style="display:block;margin:0 auto 16px;width:${widthIn}in;height:${heightIn}in;" />`;
+}
+
 // Not a pixel-perfect Word renderer — table/paragraph/image content
 // survives, but precise fonts/spacing can shift slightly versus the
 // original .docx. Good enough for a readable PDF copy, not a substitute for
 // the real .docx when exact formatting matters.
-export async function convertDocxToPdf(buffer: Buffer, sharedBrowser?: Browser): Promise<Buffer> {
+export async function convertDocxToPdf(
+  buffer: Buffer,
+  sharedBrowser?: Browser,
+  letterheadImage?: { buffer: Buffer; extension: string } | null,
+): Promise<Buffer> {
   const { value: bodyHtml } = await mammoth.convertToHtml({ buffer });
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${PRINT_STYLES}</style></head><body>${bodyHtml}</body></html>`;
+  const letterheadHtml = letterheadImage ? buildLetterheadImgTag(letterheadImage) : "";
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${PRINT_STYLES}</style></head><body>${letterheadHtml}${bodyHtml}</body></html>`;
 
   const browser = sharedBrowser ?? (await launchBrowser());
   try {

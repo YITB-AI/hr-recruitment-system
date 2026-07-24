@@ -210,6 +210,11 @@ async function generateOne(
   // passes it in here (see generateDocumentsBulk) instead of every recipient
   // paying its own ~1-2s cold-start cost.
   sharedPdfBrowser?: Browser,
+  // Raw letterhead bytes for the PDF-conversion step only — the .docx
+  // buffer already has the letterhead baked into its own header (see
+  // withLetterhead); PDF conversion can't read that, so it needs these
+  // bytes separately. Null/undefined when no letterhead applies.
+  letterheadImage?: { buffer: Buffer; extension: string } | null,
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
@@ -342,7 +347,7 @@ async function generateOne(
   // generation itself (the .docx is already saved and usable). The
   // download UI falls back to the .docx whenever pdfStatus isn't "ready".
   try {
-    const pdfBuffer = await convertDocxToPdf(outputBuffer, sharedPdfBrowser);
+    const pdfBuffer = await convertDocxToPdf(outputBuffer, sharedPdfBrowser, letterheadImage);
     const pdfFileName = fileName.replace(/\.docx$/, ".pdf");
     const { storageKey: pdfStorageKey } = await saveFile(DOCUMENT_FOLDER, pdfFileName, pdfBuffer);
     await generatedDocumentRepository.updatePdfInfo(actor.companyId, created._id, {
@@ -426,11 +431,20 @@ async function resolveLetterhead(companyId: string, letterheadId?: string): Prom
 // Computed once per generate call (single or whole bulk batch), never per
 // recipient — injecting the header is pure/recipient-independent, and
 // re-fetching the same image bytes N times for an N-recipient batch would
-// be wasted work. Returns templateBuffer unchanged when no letterhead
-// applies — documents render exactly as before in that case.
-async function withLetterhead(templateBuffer: Buffer, companyId: string, letterheadId?: string): Promise<Buffer> {
+// be wasted work. Returns templateBuffer unchanged, and letterheadImage
+// null, when no letterhead applies — documents (and their PDF previews)
+// render exactly as before in that case. letterheadImage is returned
+// alongside the injected buffer (not just the buffer) because the PDF
+// conversion step below can't read a .docx header at all — it needs the
+// raw image bytes to reproduce the same letterhead a different way.
+async function withLetterhead(
+  templateBuffer: Buffer,
+  companyId: string,
+  letterheadId?: string,
+): Promise<{ buffer: Buffer; letterheadImage: { buffer: Buffer; extension: string } | null }> {
   const letterhead = await resolveLetterhead(companyId, letterheadId);
-  return letterhead ? injectLetterheadHeader(templateBuffer, letterhead) : templateBuffer;
+  if (!letterhead) return { buffer: templateBuffer, letterheadImage: null };
+  return { buffer: injectLetterheadHeader(templateBuffer, letterhead), letterheadImage: letterhead };
 }
 
 export async function generateDocument(
@@ -450,12 +464,12 @@ export async function generateDocument(
   ]);
   if (!template) throw new Error("Template not found");
   const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
-  const templateBuffer = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
+  const { buffer: templateBuffer, letterheadImage } = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
 
   const created = await generateOne(actor, template, templateBuffer, recipient, values, randomUUID(), {
     name: company?.name ?? "",
     logoUrl: company?.logoUrl ?? null,
-  }, setting.dateFormat, setting.timezone);
+  }, setting.dateFormat, setting.timezone, undefined, letterheadImage);
 
   const recipientName = created.employee?.name ?? created.applicant?.name ?? "the recipient";
   await notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
@@ -493,7 +507,7 @@ export async function generateDocumentsBulk(
   // storage per recipient (previously: N identical network fetches for an
   // N-recipient batch).
   const rawTemplateBuffer = await readFileByKey(template.fileUrl.replace("/api/files/", ""));
-  const templateBuffer = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
+  const { buffer: templateBuffer, letterheadImage } = await withLetterhead(rawTemplateBuffer, actor.companyId, letterheadId);
 
   const batchId = randomUUID();
   const companyInfo = { name: company?.name ?? "", logoUrl: company?.logoUrl ?? null };
@@ -519,6 +533,7 @@ export async function generateDocumentsBulk(
         setting.dateFormat,
         setting.timezone,
         sharedPdfBrowser,
+        letterheadImage,
       ),
     ),
   );
