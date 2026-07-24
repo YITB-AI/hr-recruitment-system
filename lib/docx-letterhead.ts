@@ -30,12 +30,29 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
 
 // 914400 EMU = 1 inch (the standard OOXML drawingml conversion). 6.5in
 // matches a US Letter page's text width inside standard 1in margins
-// (8.5in - 1in - 1in) — the letterhead spans the full content width, height
-// auto-scaled to the image's real aspect ratio so it never looks stretched.
-const LETTERHEAD_WIDTH_EMU = Math.round(6.5 * 914400);
+// (8.5in - 1in - 1in). MAX_HEIGHT caps how tall the letterhead can ever
+// get — confirmed necessary by a real upload: a 585x757px (portrait,
+// width/height ~0.77) image, fit to the full 6.5in width with no height
+// cap, produced an 8.4in-tall header that swallowed almost the entire
+// page. Real letterhead banners are wide-and-short; this fits BOTH
+// constraints (width first, falling back to height if that would exceed
+// the cap) so a portrait-shaped upload shrinks proportionally instead of
+// stretching to dominate the page.
+const MAX_WIDTH_EMU = Math.round(6.5 * 914400);
+const MAX_HEIGHT_EMU = Math.round(1.5 * 914400);
 // Fallback used only if the uploaded image's real dimensions can't be read
 // (corrupt/unrecognized format) — a reasonable banner aspect ratio.
 const FALLBACK_ASPECT_RATIO = 6.5 / 1.2;
+
+function computeLetterheadSize(aspectRatio: number): { widthEmu: number; heightEmu: number } {
+  let widthEmu = MAX_WIDTH_EMU;
+  let heightEmu = Math.round(widthEmu / aspectRatio);
+  if (heightEmu > MAX_HEIGHT_EMU) {
+    heightEmu = MAX_HEIGHT_EMU;
+    widthEmu = Math.round(heightEmu * aspectRatio);
+  }
+  return { widthEmu, heightEmu };
+}
 
 export type LetterheadImage = { buffer: Buffer; extension: string };
 
@@ -120,7 +137,7 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
 
   const dimensions = getImageDimensions(letterhead.buffer);
   const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : FALLBACK_ASPECT_RATIO;
-  const heightEmu = Math.round(LETTERHEAD_WIDTH_EMU / aspectRatio);
+  const { widthEmu, heightEmu } = computeLetterheadSize(aspectRatio);
 
   const mediaFileName = nextFreeMediaFileName(zip, extension);
   zip.file(`word/media/${mediaFileName}`, letterhead.buffer, { binary: true });
@@ -129,7 +146,7 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
 
   const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-  <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${buildDrawingXml("rId1", LETTERHEAD_WIDTH_EMU, heightEmu)}</w:r></w:p>
+  <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${buildDrawingXml("rId1", widthEmu, heightEmu)}</w:r></w:p>
 </w:hdr>`;
 
   const newDocRelsXml = docRelsXml.replace(
