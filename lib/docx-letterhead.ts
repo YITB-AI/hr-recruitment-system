@@ -6,9 +6,18 @@ import { getImageDimensions } from "@/lib/image-dimensions";
 // carries it without an admin ever having to edit the template file itself.
 // The uploaded image is a COMPLETE, pre-designed letterhead (logo + name +
 // address + whatever decoration, however the admin designed it) — this
-// embeds it as-is, full page width, aspect-ratio preserved. No separate
-// logo/text composition; the admin's image already carries whatever
-// branding it needs.
+// embeds it as-is. No separate logo/text composition; the admin's own image
+// already carries whatever branding it needs.
+//
+// Renders as a full-page BACKGROUND behind the body text (matching how this
+// company's own pre-existing "Conformation Letter" template achieves the
+// exact same look) — not a small banner at the top. An earlier version fit
+// the image to a max ~1.5in-tall inline banner; that was the right fix for
+// an *inline* (flow) drawing (an 8.4in-tall inline image pushed body text
+// almost entirely off page 1), but the actual desired look is a page-
+// spanning watermark/background with text flowing normally on top of it —
+// which requires an ANCHORED drawing positioned relative to the page with
+// behindDoc="1", not a taller inline one.
 //
 // Hand-builds the final drawing/media/relationship XML directly, rather
 // than relying on docxtemplater-image-module-free's {{%tag}} substitution
@@ -28,43 +37,50 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   bmp: "image/bmp",
 };
 
-// 914400 EMU = 1 inch (the standard OOXML drawingml conversion). 6.5in
-// matches a US Letter page's text width inside standard 1in margins
-// (8.5in - 1in - 1in). MAX_HEIGHT caps how tall the letterhead can ever
-// get — confirmed necessary by a real upload: a 585x757px (portrait,
-// width/height ~0.77) image, fit to the full 6.5in width with no height
-// cap, produced an 8.4in-tall header that swallowed almost the entire
-// page. Real letterhead banners are wide-and-short; this fits BOTH
-// constraints (width first, falling back to height if that would exceed
-// the cap) so a portrait-shaped upload shrinks proportionally instead of
-// stretching to dominate the page.
-const MAX_WIDTH_EMU = Math.round(6.5 * 914400);
-const MAX_HEIGHT_EMU = Math.round(1.5 * 914400);
-// Fallback used only if the uploaded image's real dimensions can't be read
-// (corrupt/unrecognized format) — a reasonable banner aspect ratio.
-const FALLBACK_ASPECT_RATIO = 6.5 / 1.2;
+// 914400 EMU = 1 inch. US Letter — matches this company's own real
+// templates (confirmed directly: the pre-existing Conformation Letter
+// template's own baked-in header image is ~8.6in x 11.18in, i.e. Letter,
+// not A4).
+const PAGE_WIDTH_IN = 8.5;
+const PAGE_HEIGHT_IN = 11;
+const PAGE_WIDTH_EMU = Math.round(PAGE_WIDTH_IN * 914400);
+const PAGE_HEIGHT_EMU = Math.round(PAGE_HEIGHT_IN * 914400);
+const PAGE_ASPECT_RATIO = PAGE_WIDTH_IN / PAGE_HEIGHT_IN;
 
-function computeLetterheadSize(aspectRatio: number): { widthEmu: number; heightEmu: number } {
-  let widthEmu = MAX_WIDTH_EMU;
-  let heightEmu = Math.round(widthEmu / aspectRatio);
-  if (heightEmu > MAX_HEIGHT_EMU) {
-    heightEmu = MAX_HEIGHT_EMU;
-    widthEmu = Math.round(heightEmu * aspectRatio);
-  }
-  return { widthEmu, heightEmu };
+/**
+ * Full-page display size, shared so the letterhead renders at the IDENTICAL
+ * size in both the real .docx (via injectLetterheadHeader) and the PDF
+ * preview (via lib/pdf-conversion.ts, which can't read the .docx header at
+ * all — see that file's comment — so it needs the same numbers independently).
+ */
+export function getLetterheadDisplaySizeInches(): { widthIn: number; heightIn: number } {
+  return { widthIn: PAGE_WIDTH_IN, heightIn: PAGE_HEIGHT_IN };
 }
 
 /**
- * Shared sizing so the letterhead renders at the IDENTICAL size in both
- * the real .docx (via injectLetterheadHeader) and the PDF preview (via
- * lib/pdf-conversion.ts, which can't read the .docx header at all — see
- * that file's comment — so it needs the same numbers independently).
+ * Fractions (0-1) to crop from each edge of the SOURCE image so the
+ * remaining region's aspect ratio exactly matches the page's — emulating
+ * CSS `object-fit: cover`. The image fills the full page with no
+ * letterboxing; excess is cropped from whichever dimension is relatively
+ * longer than the page's own proportions, rather than stretching/distorting
+ * the image to fit.
  */
-export function getLetterheadDisplaySizeInches(buffer: Buffer): { widthIn: number; heightIn: number } {
-  const dimensions = getImageDimensions(buffer);
-  const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : FALLBACK_ASPECT_RATIO;
-  const { widthEmu, heightEmu } = computeLetterheadSize(aspectRatio);
-  return { widthIn: widthEmu / 914400, heightIn: heightEmu / 914400 };
+function computeCoverCrop(aspectRatio: number): { l: number; t: number; r: number; b: number } {
+  if (aspectRatio > PAGE_ASPECT_RATIO) {
+    // Source is relatively wider than the page — crop left/right.
+    const keepWidthFraction = PAGE_ASPECT_RATIO / aspectRatio;
+    const cropEachSide = (1 - keepWidthFraction) / 2;
+    return { l: cropEachSide, r: cropEachSide, t: 0, b: 0 };
+  }
+  // Source is relatively taller than the page (or already matches) — crop top/bottom.
+  const keepHeightFraction = aspectRatio / PAGE_ASPECT_RATIO;
+  const cropEachSide = (1 - keepHeightFraction) / 2;
+  return { l: 0, r: 0, t: cropEachSide, b: cropEachSide };
+}
+
+// OOXML ST_Percentage: 100% = 100000 units.
+function toSrcRectPercent(fraction: number): number {
+  return Math.round(fraction * 100000);
 }
 
 export type LetterheadImage = { buffer: Buffer; extension: string };
@@ -87,8 +103,15 @@ function nextFreeMediaFileName(zip: PizZip, extension: string): string {
   return `letterhead${n}.${extension}`;
 }
 
-function buildDrawingXml(relId: string, widthEmu: number, heightEmu: number): string {
-  return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${widthEmu}" cy="${heightEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="Letterhead" descr="Letterhead"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Letterhead"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${widthEmu}" cy="${heightEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
+// Anchored (not inline) so the image is positioned relative to the PAGE and
+// rendered behindDoc="1" — this is what lets it span the full page as a
+// watermark/background with body text flowing normally on top of it,
+// exactly matching how the pre-existing Conformation Letter template's own
+// baked-in header achieves the same look. wrapNone means body text never
+// reflows around it (it's behind everything, so there's nothing to wrap).
+function buildBackgroundDrawingXml(relId: string, crop: { l: number; t: number; r: number; b: number }): string {
+  const srcRect = `<a:srcRect l="${toSrcRectPercent(crop.l)}" t="${toSrcRectPercent(crop.t)}" r="${toSrcRectPercent(crop.r)}" b="${toSrcRectPercent(crop.b)}"/>`;
+  return `<w:drawing><wp:anchor behindDoc="1" distT="0" distB="0" distL="0" distR="0" simplePos="0" locked="0" layoutInCell="1" allowOverlap="1" relativeHeight="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="${PAGE_WIDTH_EMU}" cy="${PAGE_HEIGHT_EMU}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="1" name="Letterhead" descr="Letterhead"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Letterhead"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/>${srcRect}<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${PAGE_WIDTH_EMU}" cy="${PAGE_HEIGHT_EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
 }
 
 /**
@@ -148,9 +171,9 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
     contentTypesXml = contentTypesXml.replace("</Types>", `<Default Extension="${extension}" ContentType="${contentType}"/></Types>`);
   }
 
-  const { widthIn, heightIn } = getLetterheadDisplaySizeInches(letterhead.buffer);
-  const widthEmu = Math.round(widthIn * 914400);
-  const heightEmu = Math.round(heightIn * 914400);
+  const dimensions = getImageDimensions(letterhead.buffer);
+  const aspectRatio = dimensions && dimensions.width > 0 ? dimensions.width / dimensions.height : PAGE_ASPECT_RATIO;
+  const crop = computeCoverCrop(aspectRatio);
 
   const mediaFileName = nextFreeMediaFileName(zip, extension);
   zip.file(`word/media/${mediaFileName}`, letterhead.buffer, { binary: true });
@@ -159,7 +182,7 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
 
   const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-  <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${buildDrawingXml("rId1", widthEmu, heightEmu)}</w:r></w:p>
+  <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${buildBackgroundDrawingXml("rId1", crop)}</w:r></w:p>
 </w:hdr>`;
 
   const newDocRelsXml = docRelsXml.replace(
