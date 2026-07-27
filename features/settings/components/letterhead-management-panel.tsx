@@ -2,20 +2,85 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Upload } from "lucide-react";
+import { Plus, Trash2, Upload, Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import { uploadLetterheadAction, deleteLetterheadAction } from "@/actions/letterheads";
+import { uploadLetterheadAction, deleteLetterheadAction, updateLetterheadMarginsAction } from "@/actions/letterheads";
 import type { LetterheadRow } from "@/server/repositories/letterhead.repository";
+
+function MarginsDialog({ letterhead, open, onOpenChange }: { letterhead: LetterheadRow; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [topMarginIn, setTopMarginIn] = useState(String(letterhead.contentTopMarginIn));
+  const [bottomMarginIn, setBottomMarginIn] = useState(String(letterhead.contentBottomMarginIn));
+  const [isPending, startTransition] = useTransition();
+
+  function handleSave() {
+    const top = Number(topMarginIn);
+    const bottom = Number(bottomMarginIn);
+    if (!Number.isFinite(top) || !Number.isFinite(bottom)) {
+      toast.error("Enter valid numbers");
+      return;
+    }
+    startTransition(async () => {
+      const result = await updateLetterheadMarginsAction(letterhead._id, top, bottom);
+      if (result.success) {
+        toast.success("Margins updated");
+        onOpenChange(false);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Content Margins — {letterhead.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-xs text-muted-foreground">
+            How much of the top/bottom of the page body text must stay clear of, so it doesn&apos;t overlap this letterhead&apos;s own
+            logo/title or footer bar. If a generated document shows text overlapping the letterhead, increase the relevant value.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="margin-top">Top margin (in)</Label>
+              <Input id="margin-top" type="number" min="0" max="4" step="0.1" value={topMarginIn} onChange={(e) => setTopMarginIn(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="margin-bottom">Bottom margin (in)</Label>
+              <Input
+                id="margin-bottom"
+                type="number"
+                min="0"
+                max="4"
+                step="0.1"
+                value={bottomMarginIn}
+                onChange={(e) => setBottomMarginIn(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" disabled={isPending} />}>Cancel</DialogClose>
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function LetterheadManagementPanel({ letterheads }: { letterheads: LetterheadRow[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [marginsFor, setMarginsFor] = useState<LetterheadRow | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function openCreate() {
@@ -78,9 +143,14 @@ export function LetterheadManagementPanel({ letterheads }: { letterheads: Letter
               </div>
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-xs font-medium">{letterhead.name}</p>
-                <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => handleDelete(letterhead)}>
-                  <Trash2 className="size-3.5" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => setMarginsFor(letterhead)} title="Adjust content margins">
+                    <Ruler className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => handleDelete(letterhead)} title="Delete">
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -120,6 +190,8 @@ export function LetterheadManagementPanel({ letterheads }: { letterheads: Letter
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {marginsFor && <MarginsDialog letterhead={marginsFor} open={marginsFor !== null} onOpenChange={(next) => !next && setMarginsFor(null)} />}
     </div>
   );
 }

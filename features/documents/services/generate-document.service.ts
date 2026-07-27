@@ -15,7 +15,7 @@ import { saveFile, readFileByKey } from "@/lib/file-storage";
 import { convertDocxToPdf, launchSharedPdfBrowser } from "@/lib/pdf-conversion";
 import type { Browser } from "puppeteer-core";
 import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
-import { injectLetterheadHeader } from "@/lib/docx-letterhead";
+import { injectLetterheadHeader, type LetterheadImage } from "@/lib/docx-letterhead";
 import path from "node:path";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
 import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
@@ -214,7 +214,7 @@ async function generateOne(
   // buffer already has the letterhead baked into its own header (see
   // withLetterhead); PDF conversion can't read that, so it needs these
   // bytes separately. Null/undefined when no letterhead applies.
-  letterheadImage?: { buffer: Buffer; extension: string } | null,
+  letterheadImage?: LetterheadImage | null,
 ): Promise<GeneratedDocumentRow> {
   const recipientRecord =
     recipient.type === "employee"
@@ -412,7 +412,7 @@ export async function uploadTemplateImage(buffer: Buffer, originalName: string):
 // automatically — the UI only needs to ask the admin to pick when there's
 // real ambiguity (more than one uploaded). No letterheads at all is a
 // silent no-op, matching this app's "never fabricate/guess" convention.
-async function resolveLetterhead(companyId: string, letterheadId?: string): Promise<{ buffer: Buffer; extension: string } | null> {
+async function resolveLetterhead(companyId: string, letterheadId?: string): Promise<LetterheadImage | null> {
   let letterhead;
   if (letterheadId) {
     letterhead = await letterheadRepository.findById(companyId, letterheadId);
@@ -425,6 +425,8 @@ async function resolveLetterhead(companyId: string, letterheadId?: string): Prom
   return {
     buffer: await readFileByKey(letterhead.imageUrl.replace("/api/files/", "")),
     extension: path.extname(letterhead.imageUrl).replace(".", "") || "png",
+    contentTopMarginIn: letterhead.contentTopMarginIn,
+    contentBottomMarginIn: letterhead.contentBottomMarginIn,
   };
 }
 
@@ -448,7 +450,7 @@ async function withLetterhead(
   templateBuffer: Buffer,
   companyId: string,
   letterheadId?: string,
-): Promise<{ buffer: Buffer; letterheadImage: { buffer: Buffer; extension: string } | null }> {
+): Promise<{ buffer: Buffer; letterheadImage: LetterheadImage | null }> {
   const letterhead = await resolveLetterhead(companyId, letterheadId);
   if (!letterhead) return { buffer: templateBuffer, letterheadImage: null };
   const injectedBuffer = injectLetterheadHeader(templateBuffer, letterhead);

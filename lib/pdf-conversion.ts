@@ -1,6 +1,7 @@
 import puppeteer, { type Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import mammoth from "mammoth";
+import { DEFAULT_CONTENT_TOP_MARGIN_IN, DEFAULT_CONTENT_BOTTOM_MARGIN_IN, type LetterheadImage } from "@/lib/docx-letterhead";
 
 // DOCX -> PDF with no external service and no Docker: mammoth turns the
 // .docx into HTML, then a headless Chromium prints that HTML to PDF.
@@ -36,16 +37,33 @@ export async function launchSharedPdfBrowser(): Promise<Browser> {
 // same way an anchored/behindDoc image spans the full page in the real
 // .docx (see lib/docx-letterhead.ts). Body padding recreates a normal text
 // inset on top of that, standing in for what page.pdf()'s margin option
-// used to do.
-const PRINT_STYLES = `
+// used to do — sized dynamically per call (see buildBodyPaddingStyle) since
+// the correct top/bottom inset depends on whether/which letterhead applies.
+const BASE_PRINT_STYLES = `
   html, body { margin: 0; padding: 0; }
-  body { font-family: "Calibri", "Segoe UI", Arial, sans-serif; font-size: 12pt; color: #1a1a1a; line-height: 1.5; padding: 1in 0.75in; position: relative; }
+  body { font-family: "Calibri", "Segoe UI", Arial, sans-serif; font-size: 12pt; color: #1a1a1a; line-height: 1.5; position: relative; }
   .letterhead-background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
   table { border-collapse: collapse; width: 100%; margin: 8px 0; }
   td, th { border: 1px solid #ccc; padding: 6px 8px; }
   img:not(.letterhead-background) { max-width: 100%; }
   p { margin: 0 0 8px; }
 `;
+
+// No letterhead at all -> ordinary document margins (matches this app's
+// prior fixed padding). With a letterhead, its own top/bottom content
+// margins apply instead, so body text clears the image's header/footer
+// bands — see lib/docx-letterhead.ts's DEFAULT_CONTENT_*_MARGIN_IN comment
+// for why this can't be computed automatically from the image alone.
+const NO_LETTERHEAD_TOP_MARGIN_IN = 1;
+const NO_LETTERHEAD_BOTTOM_MARGIN_IN = 0.75;
+
+function buildBodyPaddingStyle(letterheadImage?: LetterheadImage | null): string {
+  const topIn = letterheadImage ? letterheadImage.contentTopMarginIn ?? DEFAULT_CONTENT_TOP_MARGIN_IN : NO_LETTERHEAD_TOP_MARGIN_IN;
+  const bottomIn = letterheadImage
+    ? letterheadImage.contentBottomMarginIn ?? DEFAULT_CONTENT_BOTTOM_MARGIN_IN
+    : NO_LETTERHEAD_BOTTOM_MARGIN_IN;
+  return `body { padding: ${topIn}in 0.75in ${bottomIn}in; }`;
+}
 
 const EXTENSION_MIME_TYPES: Record<string, string> = {
   png: "image/png",
@@ -66,7 +84,7 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
 // Chromium handles the "fill the page, crop the excess, never distort"
 // sizing natively via object-fit:cover, unlike the .docx path which has to
 // compute an explicit <a:srcRect> crop by hand.
-function buildLetterheadBackgroundTag(letterheadImage: { buffer: Buffer; extension: string }): string {
+function buildLetterheadBackgroundTag(letterheadImage: LetterheadImage): string {
   const mimeType = EXTENSION_MIME_TYPES[letterheadImage.extension.toLowerCase()] ?? "image/png";
   const base64 = letterheadImage.buffer.toString("base64");
   return `<img class="letterhead-background" src="data:${mimeType};base64,${base64}" alt="" />`;
@@ -79,11 +97,12 @@ function buildLetterheadBackgroundTag(letterheadImage: { buffer: Buffer; extensi
 export async function convertDocxToPdf(
   buffer: Buffer,
   sharedBrowser?: Browser,
-  letterheadImage?: { buffer: Buffer; extension: string } | null,
+  letterheadImage?: LetterheadImage | null,
 ): Promise<Buffer> {
   const { value: bodyHtml } = await mammoth.convertToHtml({ buffer });
   const letterheadHtml = letterheadImage ? buildLetterheadBackgroundTag(letterheadImage) : "";
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${PRINT_STYLES}</style></head><body>${letterheadHtml}${bodyHtml}</body></html>`;
+  const styles = BASE_PRINT_STYLES + buildBodyPaddingStyle(letterheadImage);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${styles}</style></head><body>${letterheadHtml}${bodyHtml}</body></html>`;
 
   const browser = sharedBrowser ?? (await launchBrowser());
   try {

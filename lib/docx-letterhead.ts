@@ -83,7 +83,55 @@ function toSrcRectPercent(fraction: number): number {
   return Math.round(fraction * 100000);
 }
 
-export type LetterheadImage = { buffer: Buffer; extension: string };
+// A full-page letterhead image almost always has its own baked-in header
+// band (logo/company name) and often a footer bar too — real body text
+// must start below/end above those, or the two visually collide (confirmed
+// directly: a real generated document showed the recipient's name line
+// rendering on top of the letterhead's own title text). There's no way to
+// detect an arbitrary uploaded image's actual "safe zone" automatically, so
+// this is an admin-tunable per-letterhead setting (see models/Letterhead.ts)
+// with conservative defaults sized to clear a typical logo/title header and
+// a typical contact-info footer bar.
+export const DEFAULT_CONTENT_TOP_MARGIN_IN = 2;
+export const DEFAULT_CONTENT_BOTTOM_MARGIN_IN = 1.5;
+
+const TWIPS_PER_INCH = 1440;
+const DEFAULT_SIDE_MARGIN_TWIPS = TWIPS_PER_INCH; // 1in — Word's own ordinary default.
+
+export type LetterheadImage = {
+  buffer: Buffer;
+  extension: string;
+  contentTopMarginIn?: number;
+  contentBottomMarginIn?: number;
+};
+
+function twipsFromInches(inches: number): number {
+  return Math.round(inches * TWIPS_PER_INCH);
+}
+
+function buildPgMarXml(topTwips: number, bottomTwips: number): string {
+  return `<w:pgMar w:top="${topTwips}" w:right="${DEFAULT_SIDE_MARGIN_TWIPS}" w:bottom="${bottomTwips}" w:left="${DEFAULT_SIDE_MARGIN_TWIPS}" w:header="720" w:footer="720" w:gutter="0"/>`;
+}
+
+// Never SHRINKS a margin the template's own author already set larger than
+// what the letterhead needs — only raises it to at least clear the
+// letterhead's header/footer bands. Operates on a sectPr's inner XML (the
+// content between <w:sectPr...> and </w:sectPr>), not the whole document.
+function enforceMinimumPageMargins(sectPrInnerXml: string, topTwips: number, bottomTwips: number): string {
+  const pgMarMatch = sectPrInnerXml.match(/<w:pgMar([^/>]*)\/>/);
+  if (!pgMarMatch) return sectPrInnerXml + buildPgMarXml(topTwips, bottomTwips);
+
+  const [fullMatch, attrs] = pgMarMatch;
+  const existingTop = Number(attrs.match(/w:top="(\d+)"/)?.[1] ?? 0);
+  const existingBottom = Number(attrs.match(/w:bottom="(\d+)"/)?.[1] ?? 0);
+  const newTop = Math.max(existingTop, topTwips);
+  const newBottom = Math.max(existingBottom, bottomTwips);
+
+  let newAttrs = attrs.includes("w:top=") ? attrs.replace(/w:top="\d+"/, `w:top="${newTop}"`) : `${attrs} w:top="${newTop}"`;
+  newAttrs = newAttrs.includes("w:bottom=") ? newAttrs.replace(/w:bottom="\d+"/, `w:bottom="${newBottom}"`) : `${newAttrs} w:bottom="${newBottom}"`;
+
+  return sectPrInnerXml.replace(fullMatch, `<w:pgMar${newAttrs}/>`);
+}
 
 function nextFreeRelId(relsXml: string): string {
   const ids = Array.from(relsXml.matchAll(/Id="rId(\d+)"/g)).map((m) => Number(m[1]));
@@ -153,7 +201,6 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
   if (docRelsXml.includes(HEADER_REL_TYPE)) return buffer;
 
-  const sectPrMatch = documentXml.match(/<w:sectPr(\s[^>]*)?(\/?)>/);
   const headerFileName = nextFreeHeaderFileName(zip);
   const headerRelId = nextFreeRelId(docRelsXml);
 
@@ -197,16 +244,33 @@ export function injectLetterheadHeader(buffer: Buffer, letterhead: LetterheadIma
   // letterhead still shows even if the template has "Different First
   // Page" enabled (w:titlePg) — harmless, ignored by Word otherwise.
   const headerReferenceTags = `<w:headerReference w:type="default" r:id="${headerRelId}"/><w:headerReference w:type="first" r:id="${headerRelId}"/>`;
+  const topTwips = twipsFromInches(letterhead.contentTopMarginIn ?? DEFAULT_CONTENT_TOP_MARGIN_IN);
+  const bottomTwips = twipsFromInches(letterhead.contentBottomMarginIn ?? DEFAULT_CONTENT_BOTTOM_MARGIN_IN);
+
+  // Self-closing sectPr (<w:sectPr .../>) has no children to search for an
+  // existing pgMar in — trivial case, just add one. A non-self-closing
+  // sectPr's full inner content (up to its matching close tag) is searched/
+  // patched by enforceMinimumPageMargins so an existing pgMar is raised,
+  // never replaced wholesale (preserving any larger margin already set).
+  const selfClosingSectPrMatch = documentXml.match(/<w:sectPr(\s[^>]*)?\/>/);
+  const openSectPrMatch = !selfClosingSectPrMatch ? documentXml.match(/<w:sectPr(\s[^>]*)?>([\s\S]*?)<\/w:sectPr>/) : null;
+
   let newDocumentXml: string;
-  if (sectPrMatch) {
-    const [fullMatch, attrs, selfClosing] = sectPrMatch;
-    const replacement =
-      selfClosing === "/" ? `<w:sectPr${attrs ?? ""}>${headerReferenceTags}</w:sectPr>` : `${fullMatch}${headerReferenceTags}`;
-    newDocumentXml = documentXml.replace(fullMatch, replacement);
+  if (selfClosingSectPrMatch) {
+    const [fullMatch, attrs] = selfClosingSectPrMatch;
+    const inner = headerReferenceTags + buildPgMarXml(topTwips, bottomTwips);
+    newDocumentXml = documentXml.replace(fullMatch, `<w:sectPr${attrs ?? ""}>${inner}</w:sectPr>`);
+  } else if (openSectPrMatch) {
+    const [fullMatch, attrs, innerContent] = openSectPrMatch;
+    const updatedInner = enforceMinimumPageMargins(innerContent, topTwips, bottomTwips);
+    newDocumentXml = documentXml.replace(fullMatch, `<w:sectPr${attrs ?? ""}>${headerReferenceTags}${updatedInner}</w:sectPr>`);
   } else {
     // No sectPr at all — append a minimal one as the last child of
     // <w:body>, the schema-correct position for a single-section document.
-    newDocumentXml = documentXml.replace("</w:body>", `<w:sectPr>${headerReferenceTags}</w:sectPr></w:body>`);
+    newDocumentXml = documentXml.replace(
+      "</w:body>",
+      `<w:sectPr>${headerReferenceTags}${buildPgMarXml(topTwips, bottomTwips)}</w:sectPr></w:body>`,
+    );
   }
 
   zip.file("word/document.xml", newDocumentXml);

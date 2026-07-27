@@ -72,6 +72,31 @@ export async function uploadLetterhead(name: string, file: File): Promise<Letter
   return letterhead;
 }
 
+// Lets an admin tune where body text starts/ends for THIS letterhead's
+// specific header/footer band height, without re-uploading the image —
+// e.g. after seeing a real generated document where the two visually
+// collided (see lib/docx-letterhead.ts for why this can't be auto-detected).
+export async function updateLetterheadMargins(id: string, contentTopMarginIn: number, contentBottomMarginIn: number): Promise<LetterheadRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requireRole(actor, "settings.manage");
+
+  const letterhead = await letterheadRepository.updateMargins(actor.companyId, id, { contentTopMarginIn, contentBottomMarginIn });
+  if (!letterhead) throw new Error("Letterhead not found");
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: actor.id === "system" ? undefined : actor.id,
+    actorName: actor.name,
+    action: "letterhead.margins_updated",
+    entityType: "setting",
+    entityId: letterhead._id,
+    message: `${actor.name} adjusted the "${letterhead.name}" letterhead's content margins`,
+  });
+
+  return letterhead;
+}
+
 export async function deleteLetterhead(id: string): Promise<void> {
   await connectDB();
   const actor = await getCurrentUser();
