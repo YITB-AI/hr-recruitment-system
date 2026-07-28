@@ -56,7 +56,7 @@ export function MfaEnrollmentFlow({ onComplete }: { onComplete?: () => void }) {
           etc.).
         </p>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button onClick={handleStart} disabled={isPending}>
+        <Button onClick={handleStart} disabled={isPending} className="w-full">
           {isPending ? "Starting..." : "Set up two-factor authentication"}
         </Button>
       </div>
