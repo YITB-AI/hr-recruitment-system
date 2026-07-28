@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed": "tsx scripts/seed.ts",
     "migrate:tenancy": "tsx scripts/migrate-tenancy.ts",
     "migrate:encrypt-salaries": "tsx scripts/migrate-encrypt-employee-salaries.ts",
@@ -79,8 +81,11 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "mongodb-memory-server": "^11.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.10"
   }
 }
