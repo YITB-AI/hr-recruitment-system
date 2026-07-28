@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { documentTemplateRepository, type DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import { employeeRepository } from "@/server/repositories/employee.repository";
@@ -483,22 +482,21 @@ export async function generateDocument(
     logoUrl: company?.logoUrl ?? null,
   }, setting.dateFormat, setting.timezone, undefined, letterheadImage);
 
-  // Deferred via after() rather than awaited — the caller doesn't need this
-  // notification's result, and awaiting it here was adding a real,
-  // unnecessary delay to every single-document generation response.
-  // after() still runs to completion on Vercel via waitUntil even after the
-  // response has gone out (same pattern already used for audit-log writes
-  // in lib/auth/session.ts/actions/auth.ts) — a bare un-awaited promise
-  // would risk the function being torn down before it finishes.
+  // Deliberately awaited, NOT deferred via after() — this write must land
+  // before the response returns. A prior attempt at deferring it caused a
+  // real, reported bug: the client's post-generation refresh re-fetches
+  // notifications immediately, and after()'s callback isn't guaranteed to
+  // have finished writing by then — the notification only showed up on the
+  // NEXT document generation, one request late. Awaiting it costs a real
+  // but small amount of latency; that's the right trade-off for a
+  // notification whose entire purpose is to appear right away.
   const recipientName = created.employee?.name ?? created.applicant?.name ?? "the recipient";
-  after(() =>
-    notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
-      type: "document",
-      priority: "low",
-      entityType: "document",
-      entityId: created._id,
-    }).catch((error) => console.error("Failed to notify staff of document generation:", error)),
-  );
+  await notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
+    type: "document",
+    priority: "low",
+    entityType: "document",
+    entityId: created._id,
+  });
 
   return created;
 }
@@ -583,14 +581,14 @@ export async function generateDocumentsBulk(
   // a large bulk batch would otherwise fan out N x (admin+hr+recruiter)
   // notifications. No single natural record to deep-link a whole batch to
   // (batchId is a UUID, not an ObjectId), so entityType/entityId are omitted.
+  // Awaited for the same reason as the single-document path above — this
+  // notification needs to exist by the time the response returns.
   const succeededCount = results.filter((r) => r.success).length;
-  after(() =>
-    notifyStaffForReview(
-      actor.companyId,
-      "Documents generated",
-      `${succeededCount} of ${recipients.length} document(s) generated from "${template.name}".`,
-      { type: "document", priority: "low" },
-    ).catch((error) => console.error("Failed to notify staff of bulk document generation:", error)),
+  await notifyStaffForReview(
+    actor.companyId,
+    "Documents generated",
+    `${succeededCount} of ${recipients.length} document(s) generated from "${template.name}".`,
+    { type: "document", priority: "low" },
   );
 
   return { batchId, results };
