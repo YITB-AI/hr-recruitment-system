@@ -7,6 +7,7 @@ import { ProfileSummaryCard } from "@/features/profile/components/profile-summar
 import { EditProfileForm } from "@/features/profile/components/edit-profile-form";
 import { ChangePasswordCard } from "@/features/profile/components/change-password-card";
 import { ChangeEmailCard } from "@/features/profile/components/change-email-card";
+import { MfaSettingsCard } from "@/features/profile/components/mfa-settings-card";
 import { CalendarConnectionsCard } from "@/features/profile/components/calendar-connections-card";
 import { getOwnProfile } from "@/features/profile/services/profile.service";
 import { listOwnCalendarConnections } from "@/features/calendar/services/calendar-connection.service";
@@ -65,6 +66,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 <div className="border-t pt-6">
                   <h3 className="mb-4 text-sm font-medium">Email Address</h3>
                   <ChangeEmailCard profile={profile} />
+                </div>
+                <div className="border-t pt-6">
+                  <h3 className="mb-4 text-sm font-medium">Two-Factor Authentication</h3>
+                  <MfaSettingsCard mfaEnabled={profile.mfaEnabled} role={profile.role} />
                 </div>
               </TabsContent>
 

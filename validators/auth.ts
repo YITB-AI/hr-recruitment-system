@@ -27,3 +27,12 @@ export const adminResetPasswordSchema = z.object({
   newPassword: PASSWORD_MIN,
 });
 export type AdminResetPasswordInput = z.infer<typeof adminResetPasswordSchema>;
+
+// Deliberately permissive on shape — a 6-digit TOTP code and a
+// dash-formatted backup code look nothing alike, and the real validation
+// (does this code actually match) happens in lib/mfa.ts, not here.
+export const verifyMfaSchema = z.object({
+  code: z.string().trim().min(1, "Enter your verification code").max(20, "Invalid code"),
+  useBackupCode: z.boolean(),
+});
+export type VerifyMfaInput = z.infer<typeof verifyMfaSchema>;

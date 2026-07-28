@@ -1,18 +1,20 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { loginSchema, changePasswordSchema, adminResetPasswordSchema } from "@/validators/auth";
+import { loginSchema, changePasswordSchema, adminResetPasswordSchema, verifyMfaSchema } from "@/validators/auth";
 import { connectDB } from "@/server/db/connect";
-import { User } from "@/models/User";
+import { userRepository } from "@/server/repositories/user.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { requireRole } from "@/lib/auth/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { decryptSecret } from "@/lib/crypto";
+import { verifyTotpCode, findAndConsumeBackupCode } from "@/lib/mfa";
 import { changeOwnPassword } from "@/features/profile/services/profile.service";
 import {
   createUserSession,
@@ -21,6 +23,7 @@ import {
   revokeAllSessionsForUser,
   requireSession,
 } from "@/lib/auth/session";
+import { MFA_PENDING_COOKIE_NAME, createMfaPendingToken, verifyMfaPendingToken } from "@/lib/auth/mfa-pending-token";
 
 export type LoginResult = { success: true } | { success: false; error: string };
 
@@ -40,6 +43,17 @@ const LOGIN_RATE_LIMIT = 15;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const RATE_LIMIT_ERROR: LoginResult = { success: false, error: "Too many login attempts. Please try again in a few minutes." };
 const CAPTCHA_ERROR: LoginResult = { success: false, error: "Please complete the verification check and try again." };
+const MFA_PENDING_COOKIE_MAX_AGE_S = 5 * 60;
+
+function mfaPendingCookieOptions(maxAgeS: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: maxAgeS,
+  };
+}
 
 export async function loginAction(formData: FormData): Promise<LoginResult> {
   const parsed = loginSchema.safeParse({
@@ -67,7 +81,7 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   if (!company || company.status !== "active") return GENERIC_ERROR;
 
   const email = parsed.data.email.toLowerCase().trim();
-  const user = await User.findOne({ companyId: company._id, email });
+  const user = await userRepository.findForLogin(String(company._id), email);
 
   if (!user) {
     await activityLogRepository.create({
@@ -88,12 +102,7 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   if (!passwordValid) {
     const attempts = (user.failedLoginAttempts ?? 0) + 1;
     const isNowLocked = attempts >= MAX_FAILED_ATTEMPTS;
-    await User.updateOne(
-      { _id: user._id },
-      isNowLocked
-        ? { failedLoginAttempts: 0, lockedUntil: new Date(Date.now() + LOCKOUT_MS) }
-        : { failedLoginAttempts: attempts },
-    );
+    await userRepository.recordLoginFailure(String(user._id), isNowLocked ? 0 : attempts, isNowLocked ? new Date(Date.now() + LOCKOUT_MS) : undefined);
     await activityLogRepository.create({
       companyId: company._id,
       actorId: user._id,
@@ -106,17 +115,31 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     return GENERIC_ERROR;
   }
 
-  await User.updateOne(
-    { _id: user._id },
-    { failedLoginAttempts: 0, lastLoginAt: new Date(), $unset: { lockedUntil: "" } },
-  );
+  await userRepository.recordLoginSuccess(String(user._id));
+  const rememberMe = formData.get("rememberMe") === "on";
+
+  // MFA-enrolled users don't get a real session yet — password correct is
+  // only the first factor. See lib/auth/mfa-pending-token.ts for why this
+  // is a short-lived signed cookie rather than a Session row.
+  if (user.mfaEnabled) {
+    const pendingToken = createMfaPendingToken({
+      userId: String(user._id),
+      companyId: String(company._id),
+      rememberMe,
+      userAgent: headerStore.get("user-agent") ?? undefined,
+      ipAddress: clientIp,
+    });
+    const cookieStore = await cookies();
+    cookieStore.set(MFA_PENDING_COOKIE_NAME, pendingToken, mfaPendingCookieOptions(MFA_PENDING_COOKIE_MAX_AGE_S));
+    redirect("/login/verify-mfa");
+  }
 
   await createUserSession({
     userId: String(user._id),
     companyId: String(company._id),
     userAgent: headerStore.get("user-agent") ?? undefined,
-    ipAddress: headerStore.get("x-forwarded-for") ?? undefined,
-    rememberMe: formData.get("rememberMe") === "on",
+    ipAddress: clientIp,
+    rememberMe,
   });
 
   await activityLogRepository.create({
@@ -127,6 +150,89 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     entityType: "auth",
     entityId: user._id,
     message: `${user.name} logged in`,
+  });
+
+  // Admins must have MFA enrolled — mirrors the mustChangePassword redirect
+  // immediately below (a one-time nudge right after login, same scope as
+  // that existing precedent, not a persistent middleware-level block on
+  // every subsequent page load).
+  if (user.role === "admin" && !user.mfaEnabled) redirect("/mfa-setup");
+  redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
+}
+
+// Second factor for accounts with MFA enrolled — reads the short-lived
+// pending cookie loginAction set, verifies a TOTP code or a single-use
+// backup code, and only then actually creates the real session.
+export async function verifyMfaAction(formData: FormData): Promise<LoginResult> {
+  const cookieStore = await cookies();
+  const pendingToken = cookieStore.get(MFA_PENDING_COOKIE_NAME)?.value;
+  const pending = pendingToken ? verifyMfaPendingToken(pendingToken) : null;
+  if (!pending) {
+    cookieStore.delete(MFA_PENDING_COOKIE_NAME);
+    return { success: false, error: "Your session expired. Please log in again." };
+  }
+
+  const parsed = verifyMfaSchema.safeParse({
+    code: String(formData.get("code") ?? ""),
+    useBackupCode: formData.get("useBackupCode") === "on",
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const headerStore = await headers();
+  const clientIp = getClientIp(headerStore);
+  const rateLimit = await checkRateLimit(`mfa-verify:${clientIp}`, LOGIN_RATE_LIMIT, LOGIN_RATE_LIMIT_WINDOW_MS);
+  if (!rateLimit.allowed) return RATE_LIMIT_ERROR;
+
+  await connectDB();
+  const user = await userRepository.findRawByCompanyAndId(pending.companyId, pending.userId);
+  if (!user || !user.mfaEnabled) {
+    cookieStore.delete(MFA_PENDING_COOKIE_NAME);
+    return { success: false, error: "Your session expired. Please log in again." };
+  }
+
+  let verified = false;
+  if (parsed.data.useBackupCode) {
+    const { matched, remainingHashes } = await findAndConsumeBackupCode(user.mfaBackupCodeHashes ?? [], parsed.data.code);
+    if (matched) {
+      verified = true;
+      await userRepository.consumeMfaBackupCode(String(user._id), remainingHashes);
+    }
+  } else if (user.mfaSecretEncrypted) {
+    verified = verifyTotpCode(decryptSecret(user.mfaSecretEncrypted), user.email, parsed.data.code);
+  }
+
+  if (!verified) {
+    await activityLogRepository.create({
+      companyId: pending.companyId,
+      actorId: user._id,
+      actorName: user.name,
+      action: "auth.mfa_failed",
+      entityType: "auth",
+      entityId: user._id,
+      message: `${user.name} entered an incorrect MFA code`,
+    });
+    return { success: false, error: "Invalid code. Please try again." };
+  }
+
+  cookieStore.delete(MFA_PENDING_COOKIE_NAME);
+  await createUserSession({
+    userId: pending.userId,
+    companyId: pending.companyId,
+    userAgent: pending.userAgent,
+    ipAddress: pending.ipAddress,
+    rememberMe: pending.rememberMe,
+  });
+
+  await activityLogRepository.create({
+    companyId: pending.companyId,
+    actorId: user._id,
+    actorName: user.name,
+    action: "auth.login_success",
+    entityType: "auth",
+    entityId: user._id,
+    message: `${user.name} logged in (MFA verified)`,
   });
 
   redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
@@ -174,14 +280,11 @@ export async function adminResetPasswordAction(input: unknown): Promise<AdminRes
   }
 
   await connectDB();
-  const target = await User.findOne({ _id: parsed.data.userId, companyId: actor.companyId });
+  const target = await userRepository.findRawByCompanyAndId(actor.companyId, parsed.data.userId);
   if (!target) return { success: false, error: "User not found" };
 
   const newHash = await bcrypt.hash(parsed.data.newPassword, 10);
-  await User.updateOne(
-    { _id: target._id },
-    { passwordHash: newHash, mustChangePassword: true, failedLoginAttempts: 0, $unset: { lockedUntil: "" } },
-  );
+  await userRepository.resetPassword(actor.companyId, String(target._id), newHash);
   await revokeAllSessionsForUser(String(target._id));
 
   await activityLogRepository.create({

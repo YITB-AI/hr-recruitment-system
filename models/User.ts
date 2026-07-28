@@ -64,6 +64,18 @@ const userSchema = new Schema(
     // A Map so new NotificationTypes added later don't need a migration;
     // a missing key defaults to enabled (see lib/staff-notify.ts).
     notificationPreferences: { type: Map, of: Boolean },
+    // MFA (TOTP) — optional for hr/recruiter/interviewer, enforced for admin
+    // (see actions/auth.ts's post-login redirect and app/(app)/mfa-setup).
+    // mfaSecretEncrypted is written as soon as enrollment STARTS (see
+    // lib/mfa.ts/actions/mfa.ts) but mfaEnabled only flips to true once the
+    // user proves they actually captured it by entering one valid code —
+    // an abandoned enrollment just leaves an unused encrypted secret behind,
+    // overwritten by the next attempt. Backup codes are bcrypt-hashed and
+    // single-use — spliced out of the array on redemption (see lib/mfa.ts).
+    mfaEnabled: { type: Boolean, default: false },
+    mfaSecretEncrypted: { type: String },
+    mfaBackupCodeHashes: { type: [String], default: [] },
+    mfaEnabledAt: { type: Date },
   },
   { timestamps: true },
 );

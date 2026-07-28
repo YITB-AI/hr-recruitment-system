@@ -19,6 +19,7 @@ export type OwnProfileRow = {
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
+  mfaEnabled: boolean;
 };
 
 type RawProfileRow = Record<string, unknown> & { _id: unknown };
@@ -38,11 +39,12 @@ function serializeOwnProfile(row: RawProfileRow): OwnProfileRow {
     lockedUntil: (row.lockedUntil as Date | undefined) ?? null,
     lastLoginAt: (row.lastLoginAt as Date | undefined) ?? null,
     createdAt: row.createdAt as Date,
+    mfaEnabled: Boolean(row.mfaEnabled),
   };
 }
 
 const OWN_PROFILE_FIELDS =
-  "name email role title department phone avatarUrl emailVerified pendingEmail lockedUntil lastLoginAt createdAt";
+  "name email role title department phone avatarUrl emailVerified pendingEmail lockedUntil lastLoginAt createdAt mfaEnabled";
 
 export type CompanyUserRow = {
   _id: string;
@@ -108,6 +110,43 @@ export const userRepository = {
       .lean<RawCompanyUserRow | null>();
     return row ? serializeCompanyUser(row) : null;
   },
+  // --- Login (routes actions/auth.ts's own model access through here) ---
+  /** Raw doc, not lean — login needs passwordHash/lockedUntil/mfaEnabled/etc., not a projected row. */
+  findForLogin(companyId: string, email: string) {
+    return User.findOne({ companyId, email: email.toLowerCase().trim() });
+  },
+  async recordLoginFailure(id: string, attempts: number, lockedUntil?: Date): Promise<void> {
+    await User.updateOne({ _id: id }, lockedUntil ? { failedLoginAttempts: attempts, lockedUntil } : { failedLoginAttempts: attempts });
+  },
+  async recordLoginSuccess(id: string): Promise<void> {
+    await User.updateOne({ _id: id }, { failedLoginAttempts: 0, lastLoginAt: new Date(), $unset: { lockedUntil: "" } });
+  },
+  /** Raw doc, company-scoped — admin password reset and MFA verification both need full field access, not a projected management row. */
+  findRawByCompanyAndId(companyId: string, id: string) {
+    return User.findOne({ _id: id, companyId });
+  },
+  async resetPassword(companyId: string, id: string, newHash: string): Promise<void> {
+    await User.updateOne({ _id: id, companyId }, { passwordHash: newHash, mustChangePassword: true, failedLoginAttempts: 0, $unset: { lockedUntil: "" } });
+  },
+
+  // --- MFA (TOTP) ---
+  /** mfaEnabled stays false until confirmMfaEnrollment — an abandoned attempt just leaves an unused secret behind. */
+  async startMfaEnrollment(companyId: string, id: string, secretEncrypted: string): Promise<void> {
+    await User.updateOne({ _id: id, companyId }, { mfaSecretEncrypted: secretEncrypted, mfaEnabled: false });
+  },
+  async confirmMfaEnrollment(companyId: string, id: string, backupCodeHashes: string[]): Promise<void> {
+    await User.updateOne({ _id: id, companyId }, { mfaEnabled: true, mfaBackupCodeHashes: backupCodeHashes, mfaEnabledAt: new Date() });
+  },
+  async disableMfa(companyId: string, id: string): Promise<void> {
+    await User.updateOne(
+      { _id: id, companyId },
+      { mfaEnabled: false, $unset: { mfaSecretEncrypted: "", mfaBackupCodeHashes: "", mfaEnabledAt: "" } },
+    );
+  },
+  async consumeMfaBackupCode(id: string, remainingHashes: string[]): Promise<void> {
+    await User.updateOne({ _id: id }, { mfaBackupCodeHashes: remainingHashes });
+  },
+
   async findByEmail(email: string): Promise<{ _id: string } | null> {
     const row = await User.findOne({ email: email.toLowerCase().trim() }).select("_id").lean<{ _id: unknown } | null>();
     return row ? { _id: String(row._id) } : null;
