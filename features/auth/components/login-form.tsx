@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Script from "next/script";
 import { Building2, Eye, EyeOff, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
+
+// Public by design (must be readable client-side to render the widget) —
+// inlined at build time by Next.js's NEXT_PUBLIC_ convention, same as
+// every other NEXT_PUBLIC_ var in this codebase. Unset until the owner
+// provisions a real Cloudflare Turnstile site — the widget simply doesn't
+// render in that case (matches lib/turnstile.ts's server-side skip when
+// TURNSTILE_SECRET_KEY isn't configured either, so login stays fully
+// functional either way).
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +87,18 @@ export function LoginForm() {
         <input type="checkbox" name="rememberMe" className="size-4 accent-primary" />
         Remember me for 30 days
       </label>
+
+      {TURNSTILE_SITE_KEY && (
+        <>
+          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+          {/* Cloudflare's script auto-renders this into a widget and injects a
+              hidden cf-turnstile-response input inside it once the visitor
+              passes the check — that input is picked up automatically by
+              `new FormData(e.currentTarget)` in handleSubmit above, no extra
+              wiring needed. */}
+          <div className="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} />
+        </>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

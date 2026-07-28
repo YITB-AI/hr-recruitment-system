@@ -12,6 +12,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { requireRole } from "@/lib/auth/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/request-ip";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import { changeOwnPassword } from "@/features/profile/services/profile.service";
 import {
   createUserSession,
@@ -38,6 +39,7 @@ const GENERIC_ERROR: LoginResult = { success: false, error: "Invalid company, em
 const LOGIN_RATE_LIMIT = 15;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const RATE_LIMIT_ERROR: LoginResult = { success: false, error: "Too many login attempts. Please try again in a few minutes." };
+const CAPTCHA_ERROR: LoginResult = { success: false, error: "Please complete the verification check and try again." };
 
 export async function loginAction(formData: FormData): Promise<LoginResult> {
   const parsed = loginSchema.safeParse({
@@ -55,6 +57,10 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   const clientIp = getClientIp(headerStore);
   const rateLimit = await checkRateLimit(`login:${clientIp}`, LOGIN_RATE_LIMIT, LOGIN_RATE_LIMIT_WINDOW_MS);
   if (!rateLimit.allowed) return RATE_LIMIT_ERROR;
+
+  const turnstileToken = String(formData.get("cf-turnstile-response") ?? "");
+  const captchaValid = await verifyTurnstileToken(turnstileToken, clientIp);
+  if (!captchaValid) return CAPTCHA_ERROR;
 
   await connectDB();
   const company = await companyRepository.findBySlug(parsed.data.companySlug.toLowerCase().trim());
