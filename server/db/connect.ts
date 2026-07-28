@@ -22,6 +22,13 @@ export async function connectDB(): Promise<Mongoose> {
     const { MONGODB_URI } = getEnv();
     cache.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
+      // Each warm serverless instance gets its OWN connection pool (this
+      // cache is per-instance, not shared) — the driver's un-set default
+      // (100) would let a burst of concurrent warm instances open enough
+      // combined connections toward Atlas to exhaust a smaller cluster
+      // tier under real multi-tenant load. 10 is the standard serverless-
+      // tuned value for this exact pattern.
+      maxPoolSize: 10,
     });
   }
 

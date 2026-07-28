@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import pLimit from "p-limit";
 import { connectDB } from "@/server/db/connect";
 import { documentTemplateRepository, type DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import { employeeRepository } from "@/server/repositories/employee.repository";
@@ -537,22 +538,30 @@ export async function generateDocumentsBulk(
   // (generateOne's own try/catch still lets every .docx generate normally).
   const sharedPdfBrowser = await launchSharedPdfBrowser().catch(() => undefined);
 
-  // allSettled, not all — one bad recipient (missing record, missing
-  // required field) must not sink the rest of the batch.
+  // Capped at 5 concurrent — without this, a large batch opened one
+  // Chromium page PER RECIPIENT simultaneously on the single shared
+  // browser above, with no ceiling. A few hundred recipients risked
+  // exhausting the function's memory or hitting Vercel's duration limit
+  // well before finishing. allSettled, not all — one bad recipient
+  // (missing record, missing required field) must not sink the rest of
+  // the batch.
+  const limit = pLimit(5);
   const settled = await Promise.allSettled(
     recipients.map((recipient) =>
-      generateOne(
-        actor,
-        template,
-        templateBuffer,
-        recipient,
-        values,
-        batchId,
-        companyInfo,
-        setting.dateFormat,
-        setting.timezone,
-        sharedPdfBrowser,
-        letterheadImage,
+      limit(() =>
+        generateOne(
+          actor,
+          template,
+          templateBuffer,
+          recipient,
+          values,
+          batchId,
+          companyInfo,
+          setting.dateFormat,
+          setting.timezone,
+          sharedPdfBrowser,
+          letterheadImage,
+        ),
       ),
     ),
   );
