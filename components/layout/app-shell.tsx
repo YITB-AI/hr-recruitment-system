@@ -1,18 +1,22 @@
+import { Suspense } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { AuthTabSync } from "@/components/layout/auth-tab-sync";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { NotificationBellData } from "@/components/layout/notification-bell-data";
+import { NotificationBellSkeleton } from "@/components/layout/notification-bell-skeleton";
 import { getCurrentUser } from "@/lib/current-user";
-import { getUnreadCount, getRecentNotifications } from "@/features/notifications/services/notification.service";
 
+// The notification queries used to be awaited here, blocking the entire
+// shell (sidebar/topbar frame) behind them on every navigation. They're now
+// fetched inside NotificationBellData, wrapped in <Suspense> below, so the
+// shell itself only ever waits on the already-cache()-deduped session
+// lookup — the notification bell streams in independently a moment later
+// instead of holding up everything else.
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const [unreadCount, recentNotifications] = await Promise.all([
-    getUnreadCount(user.id),
-    getRecentNotifications(user.id),
-  ]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -24,7 +28,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <Sidebar />
         <MobileSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar user={user} unreadCount={unreadCount} notifications={recentNotifications} />
+          <Topbar
+            user={user}
+            notificationSlot={
+              <Suspense fallback={<NotificationBellSkeleton />}>
+                <NotificationBellData userId={user.id} />
+              </Suspense>
+            }
+          />
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
         <CommandPalette />

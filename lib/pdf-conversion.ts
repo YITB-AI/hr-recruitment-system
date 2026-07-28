@@ -26,9 +26,44 @@ async function launchBrowser(): Promise<Browser> {
 // fresh browser per document would multiply Chromium's ~1-2s cold-start by
 // every recipient. Callers doing more than one conversion in a single
 // request should launch once via this and pass it to every convertDocxToPdf
-// call, then close it themselves once all conversions are done.
+// call, then close it themselves once all conversions are done. Always a
+// FRESH instance (never the warm singleton below) — the caller closes it
+// when the batch finishes, and closing the warm singleton would kill it for
+// every other single-document request landing on this same warm container.
 export async function launchSharedPdfBrowser(): Promise<Browser> {
   return launchBrowser();
+}
+
+// Single-document generation (no sharedBrowser passed in) used to launch a
+// brand-new Chromium process, use it once, and immediately close it —
+// paying the ~1-2s launch cost on every single call, even on a warm
+// (non-cold-start) serverless invocation where the previous invocation's
+// module scope — including this variable — is still alive. Keeping one
+// instance around across invocations of the same warm container lets those
+// warm requests skip the launch entirely; a genuinely cold container still
+// pays it once, same as before.
+//
+// Never closed by convertDocxToPdf — closing it would defeat the reuse.
+// Guarded against a race between concurrent invocations reusing the same
+// warm container (both see the in-flight promise, not two launches) and
+// against the instance having died between invocations (checked via
+// `.connected`, relaunched if stale). If Chromium crashes mid-request, the
+// caller's own try/catch around convertDocxToPdf (see
+// generate-document.service.ts) already treats PDF conversion as
+// best-effort — a failure here degrades to pdfStatus:"failed", not a crash.
+let warmBrowserPromise: Promise<Browser> | null = null;
+
+async function getWarmBrowser(): Promise<Browser> {
+  if (warmBrowserPromise) {
+    const existing = await warmBrowserPromise;
+    if (existing.connected) return existing;
+  }
+  warmBrowserPromise = launchBrowser();
+  const browser = await warmBrowserPromise;
+  browser.once("disconnected", () => {
+    warmBrowserPromise = null;
+  });
+  return browser;
 }
 
 // margin:0 on page.pdf() below hands Chromium's entire physical page to
@@ -104,25 +139,26 @@ export async function convertDocxToPdf(
   const styles = BASE_PRINT_STYLES + buildBodyPaddingStyle(letterheadImage);
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>${styles}</style></head><body>${letterheadHtml}${bodyHtml}</body></html>`;
 
-  const browser = sharedBrowser ?? (await launchBrowser());
+  // Bulk callers pass their own sharedBrowser and close it themselves once
+  // the whole batch finishes. A single-document caller passes none — reuse
+  // the warm singleton above instead of launching+closing a fresh instance
+  // every call (see getWarmBrowser's comment). Either way, this function
+  // never closes the browser itself, only the page it opened.
+  const browser = sharedBrowser ?? (await getWarmBrowser());
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    try {
-      await page.setContent(html, { waitUntil: "load" });
-      const pdfBytes = await page.pdf({
-        // Letter, not A4 — matches the real Letter-sized Word templates/
-        // letterhead this app generates (confirmed via the pre-existing
-        // Conformation Letter template's own header dimensions), so the
-        // .docx and PDF outputs agree on page size, not just letterhead style.
-        format: "letter",
-        printBackground: true,
-        margin: { top: "0", bottom: "0", left: "0", right: "0" },
-      });
-      return Buffer.from(pdfBytes);
-    } finally {
-      await page.close();
-    }
+    await page.setContent(html, { waitUntil: "load" });
+    const pdfBytes = await page.pdf({
+      // Letter, not A4 — matches the real Letter-sized Word templates/
+      // letterhead this app generates (confirmed via the pre-existing
+      // Conformation Letter template's own header dimensions), so the
+      // .docx and PDF outputs agree on page size, not just letterhead style.
+      format: "letter",
+      printBackground: true,
+      margin: { top: "0", bottom: "0", left: "0", right: "0" },
+    });
+    return Buffer.from(pdfBytes);
   } finally {
-    if (!sharedBrowser) await browser.close();
+    await page.close();
   }
 }

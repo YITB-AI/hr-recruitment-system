@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { documentTemplateRepository, type DocumentTemplateRow } from "@/server/repositories/document-template.repository";
 import { employeeRepository } from "@/server/repositories/employee.repository";
@@ -482,13 +483,22 @@ export async function generateDocument(
     logoUrl: company?.logoUrl ?? null,
   }, setting.dateFormat, setting.timezone, undefined, letterheadImage);
 
+  // Deferred via after() rather than awaited — the caller doesn't need this
+  // notification's result, and awaiting it here was adding a real,
+  // unnecessary delay to every single-document generation response.
+  // after() still runs to completion on Vercel via waitUntil even after the
+  // response has gone out (same pattern already used for audit-log writes
+  // in lib/auth/session.ts/actions/auth.ts) — a bare un-awaited promise
+  // would risk the function being torn down before it finishes.
   const recipientName = created.employee?.name ?? created.applicant?.name ?? "the recipient";
-  await notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
-    type: "document",
-    priority: "low",
-    entityType: "document",
-    entityId: created._id,
-  });
+  after(() =>
+    notifyStaffForReview(actor.companyId, "Document generated", `"${template.name}" was generated for ${recipientName}.`, {
+      type: "document",
+      priority: "low",
+      entityType: "document",
+      entityId: created._id,
+    }).catch((error) => console.error("Failed to notify staff of document generation:", error)),
+  );
 
   return created;
 }
@@ -574,11 +584,13 @@ export async function generateDocumentsBulk(
   // notifications. No single natural record to deep-link a whole batch to
   // (batchId is a UUID, not an ObjectId), so entityType/entityId are omitted.
   const succeededCount = results.filter((r) => r.success).length;
-  await notifyStaffForReview(
-    actor.companyId,
-    "Documents generated",
-    `${succeededCount} of ${recipients.length} document(s) generated from "${template.name}".`,
-    { type: "document", priority: "low" },
+  after(() =>
+    notifyStaffForReview(
+      actor.companyId,
+      "Documents generated",
+      `${succeededCount} of ${recipients.length} document(s) generated from "${template.name}".`,
+      { type: "document", priority: "low" },
+    ).catch((error) => console.error("Failed to notify staff of bulk document generation:", error)),
   );
 
   return { batchId, results };

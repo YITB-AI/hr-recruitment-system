@@ -3,18 +3,18 @@
 import { Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
-import { NotificationBell } from "@/components/layout/notification-bell";
 import { ProfileMenu } from "@/components/layout/profile-menu";
 import type { SessionUser } from "@/types/user";
-import type { NotificationRow } from "@/server/repositories/notification.repository";
 
 type TopbarProps = {
   user: SessionUser;
-  unreadCount: number;
-  notifications: NotificationRow[];
+  // A pre-built <Suspense> boundary wrapping <NotificationBellData> — kept as
+  // a slot (not fetched here) so the notification queries can stream in
+  // independently of the rest of the shell. See components/layout/app-shell.tsx.
+  notificationSlot: React.ReactNode;
 };
 
-export function Topbar({ user, unreadCount, notifications }: TopbarProps) {
+export function Topbar({ user, notificationSlot }: TopbarProps) {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const setMobileSidebarOpen = useUIStore((state) => state.setMobileSidebarOpen);
   const setCommandPaletteOpen = useUIStore((state) => state.setCommandPaletteOpen);
@@ -52,7 +52,7 @@ export function Topbar({ user, unreadCount, notifications }: TopbarProps) {
       </button>
 
       <div className="ml-auto flex items-center gap-1">
-        <NotificationBell count={unreadCount} notifications={notifications} />
+        {notificationSlot}
         <div className="mx-1 h-6 w-px bg-border" />
         <ProfileMenu user={user} />
       </div>
