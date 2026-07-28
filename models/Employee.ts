@@ -31,8 +31,15 @@ const employeeSchema = new Schema(
     employmentType: { type: String, enum: EMPLOYMENT_TYPES, default: "full_time" },
     // No schema-level enum — see the matching comment on models/Applicant.ts.
     employmentStatus: { type: String, default: "active", index: true },
-    basicSalary: { type: Number, required: true },
-    grossSalary: { type: Number, required: true },
+    // Encrypted at rest (see server/repositories/employee.repository.ts's
+    // encryptSalaryField/decryptSalaryField) — SECURITY_STANDARDS.md's
+    // "encryption for sensitive fields... salaries" mandate. Stored as a
+    // String (ciphertext), not Number, going forward — a pre-migration row
+    // written under the old Number-typed schema keeps its real BSON number
+    // until scripts/migrate-encrypt-employee-salaries.ts re-encrypts it in
+    // place; decryptSalaryField tolerates both shapes.
+    basicSalary: { type: String, required: true },
+    grossSalary: { type: String, required: true },
   },
   { timestamps: true },
 );

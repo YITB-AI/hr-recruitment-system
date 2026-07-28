@@ -1,5 +1,31 @@
 import { Employee } from "@/models";
+import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import type { EmploymentStatus, EmploymentType } from "@/constants/employee";
+
+// basicSalary/grossSalary are encrypted at rest (models/Employee.ts) —
+// this pair of helpers is the ONLY place that boundary lives. Every other
+// consumer (lib/salary-calculation.ts, document generation, the employee
+// form, CSV import/export) continues sending/receiving plain numbers
+// exactly as before; encrypt on the way in (create/update below), decrypt
+// on the way out (serializeDetailRow/findAllForPicker below).
+//
+// decryptSalaryField tolerates a raw NUMBER, not just an encrypted string —
+// a row written before scripts/migrate-encrypt-employee-salaries.ts ran
+// still has the real BSON number from the old Number-typed schema, and
+// reads must keep working correctly during that migration window.
+function decryptSalaryField(raw: unknown): number {
+  if (typeof raw === "number") return raw;
+  if (typeof raw !== "string") return 0;
+  try {
+    return Number(decryptSecret(raw));
+  } catch {
+    return Number(raw);
+  }
+}
+
+function encryptSalaryField(value: number): string {
+  return encryptSecret(String(value));
+}
 
 /**
  * Row shapes returned to the UI. Every ObjectId (including inside populated
@@ -108,8 +134,8 @@ function serializeDetailRow(row: RawDetailRow): EmployeeDetailRow {
   return {
     ...serializeListRow(row),
     employmentType: row.employmentType as string,
-    basicSalary: row.basicSalary as number,
-    grossSalary: row.grossSalary as number,
+    basicSalary: decryptSalaryField(row.basicSalary),
+    grossSalary: decryptSalaryField(row.grossSalary),
     manager: row.managerId ? { _id: String(row.managerId._id), name: row.managerId.name } : null,
     departmentId: row.departmentId ? String(row.departmentId) : null,
     employeeType: row.employeeTypeId ? { _id: String(row.employeeTypeId._id), name: row.employeeTypeId.name } : null,
@@ -165,8 +191,8 @@ export const employeeRepository = {
       email: row.email as string,
       department: row.department as string,
       designation: row.designation as string,
-      basicSalary: row.basicSalary as number,
-      grossSalary: row.grossSalary as number,
+      basicSalary: decryptSalaryField(row.basicSalary),
+      grossSalary: decryptSalaryField(row.grossSalary),
       joiningDate: row.joiningDate as Date,
       employmentType: row.employmentType as string,
     }));
@@ -238,13 +264,21 @@ export const employeeRepository = {
   },
 
   async create(companyId: string, input: CreateEmployeeInput): Promise<EmployeeDetailRow> {
-    const doc = await Employee.create({ ...input, companyId });
+    const doc = await Employee.create({
+      ...input,
+      companyId,
+      basicSalary: encryptSalaryField(input.basicSalary),
+      grossSalary: encryptSalaryField(input.grossSalary),
+    });
     const populated = await Employee.findById(doc._id).populate("managerId", "name").populate("employeeTypeId", "name").lean<RawDetailRow>();
     return serializeDetailRow(populated!);
   },
 
   async update(companyId: string, id: string, input: UpdateEmployeeInput): Promise<EmployeeDetailRow | null> {
-    const row = await Employee.findOneAndUpdate({ _id: id, companyId }, input, { returnDocument: "after" })
+    const patch: Record<string, unknown> = { ...input };
+    if (input.basicSalary !== undefined) patch.basicSalary = encryptSalaryField(input.basicSalary);
+    if (input.grossSalary !== undefined) patch.grossSalary = encryptSalaryField(input.grossSalary);
+    const row = await Employee.findOneAndUpdate({ _id: id, companyId }, patch, { returnDocument: "after" })
       .populate("managerId", "name").populate("employeeTypeId", "name")
       .lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
