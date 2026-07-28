@@ -10,6 +10,8 @@ import { User } from "@/models/User";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { requireRole } from "@/lib/auth/permissions";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { changeOwnPassword } from "@/features/profile/services/profile.service";
 import {
   createUserSession,
@@ -29,6 +31,14 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 // enumerate valid companies/emails.
 const GENERIC_ERROR: LoginResult = { success: false, error: "Invalid company, email, or password" };
 
+// IP-based, on top of the existing per-account lockout above — the
+// lockout defends one account against many attempts; this defends against
+// many-accounts-from-one-IP (credential stuffing/spraying) attacks the
+// per-account lockout can't see at all.
+const LOGIN_RATE_LIMIT = 15;
+const LOGIN_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const RATE_LIMIT_ERROR: LoginResult = { success: false, error: "Too many login attempts. Please try again in a few minutes." };
+
 export async function loginAction(formData: FormData): Promise<LoginResult> {
   const parsed = loginSchema.safeParse({
     companySlug: String(formData.get("companySlug") ?? ""),
@@ -38,6 +48,13 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+
+  // headers() read once, reused below for both the rate-limit key and (on
+  // success) the session's recorded user-agent/IP — avoids a second call.
+  const headerStore = await headers();
+  const clientIp = getClientIp(headerStore);
+  const rateLimit = await checkRateLimit(`login:${clientIp}`, LOGIN_RATE_LIMIT, LOGIN_RATE_LIMIT_WINDOW_MS);
+  if (!rateLimit.allowed) return RATE_LIMIT_ERROR;
 
   await connectDB();
   const company = await companyRepository.findBySlug(parsed.data.companySlug.toLowerCase().trim());
@@ -88,7 +105,6 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     { failedLoginAttempts: 0, lastLoginAt: new Date(), $unset: { lockedUntil: "" } },
   );
 
-  const headerStore = await headers();
   await createUserSession({
     userId: String(user._id),
     companyId: String(company._id),

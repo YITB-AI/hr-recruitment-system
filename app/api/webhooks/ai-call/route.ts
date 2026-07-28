@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { connectDB } from "@/server/db/connect";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { getInboundWebhookSecret } from "@/config/webhooks";
 import { aiCallWebhookSchema } from "@/validators/ai-call-webhook";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
@@ -29,7 +31,21 @@ function isAuthorized(request: Request): boolean {
   return crypto.timingSafeEqual(actual, expected);
 }
 
+// Checked BEFORE the shared-secret check, not after — otherwise an
+// attacker with an invalid secret could hit this endpoint at unlimited
+// volume paying only the cost of a cheap timingSafeEqual each time. Rate-
+// limiting first caps total request volume regardless of whether the
+// secret provided is ever correct.
+const WEBHOOK_RATE_LIMIT = 60;
+const WEBHOOK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request.headers);
+  const rateLimit = await checkRateLimit(`webhook:ai-call:${clientIp}`, WEBHOOK_RATE_LIMIT, WEBHOOK_RATE_LIMIT_WINDOW_MS);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { connectDB } from "@/server/db/connect";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request-ip";
 import { getInboundWebhookSecret } from "@/config/webhooks";
 import {
   autoRepairResolvableOrphanedApplicants,
@@ -32,7 +34,18 @@ function isAuthorized(request: Request): boolean {
   return crypto.timingSafeEqual(actual, expected);
 }
 
+// Checked before the shared-secret check — see the identical comment in
+// app/api/webhooks/ai-call/route.ts.
+const WEBHOOK_RATE_LIMIT = 60;
+const WEBHOOK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request.headers);
+  const rateLimit = await checkRateLimit(`webhook:repair-data:${clientIp}`, WEBHOOK_RATE_LIMIT, WEBHOOK_RATE_LIMIT_WINDOW_MS);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

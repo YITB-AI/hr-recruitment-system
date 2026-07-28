@@ -53,7 +53,7 @@ export const letterheadRepository = {
     return serialize(doc.toObject());
   },
   async updateMargins(companyId: string, id: string, input: UpdateLetterheadMarginsInput): Promise<LetterheadRow | null> {
-    const row = await Letterhead.findOneAndUpdate({ _id: id, companyId }, { $set: input }, { new: true }).lean<RawRow | null>();
+    const row = await Letterhead.findOneAndUpdate({ _id: id, companyId }, { $set: input }, { returnDocument: "after" }).lean<RawRow | null>();
     return row ? serialize(row) : null;
   },
   async delete(companyId: string, id: string): Promise<LetterheadRow | null> {

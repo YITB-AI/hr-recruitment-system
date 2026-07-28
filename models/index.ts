@@ -25,3 +25,4 @@ export * from "./Letterhead";
 export * from "./AiCallQuestion";
 export * from "./CompanyIntegrationConfig";
 export * from "./CalendarConnection";
+export * from "./RateLimitBucket";
