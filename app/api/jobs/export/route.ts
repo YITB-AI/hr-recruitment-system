@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { jobRepository } from "@/server/repositories/job.repository";
+import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import type { JobListFilters } from "@/server/repositories/job.repository";
 
@@ -26,10 +27,10 @@ function escapeCsvCell(value: string): string {
 /** Exports the currently filtered job list as CSV — respects the same status/department/search/archived query params as the Jobs page. */
 export async function GET(request: Request) {
   await connectDB();
-  const { companyId } = await getCurrentUser();
+  const actor = await getCurrentUser();
 
   const { searchParams } = new URL(request.url);
-  const { rows } = await jobRepository.findAllForCompanyPaginated(companyId, {
+  const { rows } = await jobRepository.findAllForCompanyPaginated(actor.companyId, {
     status: searchParams.get("status") || undefined,
     department: searchParams.get("department") || undefined,
     search: searchParams.get("search") || undefined,
@@ -38,6 +39,19 @@ export async function GET(request: Request) {
     page: 1,
     pageSize: 10_000,
   });
+
+  after(() =>
+    activityLogRepository
+      .create({
+        companyId: actor.companyId,
+        actorId: actor.id === "system" ? undefined : actor.id,
+        actorName: actor.name,
+        action: "job.exported",
+        entityType: "job",
+        message: `${actor.name} exported ${rows.length} job record(s) to CSV`,
+      })
+      .catch((error) => console.error("Failed to log job export:", error)),
+  );
 
   const lines = [
     CSV_COLUMNS.join(","),

@@ -20,7 +20,13 @@ const activityLogSchema = new Schema(
     actorName: { type: String, trim: true },
     action: { type: String, required: true, trim: true },
     entityType: { type: String, enum: ACTIVITY_ENTITY_TYPES, required: true, index: true },
-    entityId: { type: Schema.Types.ObjectId, required: true },
+    // Optional — a bulk/list-level action (e.g. exporting a filtered CSV of
+    // many records) has no single natural entity to point at, the same
+    // reasoning already applied to Notification's entityType/entityId for
+    // the bulk-document-generation summary notification. Every entity-
+    // specific write still supplies a real one; this only widens what a
+    // NEW kind of write is allowed to omit.
+    entityId: { type: Schema.Types.ObjectId },
     message: { type: String, required: true },
   },
   { timestamps: true },

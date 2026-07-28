@@ -70,6 +70,17 @@ export type GeneratedDocumentListResult = {
 // Every function takes companyId first and filters by it — see the
 // tenant-isolation comment in server/repositories/employee.repository.ts.
 export const generatedDocumentRepository = {
+  // Deliberately unscoped (same convention as jobRepository/userRepository's
+  // own findByIdUnscoped) — app/api/files/[...path]/route.ts uses this to
+  // find out which company a requested file belongs to BEFORE it knows
+  // whether the caller is entitled to it, so it can reject a cross-tenant
+  // match without ever confirming the file exists elsewhere.
+  async findByFileOrPdfUrlUnscoped(url: string): Promise<{ _id: string; companyId: string } | null> {
+    const row = await GeneratedDocument.findOne({ $or: [{ fileUrl: url }, { pdfUrl: url }] })
+      .select("companyId")
+      .lean<{ _id: unknown; companyId: unknown } | null>();
+    return row ? { _id: String(row._id), companyId: String(row.companyId) } : null;
+  },
   async findById(companyId: string, id: string): Promise<GeneratedDocumentRow | null> {
     const row = await GeneratedDocument.findOne({ _id: id, companyId })
       .populate("templateId", "name")

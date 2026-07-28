@@ -15,7 +15,7 @@ export type CreateActivityLogInput = {
   actorName?: string;
   action: string;
   entityType: (typeof ACTIVITY_ENTITY_TYPES)[number];
-  entityId: Types.ObjectId | string;
+  entityId?: Types.ObjectId | string;
   message: string;
 };
 
