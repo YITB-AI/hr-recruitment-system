@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { EmptyState } from "@/components/shared/empty-state";
 import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
 import { deleteInterviewAction } from "@/actions/interviews";
+import { isDateInFuture } from "@/lib/is-future";
 import type { InterviewRow } from "@/server/repositories/interview.repository";
 import type { ActivityLogRow } from "@/server/repositories/activity-log.repository";
 
@@ -86,7 +87,7 @@ export function InterviewActions({
   if (!interview.applicantId) return null;
 
   const isTerminal = interview.status === "rescheduled" || interview.status === "cancelled";
-  const isFuture = new Date(interview.scheduledAt).getTime() > Date.now();
+  const isFuture = isDateInFuture(interview.scheduledAt);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

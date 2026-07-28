@@ -31,7 +31,11 @@ export function QuickActionsPanel({
   latestInterviewId,
 }: QuickActionsPanelProps) {
   const [isPending, startTransition] = useTransition();
-  const [sending, setSending] = useState<SendKind>(null);
+  // Only the setter is used (handleSend's in-flight tracking) — the read
+  // value itself isn't consumed anywhere yet (the Send SMS button is
+  // currently hardcoded disabled), so the first slot is left unbound
+  // rather than introducing an unused variable.
+  const [, setSending] = useState<SendKind>(null);
 
   function handleShortlist() {
     startTransition(async () => {

@@ -78,7 +78,7 @@ export function BulkActionsBar({
 
       {statusToApply === "interview" && (
         <p className="text-xs text-muted-foreground">
-          Sets status only — does not create an interview. Use "Schedule Interview" on the applicant's page for that.
+          Sets status only — does not create an interview. Use &quot;Schedule Interview&quot; on the applicant&apos;s page for that.
         </p>
       )}
 

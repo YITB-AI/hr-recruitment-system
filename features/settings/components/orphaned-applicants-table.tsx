@@ -105,7 +105,7 @@ export function OrphanedApplicantsTable({
               </td>
               <td className="px-4 py-3 text-foreground/80">
                 {applicant.resolvedJobTitle ?? (
-                  <span className="text-destructive">Job not found — can't auto-repair</span>
+                  <span className="text-destructive">Job not found — can&apos;t auto-repair</span>
                 )}
               </td>
               <td className="px-4 py-3 text-right">

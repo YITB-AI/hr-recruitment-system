@@ -82,7 +82,7 @@ export function CreateApplicationDialog({ jobs }: { jobs: Job[] }) {
         <DialogHeader>
           <DialogTitle>Create Application</DialogTitle>
           <DialogDescription>
-            Upload a candidate's CV and select the job — an n8n workflow will process it and create the applicant.
+            Upload a candidate&apos;s CV and select the job — an n8n workflow will process it and create the applicant.
           </DialogDescription>
         </DialogHeader>
 

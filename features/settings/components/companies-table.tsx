@@ -210,11 +210,11 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
                   <Input id="companyName" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="adminName">First admin's name</Label>
+                  <Label htmlFor="adminName">First admin&apos;s name</Label>
                   <Input id="adminName" value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="Jane Doe" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="adminEmail">First admin's email</Label>
+                  <Label htmlFor="adminEmail">First admin&apos;s email</Label>
                   <Input
                     id="adminEmail"
                     type="email"

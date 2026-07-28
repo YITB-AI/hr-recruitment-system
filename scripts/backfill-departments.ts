@@ -36,7 +36,7 @@ async function main() {
   }
 
   let totalDepartmentsToCreate = 0;
-  let totalEmployeesToUpdate = employeesMissing.length;
+  const totalEmployeesToUpdate = employeesMissing.length;
   for (const [companyId, employees] of byCompany) {
     const distinctNames = [...new Set(employees.map((e) => e.department.trim()).filter(Boolean))];
     console.log(`Company ${companyId}: ${employees.length} employee(s), ${distinctNames.length} distinct department name(s): ${distinctNames.join(", ")}`);

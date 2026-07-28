@@ -43,7 +43,7 @@ export function KanbanColumn({ status, applicants }: { status: ApplicantStatus; 
         ))}
         {disabled && (
           <p className="p-2 text-center text-xs text-muted-foreground">
-            Use "Schedule Interview" on an applicant's page to move them here
+            Use &quot;Schedule Interview&quot; on an applicant&apos;s page to move them here
           </p>
         )}
       </div>

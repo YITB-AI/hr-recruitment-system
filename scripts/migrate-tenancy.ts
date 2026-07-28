@@ -24,7 +24,15 @@ import { SavedView } from "@/models/SavedView";
 // watching the output. Job is deliberately excluded from the backfill list —
 // see the comment on companyId in models/Job.ts; its rows get a one-time
 // manual admin mapping in a later phase instead.
-const MODELS_TO_BACKFILL: Array<{ name: string; model: Model<any> }> = [
+// A minimal structural type capturing only the two Model methods this
+// script actually calls below — lets a genuinely heterogeneous array of
+// differently-shaped Mongoose models (User, Notification, Interview, ...)
+// share one array type without `any`. Each real Model<T> satisfies this
+// since Mongoose declares these as method-syntax members, which
+// TypeScript checks bivariantly for parameter compatibility.
+type BackfillableModel = Pick<Model<Record<string, unknown>>, "countDocuments" | "updateMany">;
+
+const MODELS_TO_BACKFILL: Array<{ name: string; model: BackfillableModel }> = [
   { name: "User", model: User },
   { name: "Notification", model: Notification },
   { name: "Interview", model: Interview },

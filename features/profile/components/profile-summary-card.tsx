@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import { VerifyEmailAction } from "@/features/profile/components/verify-email-action";
+import { isDateInFuture } from "@/lib/is-future";
 import type { OwnProfile } from "@/features/profile/services/profile.service";
 
 function initials(name: string) {
@@ -25,7 +26,7 @@ function formatDateTime(date: Date | null) {
 }
 
 export function ProfileSummaryCard({ profile }: { profile: OwnProfile }) {
-  const isLocked = Boolean(profile.lockedUntil && profile.lockedUntil.getTime() > Date.now());
+  const isLocked = Boolean(profile.lockedUntil && isDateInFuture(profile.lockedUntil));
 
   const rows = [
     { icon: Mail, label: "Email", value: profile.email },

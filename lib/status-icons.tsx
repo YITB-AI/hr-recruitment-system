@@ -52,7 +52,21 @@ export const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   Archive,
 };
 
-export function getStatusIcon(name: string | null | undefined): LucideIcon {
-  if (!name) return Circle;
-  return STATUS_ICON_MAP[name] ?? Circle;
+const DEFAULT_ICON_KEY = "__default__";
+
+// Pre-built once at module load, not per-render — StatusBadge renders
+// whichever of these elements matches, rather than dynamically resolving a
+// component reference and rendering it fresh each time (React's compiler
+// can't prove a dynamically-picked component's identity is stable across
+// renders, even when the underlying lookup — a plain map — genuinely is;
+// pre-building the elements themselves sidesteps that entirely, since
+// nothing is created during render at all).
+const STATUS_ICON_ELEMENTS: Record<string, React.ReactElement> = Object.fromEntries([
+  ...Object.entries(STATUS_ICON_MAP).map(([key, Icon]) => [key, <Icon key={key} className="size-3.5" />]),
+  [DEFAULT_ICON_KEY, <Circle key={DEFAULT_ICON_KEY} className="size-3.5" />],
+]);
+
+export function getStatusIconElement(name: string | null | undefined): React.ReactElement {
+  if (!name || !STATUS_ICON_ELEMENTS[name]) return STATUS_ICON_ELEMENTS[DEFAULT_ICON_KEY];
+  return STATUS_ICON_ELEMENTS[name];
 }
