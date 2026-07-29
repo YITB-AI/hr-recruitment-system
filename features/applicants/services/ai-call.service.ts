@@ -3,6 +3,7 @@ import { applicantRepository } from "@/server/repositories/applicant.repository"
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
+import { settingRepository } from "@/server/repositories/setting.repository";
 import { aiCallQuestionRepository } from "@/server/repositories/ai-call-question.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
@@ -54,6 +55,26 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
   const customQuestions = await aiCallQuestionRepository.findActiveOrdered(actor.companyId);
 
+  // Kept as a string in the schema (see validators/ai-call.ts's comment) —
+  // parsed to a real number here, or left undefined when blank.
+  const salaryBudget = input.salaryBudget ? Number(input.salaryBudget) : undefined;
+
+  // Onsite location/contact is resolved entirely from Company Profile
+  // settings, never typed into the Request AI Call form — the modal has no
+  // address/contact field at all (see ai-call-dialog.tsx). Left undefined
+  // for "online" calls, and left undefined per-field for "onsite" calls
+  // where the company simply hasn't filled that field in yet (never blocks
+  // the call either way).
+  let onsiteAddress: string | undefined;
+  let onsiteContactPhone: string | undefined;
+  let onsiteContactEmail: string | undefined;
+  if (input.interviewMode === "onsite") {
+    const setting = await settingRepository.get(actor.companyId);
+    onsiteAddress = setting.companyAddress ?? undefined;
+    onsiteContactPhone = setting.companyContactPhone ?? undefined;
+    onsiteContactEmail = setting.companyContactEmail ?? undefined;
+  }
+
   // Reuse an existing, still-active Interview for this applicant if one
   // exists (of any type — "check whether an interview already exists" is
   // taken literally); otherwise auto-create a lightweight "ai_screening"
@@ -87,6 +108,11 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     interviewerNames,
     meetingLink: input.meetingLink,
     callType: input.callType,
+    salaryBudget,
+    interviewMode: input.interviewMode,
+    onsiteAddress,
+    onsiteContactPhone,
+    onsiteContactEmail,
     retryCount,
     createdBy: resolveActorId(actor),
     createdByName: actor.name,
@@ -109,6 +135,15 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
       interviewerNames,
       meetingLink: input.meetingLink,
       callType: input.callType,
+      salaryBudget: salaryBudget ?? null,
+      interviewMode: input.interviewMode,
+      // Company-settings-derived, onsite-only — never entered in the
+      // Request AI Call form itself. null on every field for "online"
+      // calls, and null per-field for "onsite" calls where the company
+      // hasn't configured that particular Company Profile field yet.
+      locationAddress: onsiteAddress ?? null,
+      locationContactPhone: onsiteContactPhone ?? null,
+      locationContactEmail: onsiteContactEmail ?? null,
       customQuestions,
       userId: actor.id === "system" ? null : actor.id,
       createdBy: actor.name,

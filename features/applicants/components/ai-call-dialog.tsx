@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/dialog";
 import { requestAiCallSchema, type RequestAiCallInput } from "@/validators/ai-call";
 import { requestAiCallAction } from "@/actions/ai-call";
-import { AI_CALL_TYPES, AI_CALL_TYPE_LABELS } from "@/constants/ai-call";
+import { AI_CALL_TYPES, AI_CALL_TYPE_LABELS, AI_CALL_INTERVIEW_MODES, AI_CALL_INTERVIEW_MODE_LABELS } from "@/constants/ai-call";
 
 const CALL_TYPE_ITEMS = AI_CALL_TYPES.map((t) => ({ value: t, label: AI_CALL_TYPE_LABELS[t] }));
+const INTERVIEW_MODE_ITEMS = AI_CALL_INTERVIEW_MODES.map((m) => ({ value: m, label: AI_CALL_INTERVIEW_MODE_LABELS[m] }));
 
 function defaultDate() {
   return new Date().toISOString().slice(0, 10);
@@ -60,6 +61,8 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
       email,
       jobTitle: jobTitle ?? "",
       callType: "initial_screening",
+      salaryBudget: "",
+      interviewMode: "online",
       callDate: defaultDate(),
       callTime: defaultTime(),
       message: "",
@@ -84,7 +87,7 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
         <PhoneCall />
         {hasPhone ? "AI Call" : "No phone on file"}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Request AI Call</DialogTitle>
           <DialogDescription>Review the details before triggering the call.</DialogDescription>
@@ -111,6 +114,39 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
             <div className="space-y-1.5">
               <Label htmlFor="jobTitle">Job Title</Label>
               <Input id="jobTitle" {...register("jobTitle")} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="salaryBudget">Salary Budget (Optional)</Label>
+              <Input id="salaryBudget" type="number" step="any" placeholder="e.g. 75000" {...register("salaryBudget")} />
+              {errors.salaryBudget && <p className="text-xs text-destructive">{errors.salaryBudget.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Interview Type</Label>
+              <Controller
+                control={control}
+                name="interviewMode"
+                render={({ field }) => (
+                  <Select items={INTERVIEW_MODE_ITEMS} value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INTERVIEW_MODE_ITEMS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {/* Onsite location/contact is resolved entirely server-side from
+                  Company Profile settings — intentionally no address/contact
+                  UI here, matching how customQuestions/company are already
+                  resolved without a form field. */}
+              {errors.interviewMode && <p className="text-xs text-destructive">{errors.interviewMode.message}</p>}
             </div>
           </div>
           <div className="space-y-1.5">

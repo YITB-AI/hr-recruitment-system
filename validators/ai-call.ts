@@ -1,10 +1,22 @@
 import { z } from "zod";
-import { AI_CALL_TYPES } from "@/constants/ai-call";
+import { AI_CALL_TYPES, AI_CALL_INTERVIEW_MODES } from "@/constants/ai-call";
 
 export const requestAiCallSchema = z.object({
   applicantId: z.string().min(1),
   name: z.string().min(1, "Name is required"),
   callType: z.enum(AI_CALL_TYPES, { message: "Select a call type" }),
+  // Kept as a plain optional string here, not z.coerce.number() — same
+  // reasoning as interviewerNames below: a raw HTML number input's value is
+  // a string, and coercing here would make an empty field coerce to 0
+  // (Number("") === 0) and then fail a .positive() check, wrongly rejecting
+  // "left blank". Parsed to a real number (or left undefined) in
+  // ai-call.service.ts instead.
+  salaryBudget: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, "Enter a valid number")
+    .optional()
+    .or(z.literal("")),
+  interviewMode: z.enum(AI_CALL_INTERVIEW_MODES, { message: "Select an interview type" }),
   phone: z
     .string()
     .min(1, "Phone number is required")

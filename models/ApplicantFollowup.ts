@@ -1,6 +1,6 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES } from "@/constants/followup";
-import { AI_CALL_TYPES } from "@/constants/ai-call";
+import { AI_CALL_TYPES, AI_CALL_INTERVIEW_MODES } from "@/constants/ai-call";
 
 export { FOLLOWUP_TYPES, FOLLOWUP_STATUSES, FOLLOWUP_OUTCOMES };
 
@@ -38,6 +38,22 @@ const applicantFollowupSchema = new Schema(
     // The call's purpose (screening/HR/technical/etc.), selected by HR
     // before triggering — call-only, same convention as message/meetingLink.
     callType: { type: String, enum: AI_CALL_TYPES },
+    // The requester's target budget for this role, set BEFORE the call —
+    // distinct from salaryExpectation below, which is the candidate's own
+    // stated number, reported back BY the call.
+    salaryBudget: { type: Number },
+    // Online vs. onsite — call-only, same convention as callType above.
+    // "onsite" is what triggers the onsiteAddress/onsiteContact* snapshot
+    // below, sourced from Company Profile settings at request time (never
+    // typed into the Request AI Call form itself).
+    interviewMode: { type: String, enum: AI_CALL_INTERVIEW_MODES },
+    // A snapshot of Company Profile's address/contact at the moment this
+    // call was requested — kept alongside the live Setting so a historical
+    // record survives even if the company's settings change later. Only
+    // ever populated when interviewMode is "onsite".
+    onsiteAddress: { type: String },
+    onsiteContactPhone: { type: String },
+    onsiteContactEmail: { type: String },
     retryCount: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     createdByName: { type: String },

@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import { ApplicantFollowup } from "@/models";
 import type { FollowupType, FollowupStatus, FollowupOutcome } from "@/constants/followup";
-import type { AiCallType } from "@/constants/ai-call";
+import type { AiCallType, AiCallInterviewMode } from "@/constants/ai-call";
 
 export type ApplicantFollowupRow = {
   _id: string;
@@ -18,6 +18,11 @@ export type ApplicantFollowupRow = {
   interviewerNames: string[];
   meetingLink: string | null;
   callType: AiCallType | null;
+  salaryBudget: number | null;
+  interviewMode: AiCallInterviewMode | null;
+  onsiteAddress: string | null;
+  onsiteContactPhone: string | null;
+  onsiteContactEmail: string | null;
   retryCount: number;
   createdByName: string | null;
   createdAt: Date;
@@ -50,6 +55,11 @@ function serialize(row: RawRow): ApplicantFollowupRow {
     interviewerNames: (row.interviewerNames as string[] | undefined) ?? [],
     meetingLink: (row.meetingLink as string | undefined) ?? null,
     callType: (row.callType as AiCallType | undefined) ?? null,
+    salaryBudget: (row.salaryBudget as number | undefined) ?? null,
+    interviewMode: (row.interviewMode as AiCallInterviewMode | undefined) ?? null,
+    onsiteAddress: (row.onsiteAddress as string | undefined) ?? null,
+    onsiteContactPhone: (row.onsiteContactPhone as string | undefined) ?? null,
+    onsiteContactEmail: (row.onsiteContactEmail as string | undefined) ?? null,
     retryCount: (row.retryCount as number | undefined) ?? 0,
     createdByName: (row.createdByName as string | undefined) ?? null,
     createdAt: row.createdAt as Date,
@@ -79,6 +89,11 @@ export type CreateApplicantFollowupInput = {
   interviewerNames?: string[];
   meetingLink?: string;
   callType?: AiCallType;
+  salaryBudget?: number;
+  interviewMode?: AiCallInterviewMode;
+  onsiteAddress?: string;
+  onsiteContactPhone?: string;
+  onsiteContactEmail?: string;
   retryCount?: number;
   createdBy?: string;
   createdByName: string;
