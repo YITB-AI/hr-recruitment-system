@@ -43,13 +43,19 @@ async function main() {
     process.exit(1);
   }
 
-  if (newIndexExists) {
-    console.log("\nCompound {companyId, email} unique index already exists. Nothing to do.");
+  if (!oldIndex && newIndexExists) {
+    console.log("\nOld global index already gone and compound index already exists. Nothing to do.");
     process.exit(0);
   }
 
+  // Checked independently, not as an early-exit pair — Mongoose's autoIndex
+  // can create the NEW index on app deploy (it only adds, never removes)
+  // while the OLD global-unique index is still sitting there from before.
+  // Both conditions need to be evaluated on their own so a stale old index
+  // is never left behind just because the new one already showed up.
   console.log(
-    `\nWould ${oldIndex ? `drop old index "${oldIndex.name}"` : "skip dropping old index (none found)"} and create a new unique index on {companyId: 1, email: 1}.`,
+    `\nWould ${oldIndex ? `drop old index "${oldIndex.name}"` : "skip dropping old index (none found)"}` +
+      ` and ${newIndexExists ? "skip creating the compound index (already exists)" : "create a new unique index on {companyId: 1, email: 1}"}.`,
   );
 
   if (!confirm) {
@@ -61,8 +67,10 @@ async function main() {
     await User.collection.dropIndex(oldIndex.name);
     console.log(`Dropped old index "${oldIndex.name}".`);
   }
-  await User.collection.createIndex(NEW_INDEX_KEY, { unique: true });
-  console.log("Created new unique index on {companyId: 1, email: 1}.");
+  if (!newIndexExists) {
+    await User.collection.createIndex(NEW_INDEX_KEY, { unique: true });
+    console.log("Created new unique index on {companyId: 1, email: 1}.");
+  }
 
   console.log("\n=== Migration committed successfully ===\n");
   process.exit(0);
