@@ -19,7 +19,7 @@ import { renderTemplate, type TemplateImageValue } from "@/lib/docx";
 import { injectLetterheadHeader, type LetterheadImage } from "@/lib/docx-letterhead";
 import path from "node:path";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
-import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
+import { resolveEmployeeFieldValue } from "@/lib/document-field-resolution";
 import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
 import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
 import type { CalculationType } from "@/constants/document-template";
@@ -35,7 +35,7 @@ export type DocumentRecipient =
   | { type: "employee"; id: string; name?: string }
   | { type: "applicant"; id: string; name?: string };
 
-type RecipientRecord = {
+export type RecipientRecord = {
   name: string;
   email: string;
   department?: string | null;
@@ -74,47 +74,39 @@ type RecipientRecord = {
 // `dateFormat` is the effective format for this field (its own override, or
 // the company-wide Setting.dateFormat default) — only the milestone-date
 // keys use it, since every other value here is already a plain string.
-function resolveKnownFieldValue(key: string, record: RecipientRecord, dateFormat?: string): string | undefined {
+export function resolveKnownFieldValue(key: string, record: RecipientRecord, dateFormat?: string): string | undefined {
   switch (key.toLowerCase()) {
+    // Employee-shaped keys + milestone dates: delegates to the shared
+    // resolveEmployeeFieldValue (lib/document-field-resolution.ts), the same
+    // function features/documents/components/generate-document-wizard.tsx's
+    // autoFillFromEmployee delegates to — this is the one place that logic
+    // lives now, instead of twice.
     case "employee_name":
     case "applicant_name":
     case "name":
-      return record.name;
+      return resolveEmployeeFieldValue("name", record, dateFormat);
     case "designation":
     case "job_title":
     case "position":
-      return record.designation ?? record.currentPosition ?? record.jobId?.title ?? undefined;
+      // Extra applicant-only fallback on top of the shared lookup — an
+      // applicant record has no `designation` field at all, only
+      // currentPosition/jobId.title.
+      return resolveEmployeeFieldValue("designation", record, dateFormat) ?? record.currentPosition ?? record.jobId?.title ?? undefined;
     case "department":
     case "dept":
     case "department_name":
-      return record.department ?? undefined;
-    case "email":
-    case "employee_email":
-    case "applicant_email":
-      return record.email;
     case "basic_salary":
-      return record.basicSalary != null ? String(record.basicSalary) : undefined;
     case "gross_salary":
-      return record.grossSalary != null ? String(record.grossSalary) : undefined;
+    case "joining_date":
     case "probation_end_date":
     case "confirmation_date":
     case "increment_eligibility_date":
-    case "contract_renewal_date": {
-      if (!record.joiningDate) return undefined;
-      const milestones = getEmployeeMilestones(record.joiningDate, record.employmentType ?? "");
-      switch (key.toLowerCase()) {
-        case "probation_end_date":
-          return formatMilestoneDate(milestones.probationEndDate, dateFormat);
-        case "confirmation_date":
-          return formatMilestoneDate(milestones.confirmationDate, dateFormat);
-        case "increment_eligibility_date":
-          return formatMilestoneDate(milestones.incrementEligibilityDate, dateFormat);
-        case "contract_renewal_date":
-          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, dateFormat) : undefined;
-        default:
-          return undefined;
-      }
-    }
+    case "contract_renewal_date":
+      return resolveEmployeeFieldValue(key, record, dateFormat);
+    case "email":
+    case "employee_email":
+    case "applicant_email":
+      return resolveEmployeeFieldValue("email", record, dateFormat);
     case "employee_code":
       return record.employeeCode ?? undefined;
     case "phone":
@@ -130,8 +122,6 @@ function resolveKnownFieldValue(key: string, record: RecipientRecord, dateFormat
       return record.employmentStatus ?? undefined;
     case "employee_type_name":
       return record.employeeType?.name ?? undefined;
-    case "joining_date":
-      return record.joiningDate ? formatDateWithPreset(record.joiningDate, dateFormat) : undefined;
     case "applicant_status":
       return record.status ?? undefined;
     // Source keys are now company-managed (Status collection, module

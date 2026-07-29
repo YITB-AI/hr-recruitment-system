@@ -20,7 +20,7 @@ import { BulkGenerateResults } from "@/features/documents/components/bulk-genera
 import { generateDocumentAction, generateDocumentsBulkAction } from "@/actions/documents";
 import { withDownloadFilename } from "@/lib/download-url";
 import { resolveCalculatedValue } from "@/lib/salary-calculation";
-import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-milestones";
+import { resolveEmployeeFieldValue } from "@/lib/document-field-resolution";
 import { formatDateWithPreset } from "@/lib/date-format";
 import { CALCULATION_TYPES, CALCULATION_TYPE_LABELS, type CalculationType } from "@/constants/document-template";
 import type { DocumentTemplateRow } from "@/server/repositories/document-template.repository";
@@ -59,50 +59,17 @@ type SelectedRecipient = { type: "employee" | "applicant"; id: string; name: str
 // generated correctly, since the server reformats whatever string it's
 // given using the field's real preset). formatFieldValueForPreview applies
 // the field's actual preset for the human-readable step-3 preview instead.
-function autoFillFromEmployee(key: string, employee: EmployeeRow): string | undefined {
-  switch (key.toLowerCase()) {
-    case "employee_name":
-    case "name":
-      return employee.name;
-    case "designation":
-    case "job_title":
-    case "position":
-      return employee.designation;
-    case "department":
-    case "dept":
-    case "department_name":
-      return employee.department;
-    case "email":
-    case "employee_email":
-      return employee.email;
-    case "basic_salary":
-      return String(employee.basicSalary);
-    case "gross_salary":
-      return String(employee.grossSalary);
-    case "joining_date":
-      return employee.joiningDate ? formatDateWithPreset(new Date(employee.joiningDate), "YYYY-MM-DD") : undefined;
-    case "probation_end_date":
-    case "confirmation_date":
-    case "increment_eligibility_date":
-    case "contract_renewal_date": {
-      if (!employee.joiningDate) return undefined;
-      const milestones = getEmployeeMilestones(new Date(employee.joiningDate), employee.employmentType);
-      switch (key.toLowerCase()) {
-        case "probation_end_date":
-          return formatMilestoneDate(milestones.probationEndDate, "YYYY-MM-DD");
-        case "confirmation_date":
-          return formatMilestoneDate(milestones.confirmationDate, "YYYY-MM-DD");
-        case "increment_eligibility_date":
-          return formatMilestoneDate(milestones.incrementEligibilityDate, "YYYY-MM-DD");
-        case "contract_renewal_date":
-          return milestones.contractRenewalDate ? formatMilestoneDate(milestones.contractRenewalDate, "YYYY-MM-DD") : undefined;
-        default:
-          return undefined;
-      }
-    }
-    default:
-      return undefined;
-  }
+export function autoFillFromEmployee(key: string, employee: EmployeeRow): string | undefined {
+  // Delegates to the same resolveEmployeeFieldValue the server's
+  // resolveKnownFieldValue (generate-document.service.ts) delegates to for
+  // the identical key set — "YYYY-MM-DD" is passed unconditionally for
+  // every date-ish key here, matching this function's pre-existing ISO-
+  // always behavior documented above.
+  return resolveEmployeeFieldValue(
+    key,
+    { ...employee, joiningDate: employee.joiningDate ? new Date(employee.joiningDate) : null },
+    "YYYY-MM-DD",
+  );
 }
 
 function hasPreviewableValue(field: { type: string }, value: FieldValue | undefined): boolean {
