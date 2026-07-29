@@ -1,5 +1,6 @@
 import { Status } from "@/models";
 import type { StatusModule } from "@/constants/status-module";
+import { escapeRegex } from "@/lib/regex";
 
 export type StatusRow = {
   _id: string;
@@ -140,7 +141,7 @@ export const statusRepository = {
       companyId,
       module,
       deletedAt: { $exists: false },
-      $or: [{ name: { $regex: `^${name.trim()}$`, $options: "i" } }, { key }],
+      $or: [{ name: { $regex: `^${escapeRegex(name.trim())}$`, $options: "i" } }, { key }],
     };
     if (excludeId) query._id = { $ne: excludeId };
     const count = await Status.countDocuments(query);

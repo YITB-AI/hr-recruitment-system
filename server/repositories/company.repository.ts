@@ -1,4 +1,5 @@
 import { Company, User, Job, type CompanyStatus } from "@/models";
+import { escapeRegex } from "@/lib/regex";
 
 export type CompanyRow = {
   _id: string;
@@ -55,7 +56,7 @@ export const companyRepository = {
     const query: Record<string, unknown> = {};
     if (filters.status) query.status = filters.status;
     if (filters.search) {
-      const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
       query.$or = [{ name: pattern }, { slug: pattern }];
     }
 

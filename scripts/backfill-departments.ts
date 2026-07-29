@@ -3,6 +3,7 @@ config({ path: ".env.local", quiet: true });
 import { connectDB } from "@/server/db/connect";
 import { Employee } from "@/models/Employee";
 import { Department } from "@/models/Department";
+import { escapeRegex } from "@/lib/regex";
 
 // Backfills a real Department row (models/Department.ts) for every distinct
 // free-string Employee.department value, per company, and sets
@@ -65,7 +66,7 @@ async function main() {
     for (const name of distinctNames) {
       const existing = await Department.findOne({
         companyId,
-        name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+        name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },
         deletedAt: { $exists: false },
       });
       if (existing) {

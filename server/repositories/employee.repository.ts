@@ -1,5 +1,6 @@
 import { Employee } from "@/models";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { escapeRegex } from "@/lib/regex";
 import type { EmploymentStatus, EmploymentType } from "@/constants/employee";
 
 // basicSalary/grossSalary are encrypted at rest (models/Employee.ts) —
@@ -203,7 +204,7 @@ export const employeeRepository = {
     if (filters.status) query.employmentStatus = filters.status;
     if (filters.department) query.department = filters.department;
     if (filters.search) {
-      const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
       query.$or = [{ name: pattern }, { email: pattern }, { employeeCode: pattern }, { designation: pattern }];
     }
 

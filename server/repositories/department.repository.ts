@@ -1,4 +1,5 @@
 import { Department } from "@/models";
+import { escapeRegex } from "@/lib/regex";
 
 export type DepartmentRow = {
   _id: string;
@@ -41,7 +42,7 @@ export const departmentRepository = {
     const query: Record<string, unknown> = {
       companyId,
       deletedAt: { $exists: false },
-      name: { $regex: `^${name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+      name: { $regex: `^${escapeRegex(name.trim())}$`, $options: "i" },
     };
     if (excludeId) query._id = { $ne: excludeId };
     const count = await Department.countDocuments(query);

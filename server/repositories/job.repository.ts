@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Types } from "mongoose";
 import { Job, Applicant, Interview } from "@/models";
+import { escapeRegex } from "@/lib/regex";
 import type {
   JobStatus,
   JobType,
@@ -262,7 +263,7 @@ export const jobRepository = {
     if (filters.status) query.status = filters.status;
     if (filters.department) query.department = filters.department;
     if (filters.search) {
-      const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
       query.$or = [{ title: pattern }, { department: pattern }, { job_id: pattern }];
     }
 

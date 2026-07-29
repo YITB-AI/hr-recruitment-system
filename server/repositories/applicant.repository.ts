@@ -1,6 +1,7 @@
 import { Types, type PipelineStage } from "mongoose";
 import { Applicant, ResumeAnalysis, Job } from "@/models";
 import { PIPELINE_STATUSES, type ApplicantStatus } from "@/constants/applicant-status";
+import { escapeRegex } from "@/lib/regex";
 
 export type ApplicantListRow = {
   _id: string;
@@ -147,7 +148,7 @@ function buildMatchStage(companyId: string, filters: Partial<ApplicantListFilter
   }
   if (filters.source) match.source = filters.source;
   if (filters.search) {
-    const pattern = new RegExp(filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
     match.$or = [{ name: pattern }, { email: pattern }, { currentPosition: pattern }, { skills: pattern }];
   }
   if (filters.dateFrom || filters.dateTo) {
