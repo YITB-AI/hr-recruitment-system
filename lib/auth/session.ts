@@ -89,6 +89,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
 
   return {
     id: String(user._id),
+    sessionId: String(session._id),
     companyId: String(user.companyId ?? session.companyId),
     name: user.name,
     email: user.email,

@@ -8,9 +8,11 @@ import { EditProfileForm } from "@/features/profile/components/edit-profile-form
 import { ChangePasswordCard } from "@/features/profile/components/change-password-card";
 import { ChangeEmailCard } from "@/features/profile/components/change-email-card";
 import { MfaSettingsCard } from "@/features/profile/components/mfa-settings-card";
+import { ActiveSessionsCard } from "@/features/profile/components/active-sessions-card";
 import { CalendarConnectionsCard } from "@/features/profile/components/calendar-connections-card";
 import { getOwnProfile } from "@/features/profile/services/profile.service";
 import { listOwnCalendarConnections } from "@/features/calendar/services/calendar-connection.service";
+import { requireSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "My Profile" };
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ const DEEP_LINKABLE_TABS = new Set(["profile", "security", "calendar"]);
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab } = await searchParams;
   const defaultTab = tab && DEEP_LINKABLE_TABS.has(tab) ? tab : "profile";
-  const [profile, calendarConnections] = await Promise.all([getOwnProfile(), listOwnCalendarConnections()]);
+  const [profile, calendarConnections, actor] = await Promise.all([getOwnProfile(), listOwnCalendarConnections(), requireSession()]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -70,6 +72,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 <div className="border-t pt-6">
                   <h3 className="mb-4 text-sm font-medium">Two-Factor Authentication</h3>
                   <MfaSettingsCard mfaEnabled={profile.mfaEnabled} role={profile.role} />
+                </div>
+                <div className="border-t pt-6">
+                  <h3 className="mb-4 text-sm font-medium">Active Sessions</h3>
+                  <ActiveSessionsCard currentSessionId={actor.sessionId} />
                 </div>
               </TabsContent>
 

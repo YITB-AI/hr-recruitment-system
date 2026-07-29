@@ -25,6 +25,7 @@ type CompletedEvent = Extract<AiCallWebhookInput, { event: "completed" }>;
 function systemActorFor(companyId: string): SessionUser {
   return {
     id: "system",
+    sessionId: null,
     companyId,
     name: "AI Call Webhook",
     email: "system@internal",

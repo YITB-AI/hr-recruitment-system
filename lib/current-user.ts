@@ -20,6 +20,7 @@ async function getSystemUser(): Promise<SessionUser> {
   const anyCompany = await Company.findOne().lean<{ _id: unknown } | null>();
   return {
     id: "system",
+    sessionId: null,
     companyId: anyCompany ? String(anyCompany._id) : "",
     name: "System",
     email: "system@internal",

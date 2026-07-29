@@ -56,6 +56,17 @@ export const sessionRepository = {
     const result = await UserSession.updateMany({ userId, revokedAt: { $exists: false } }, { revokedAt: new Date() });
     return result.modifiedCount;
   },
+  // Scoped to {_id, userId} — a user can only ever revoke their OWN
+  // session, never anyone else's, regardless of what sessionId is passed
+  // in. Returns whether a row actually matched, so the caller can tell
+  // "already revoked/expired/not yours" apart from a real success.
+  async revokeOne(userId: string, sessionId: string): Promise<boolean> {
+    const result = await UserSession.updateOne(
+      { _id: sessionId, userId, revokedAt: { $exists: false } },
+      { revokedAt: new Date() },
+    );
+    return result.modifiedCount > 0;
+  },
   async findActiveForUser(userId: string): Promise<SessionRow[]> {
     const rows = await UserSession.find({ userId, revokedAt: { $exists: false }, expiresAt: { $gt: new Date() } })
       .sort({ lastActiveAt: -1 })
