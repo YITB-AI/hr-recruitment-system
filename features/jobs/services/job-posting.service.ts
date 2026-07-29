@@ -1,7 +1,7 @@
 import { connectDB } from "@/server/db/connect";
 import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { getJobPostingProvider } from "@/lib/job-posting/providers";
 import type { JobPostingPlatform } from "@/constants/job";
@@ -21,7 +21,7 @@ export async function publishJobToPlatform(jobId: string, platform: JobPostingPl
   await jobRepository.upsertPlatformPosting(actor.companyId, jobId, {
     platform,
     status: "publishing",
-    requestedBy: actor.id === "system" ? undefined : actor.id,
+    requestedBy: resolveActorId(actor),
     requestedByName: actor.name,
   });
 
@@ -34,13 +34,13 @@ export async function publishJobToPlatform(jobId: string, platform: JobPostingPl
     externalPostId: result.ok ? result.externalPostId : undefined,
     externalPostUrl: result.ok ? result.externalPostUrl : undefined,
     error: result.ok ? undefined : result.error,
-    requestedBy: actor.id === "system" ? undefined : actor.id,
+    requestedBy: resolveActorId(actor),
     requestedByName: actor.name,
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.platform_posting_attempted",
     entityType: "job",
@@ -63,7 +63,7 @@ export async function setPostToIndeed(jobId: string, postToIndeed: boolean): Pro
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: postToIndeed ? "job.indeed_feed_enabled" : "job.indeed_feed_disabled",
     entityType: "job",

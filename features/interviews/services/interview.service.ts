@@ -3,7 +3,7 @@ import { interviewRepository } from "@/server/repositories/interview.repository"
 import { applicantRepository } from "@/server/repositories/applicant.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { userRepository } from "@/server/repositories/user.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
 import { checkConflicts, createCalendarEventsForInterview, deleteCalendarEventsForInterview } from "@/features/calendar/services/calendar.service";
@@ -35,7 +35,7 @@ export async function deleteInterview(interviewId: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "interview.deleted",
     entityType: "interview",
@@ -110,7 +110,7 @@ export async function scheduleInterview(input: ScheduleInterviewInput) {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "interview.scheduled",
     entityType: "interview",
@@ -213,7 +213,7 @@ export async function rescheduleInterviewCore(actor: SessionUser, input: Resched
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "interview.rescheduled",
     entityType: "interview",
@@ -222,7 +222,7 @@ export async function rescheduleInterviewCore(actor: SessionUser, input: Resched
   });
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "interview.scheduled",
     entityType: "interview",

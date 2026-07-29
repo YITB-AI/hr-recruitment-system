@@ -9,7 +9,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { statusRepository } from "@/server/repositories/status.repository";
 import { departmentRepository } from "@/server/repositories/department.repository";
 import { employeeTypeRepository } from "@/server/repositories/employee-type.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import { notifyHrStaff } from "@/lib/staff-notify";
@@ -121,7 +121,7 @@ export async function createEmployeeCore(actor: SessionUser, input: EmployeeForm
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee.created",
     entityType: "employee",
@@ -174,7 +174,7 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee.updated",
     entityType: "employee",
@@ -197,7 +197,7 @@ export async function deleteEmployee(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee.deleted",
     entityType: "employee",

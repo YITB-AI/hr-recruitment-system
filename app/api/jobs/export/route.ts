@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import type { JobListFilters } from "@/server/repositories/job.repository";
 
 const CSV_COLUMNS = [
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     activityLogRepository
       .create({
         companyId: actor.companyId,
-        actorId: actor.id === "system" ? undefined : actor.id,
+        actorId: resolveActorId(actor),
         actorName: actor.name,
         action: "job.exported",
         entityType: "job",

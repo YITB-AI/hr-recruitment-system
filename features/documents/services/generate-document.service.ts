@@ -23,7 +23,7 @@ import { getEmployeeMilestones, formatMilestoneDate } from "@/lib/employee-miles
 import { formatDateWithPreset, formatTimeWithPreset, formatProvidedDateValue, nowInTimeZone } from "@/lib/date-format";
 import { EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
 import type { CalculationType } from "@/constants/document-template";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
 import type { SessionUser } from "@/types/user";
@@ -331,12 +331,12 @@ async function generateOne(
     batchId,
     fileName,
     fileUrl: `/api/files/${storageKey}`,
-    generatedBy: actor.id === "system" ? undefined : actor.id,
+    generatedBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "document.generated",
     entityType: "document",
@@ -362,7 +362,7 @@ async function generateOne(
     created.pdfStatus = "failed";
     await activityLogRepository.create({
       companyId: actor.companyId,
-      actorId: actor.id === "system" ? undefined : actor.id,
+      actorId: resolveActorId(actor),
       actorName: actor.name,
       action: "document.pdf_conversion_failed",
       entityType: "document",

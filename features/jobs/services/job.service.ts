@@ -8,7 +8,7 @@ import { autoRepairResolvableOrphanedJobs } from "@/features/settings/services/d
 import { listActiveDepartments } from "@/features/settings/services/department.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { shouldRunRepairJob } from "@/lib/repair-throttle";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 import { computeTrend, getMonthWindows } from "@/lib/trend";
@@ -107,7 +107,7 @@ export async function syncJobs(): Promise<{ success: true } | { success: false; 
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.sync_requested",
     entityType: "job",
@@ -129,7 +129,7 @@ export async function syncAll(): Promise<{ success: true } | { success: false; e
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.sync_all_requested",
     entityType: "job",
@@ -240,7 +240,7 @@ export async function updateJobTeam(input: UpdateJobTeamInput): Promise<JobRow> 
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.team_updated",
     entityType: "job",
@@ -261,7 +261,7 @@ export async function updateJobHrRequirements(input: UpdateJobHrRequirementsInpu
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.hr_requirements_updated",
     entityType: "job",
@@ -282,14 +282,14 @@ export async function logJobPromotion(input: LogJobPromotionInput): Promise<JobR
     customChannel: input.customChannel,
     url: input.url || undefined,
     notes: input.notes,
-    loggedBy: actor.id === "system" ? undefined : actor.id,
+    loggedBy: resolveActorId(actor),
     loggedByName: actor.name,
   });
   if (!job) throw new Error("Job not found");
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.promotion_logged",
     entityType: "job",
@@ -310,7 +310,7 @@ export async function removeJobPromotionLogEntry(jobId: string, entryId: string)
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.promotion_log_removed",
     entityType: "job",
@@ -330,7 +330,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRow> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.created",
     entityType: "job",
@@ -352,7 +352,7 @@ export async function updateJob(input: UpdateJobInput): Promise<JobRow> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.updated",
     entityType: "job",
@@ -373,7 +373,7 @@ export async function archiveJob(id: string): Promise<JobRow> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.archived",
     entityType: "job",
@@ -394,7 +394,7 @@ export async function restoreJob(id: string): Promise<JobRow> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.restored",
     entityType: "job",
@@ -424,7 +424,7 @@ export async function deleteJob(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "job.deleted",
     entityType: "job",

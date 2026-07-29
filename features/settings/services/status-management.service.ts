@@ -3,7 +3,7 @@ import { statusRepository, type StatusRow } from "@/server/repositories/status.r
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { Applicant } from "@/models/Applicant";
 import { Employee } from "@/models/Employee";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { StatusModule } from "@/constants/status-module";
 import type { CreateStatusInput, UpdateStatusInput } from "@/validators/status";
@@ -58,12 +58,12 @@ export async function createStatus(input: CreateStatusInput): Promise<StatusRow>
     name: input.name,
     color: input.color,
     icon: input.icon,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "status.created",
     entityType: "setting",
@@ -95,7 +95,7 @@ export async function updateStatus(input: UpdateStatusInput): Promise<StatusRow>
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "status.updated",
     entityType: "setting",
@@ -116,7 +116,7 @@ export async function setStatusActive(id: string, module: StatusModule, isActive
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: isActive ? "status.activated" : "status.deactivated",
     entityType: "setting",
@@ -146,7 +146,7 @@ export async function deleteStatus(id: string, module: StatusModule): Promise<vo
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "status.deleted",
     entityType: "setting",

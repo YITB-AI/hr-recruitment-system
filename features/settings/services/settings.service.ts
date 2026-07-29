@@ -1,7 +1,7 @@
 import { connectDB } from "@/server/db/connect";
 import { settingRepository, type SettingRow } from "@/server/repositories/setting.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { verifySession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/permissions";
 import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY } from "@/constants/appearance";
@@ -51,7 +51,7 @@ async function logSettingsChange(companyId: string, section: string, settingsId:
   const actor = await getCurrentUser();
   await activityLogRepository.create({
     companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "settings.updated",
     entityType: "setting",

@@ -5,7 +5,7 @@ import { interviewRepository } from "@/server/repositories/interview.repository"
 import { companyRepository } from "@/server/repositories/company.repository";
 import { aiCallQuestionRepository } from "@/server/repositories/ai-call-question.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 import type { RequestAiCallInput } from "@/validators/ai-call";
@@ -88,7 +88,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     meetingLink: input.meetingLink,
     callType: input.callType,
     retryCount,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
     createdByName: actor.name,
   });
 
@@ -128,7 +128,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "applicant.ai_call_requested",
     entityType: "applicant",

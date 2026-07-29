@@ -8,7 +8,7 @@ import { userRepository, type CompanyUserRow } from "@/server/repositories/user.
 import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
 import { activityLogRepository, type ActivityLogRow } from "@/server/repositories/activity-log.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmailHtml } from "@/lib/email-templates";
@@ -90,7 +90,7 @@ export async function updateCompany(companyId: string, input: { name: string }):
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "company.updated",
     entityType: "setting",
@@ -111,7 +111,7 @@ export async function setCompanyStatus(companyId: string, status: CompanyStatus)
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: status === "active" ? "company.activated" : "company.suspended",
     entityType: "setting",
@@ -175,7 +175,7 @@ export async function deleteCompany(companyId: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "company.deleted",
     entityType: "setting",
@@ -225,7 +225,7 @@ export async function createCompanyWithAdmin(input: {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "company.created",
     entityType: "setting",

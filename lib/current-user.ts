@@ -31,6 +31,16 @@ async function getSystemUser(): Promise<SessionUser> {
   };
 }
 
+// Resolves the id to attribute an audit-log/created-by field to — undefined
+// when running as the script-context SYSTEM_USER sentinel above, since
+// "system" is never a real, storable User _id. Extracted because the exact
+// ternary this replaces (`actor.id === "system" ? undefined : actor.id`) was
+// independently duplicated 80 times across every service that writes an
+// actor-attributed field.
+export function resolveActorId(actor: SessionUser): string | undefined {
+  return actor.id === "system" ? undefined : actor.id;
+}
+
 // Real session-backed auth (Phase 1). Every existing call site still just
 // does `const actor = await getCurrentUser()` and reads id/name/email/role/
 // avatarUrl — this keeps returning that exact shape, so none of them need

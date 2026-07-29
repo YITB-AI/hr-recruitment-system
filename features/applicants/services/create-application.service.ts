@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { connectDB } from "@/server/db/connect";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 
@@ -75,7 +75,7 @@ export async function requestApplicationCreate(jobId: string, file: File): Promi
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: SUBMISSION_ACTION,
     entityType: "job",

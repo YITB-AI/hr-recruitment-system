@@ -6,7 +6,7 @@ import {
   type GeneratedDocumentStatus,
 } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 
 const PAGE_SIZE = 20;
@@ -37,7 +37,7 @@ export async function transitionDocumentStatus(id: string, newStatus: GeneratedD
     throw new Error(`Cannot move a document from "${currentStatus}" to "${newStatus}"`);
   }
 
-  const actorId = actor.id === "system" ? undefined : actor.id;
+  const actorId = resolveActorId(actor);
   const updated = await generatedDocumentRepository.updateStatus(actor.companyId, id, newStatus, actorId);
   if (!updated) throw new Error("Document not found");
 

@@ -1,7 +1,7 @@
 import { connectDB } from "@/server/db/connect";
 import { aiCallQuestionRepository, type AiCallQuestionRow } from "@/server/repositories/ai-call-question.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { CreateAiCallQuestionInput, UpdateAiCallQuestionInput } from "@/validators/ai-call-question";
 
@@ -19,12 +19,12 @@ export async function createAiCallQuestion(input: CreateAiCallQuestionInput): Pr
   const question = await aiCallQuestionRepository.create({
     companyId: actor.companyId,
     text: input.text,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "ai_call_question.created",
     entityType: "setting",
@@ -45,7 +45,7 @@ export async function updateAiCallQuestion(input: UpdateAiCallQuestionInput): Pr
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "ai_call_question.updated",
     entityType: "setting",
@@ -66,7 +66,7 @@ export async function setAiCallQuestionActive(id: string, isActive: boolean): Pr
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: isActive ? "ai_call_question.activated" : "ai_call_question.deactivated",
     entityType: "setting",
@@ -89,7 +89,7 @@ export async function deleteAiCallQuestion(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "ai_call_question.deleted",
     entityType: "setting",

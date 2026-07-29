@@ -7,7 +7,7 @@ import { companyRepository } from "@/server/repositories/company.repository";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
 import { notifyStaffForReview } from "@/lib/staff-notify";
 
@@ -224,7 +224,7 @@ export async function repairOrphanedApplicant(applicantId: string, companyId: st
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "applicant.repaired",
     entityType: "applicant",

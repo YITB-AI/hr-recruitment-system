@@ -3,7 +3,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { emailLogRepository } from "@/server/repositories/email-log.repository";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { interviewRepository } from "@/server/repositories/interview.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { triggerWebhook } from "@/lib/webhook";
 import { EMAIL_TEMPLATE_LABELS, type EmailTemplate } from "@/constants/email";
@@ -83,7 +83,7 @@ export async function sendApplicantEmail(
     type: "email",
     source: "send-email",
     status: "pending",
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
     createdByName: actor.name,
   });
 
@@ -103,7 +103,7 @@ export async function sendApplicantEmail(
     subject,
     template: options.template,
     status: result.ok ? "sent" : "failed",
-    userId: actor.id === "system" ? undefined : actor.id,
+    userId: resolveActorId(actor),
     userName: actor.name,
     response: result.ok ? summarizeResponse(result.data) : undefined,
     error: result.ok ? undefined : result.error,
@@ -111,7 +111,7 @@ export async function sendApplicantEmail(
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "applicant.email_sent",
     entityType: "applicant",
@@ -127,7 +127,7 @@ export async function sendApplicantEmail(
   if (options.interviewId) {
     await activityLogRepository.create({
       companyId: actor.companyId,
-      actorId: actor.id === "system" ? undefined : actor.id,
+      actorId: resolveActorId(actor),
       actorName: actor.name,
       action: options.template === "interview_reminder" ? "interview.reminder_sent" : "interview.email_sent",
       entityType: "interview",
@@ -157,7 +157,7 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
     type: "sms",
     source: "send-sms",
     status: "pending",
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
     createdByName: actor.name,
   });
 
@@ -182,7 +182,7 @@ export async function sendApplicantSms(applicantId: string): Promise<Notificatio
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "applicant.sms_sent",
     entityType: "applicant",

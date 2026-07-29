@@ -2,7 +2,7 @@ import { connectDB } from "@/server/db/connect";
 import { employeeTypeRepository, type EmployeeTypeRow } from "@/server/repositories/employee-type.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { Employee } from "@/models/Employee";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { CreateEmployeeTypeInput, UpdateEmployeeTypeInput } from "@/validators/employee-type";
 
@@ -39,12 +39,12 @@ export async function createEmployeeType(input: CreateEmployeeTypeInput): Promis
     companyId: actor.companyId,
     name: input.name,
     parentTypeId: input.parentTypeId,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee_type.created",
     entityType: "setting",
@@ -86,7 +86,7 @@ export async function updateEmployeeType(input: UpdateEmployeeTypeInput): Promis
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee_type.updated",
     entityType: "setting",
@@ -107,7 +107,7 @@ export async function setEmployeeTypeActive(id: string, isActive: boolean): Prom
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: isActive ? "employee_type.activated" : "employee_type.deactivated",
     entityType: "setting",
@@ -144,7 +144,7 @@ export async function deleteEmployeeType(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "employee_type.deleted",
     entityType: "setting",

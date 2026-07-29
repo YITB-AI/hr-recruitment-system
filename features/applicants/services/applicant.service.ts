@@ -18,7 +18,7 @@ import { emailLogRepository, type EmailLogRow } from "@/server/repositories/emai
 import { applicantFollowupRepository, type ApplicantFollowupRow } from "@/server/repositories/applicant-followup.repository";
 import { noteRepository, type NoteRow } from "@/server/repositories/note.repository";
 import { FOLLOWUP_TYPE_LABELS, FOLLOWUP_OUTCOME_LABELS } from "@/constants/followup";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { statusRepository } from "@/server/repositories/status.repository";
 import { shouldRunRepairJob } from "@/lib/repair-throttle";
@@ -242,7 +242,7 @@ export async function changeApplicantStatus(
   const label = statusRow.name;
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: `applicant.${status}`,
     entityType: "applicant",
@@ -277,7 +277,7 @@ export async function bulkChangeApplicantStatus(ids: string[], status: string): 
     await activityLogRepository.createMany(
       targets.map((target) => ({
         companyId: actor.companyId,
-        actorId: actor.id === "system" ? undefined : actor.id,
+        actorId: resolveActorId(actor),
         actorName: actor.name,
         action: `applicant.${status}`,
         entityType: "applicant" as const,

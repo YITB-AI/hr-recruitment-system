@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { readFileByKey } from "@/lib/file-storage";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { connectDB } from "@/server/db/connect";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
@@ -72,7 +72,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/files/[...path]"
         activityLogRepository
           .create({
             companyId: actor.companyId,
-            actorId: actor.id === "system" ? undefined : actor.id,
+            actorId: resolveActorId(actor),
             actorName: actor.name,
             action: "document.downloaded",
             entityType: "document",

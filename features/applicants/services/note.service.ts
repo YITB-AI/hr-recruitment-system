@@ -1,7 +1,7 @@
 import { connectDB } from "@/server/db/connect";
 import { noteRepository, type NoteRow } from "@/server/repositories/note.repository";
 import { applicantRepository } from "@/server/repositories/applicant.repository";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { CreateNoteInput } from "@/validators/note";
 
@@ -22,7 +22,7 @@ export async function createNote(input: CreateNoteInput): Promise<NoteRow> {
   return noteRepository.create({
     companyId: actor.companyId,
     applicantId: input.applicantId,
-    authorId: actor.id === "system" ? undefined : actor.id,
+    authorId: resolveActorId(actor),
     authorName: actor.name,
     body: input.body,
   });

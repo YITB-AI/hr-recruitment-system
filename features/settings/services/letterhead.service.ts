@@ -2,7 +2,7 @@ import { connectDB } from "@/server/db/connect";
 import { letterheadRepository, type LetterheadRow } from "@/server/repositories/letterhead.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { renderPdfFirstPageToPng } from "@/lib/pdf-to-image";
 
@@ -56,12 +56,12 @@ export async function uploadLetterhead(name: string, file: File): Promise<Letter
     companyId: actor.companyId,
     name,
     imageUrl,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "letterhead.uploaded",
     entityType: "setting",
@@ -86,7 +86,7 @@ export async function updateLetterheadMargins(id: string, contentTopMarginIn: nu
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "letterhead.margins_updated",
     entityType: "setting",
@@ -108,7 +108,7 @@ export async function deleteLetterhead(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "letterhead.deleted",
     entityType: "setting",

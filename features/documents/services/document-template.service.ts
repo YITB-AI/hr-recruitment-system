@@ -6,7 +6,7 @@ import {
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { extractTemplateVariables, type DetectedTemplateVariables } from "@/lib/docx";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { DocumentTemplateInput } from "@/validators/document-template";
 import type { TemplateMilestoneType } from "@/constants/document-template";
@@ -57,7 +57,7 @@ export async function createTemplate(
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "template.created",
     entityType: "document",
@@ -98,7 +98,7 @@ export async function updateTemplate(
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "template.updated",
     entityType: "document",
@@ -122,7 +122,7 @@ export async function deleteTemplate(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "template.deleted",
     entityType: "document",

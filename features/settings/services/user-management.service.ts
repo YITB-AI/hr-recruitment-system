@@ -5,7 +5,7 @@ import { userRepository, type CompanyUserRow } from "@/server/repositories/user.
 import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { revokeAllSessionsForUser } from "@/lib/auth/session";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmailHtml } from "@/lib/email-templates";
@@ -45,7 +45,7 @@ export async function createCompanyUser(input: CreateUserInput): Promise<CreateC
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "user.created",
     entityType: "auth",
@@ -102,7 +102,7 @@ export async function updateCompanyUser(input: UpdateUserInput): Promise<Company
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "user.updated",
     entityType: "auth",
@@ -133,7 +133,7 @@ export async function deleteCompanyUser(userId: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "user.deleted",
     entityType: "auth",

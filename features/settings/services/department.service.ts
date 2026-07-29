@@ -2,7 +2,7 @@ import { connectDB } from "@/server/db/connect";
 import { departmentRepository, type DepartmentRow } from "@/server/repositories/department.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { Employee } from "@/models/Employee";
-import { getCurrentUser } from "@/lib/current-user";
+import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import type { CreateDepartmentInput, UpdateDepartmentInput } from "@/validators/department";
 
@@ -34,12 +34,12 @@ export async function createDepartment(input: CreateDepartmentInput): Promise<De
   const department = await departmentRepository.create({
     companyId: actor.companyId,
     name: input.name,
-    createdBy: actor.id === "system" ? undefined : actor.id,
+    createdBy: resolveActorId(actor),
   });
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "department.created",
     entityType: "setting",
@@ -67,7 +67,7 @@ export async function updateDepartment(input: UpdateDepartmentInput): Promise<De
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "department.updated",
     entityType: "setting",
@@ -88,7 +88,7 @@ export async function setDepartmentActive(id: string, isActive: boolean): Promis
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: isActive ? "department.activated" : "department.deactivated",
     entityType: "setting",
@@ -118,7 +118,7 @@ export async function deleteDepartment(id: string): Promise<void> {
 
   await activityLogRepository.create({
     companyId: actor.companyId,
-    actorId: actor.id === "system" ? undefined : actor.id,
+    actorId: resolveActorId(actor),
     actorName: actor.name,
     action: "department.deleted",
     entityType: "setting",
