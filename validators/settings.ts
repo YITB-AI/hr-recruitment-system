@@ -5,6 +5,13 @@ export const generalSettingsSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   timezone: z.string().min(1),
   dateFormat: z.string().min(1),
+  companyAddress: z.string().max(500, "Address is too long").optional().or(z.literal("")),
+  companyContactPhone: z
+    .string()
+    .regex(/^[+\d][\d\s\-()]{6,19}$/, "Enter a valid phone number")
+    .optional()
+    .or(z.literal("")),
+  companyContactEmail: z.string().email("Enter a valid email").optional().or(z.literal("")),
 });
 export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;
 

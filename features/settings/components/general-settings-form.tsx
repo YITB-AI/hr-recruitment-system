@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -33,6 +34,9 @@ export function GeneralSettingsForm({ settings }: { settings: SettingRow }) {
       companyName: settings.companyName,
       timezone: settings.timezone,
       dateFormat: settings.dateFormat,
+      companyAddress: settings.companyAddress ?? "",
+      companyContactPhone: settings.companyContactPhone ?? "",
+      companyContactEmail: settings.companyContactEmail ?? "",
     },
   });
 
@@ -92,6 +96,25 @@ export function GeneralSettingsForm({ settings }: { settings: SettingRow }) {
             </Select>
           )}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="companyAddress">Company Address</Label>
+        <Textarea id="companyAddress" rows={2} {...register("companyAddress")} />
+        {errors.companyAddress && <p className="text-xs text-destructive">{errors.companyAddress.message}</p>}
+        <p className="text-xs text-muted-foreground">Used for onsite-interview AI calls — not shown to candidates.</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="companyContactPhone">Contact Phone</Label>
+        <Input id="companyContactPhone" {...register("companyContactPhone")} />
+        {errors.companyContactPhone && <p className="text-xs text-destructive">{errors.companyContactPhone.message}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="companyContactEmail">Contact Email</Label>
+        <Input id="companyContactEmail" type="email" {...register("companyContactEmail")} />
+        {errors.companyContactEmail && <p className="text-xs text-destructive">{errors.companyContactEmail.message}</p>}
       </div>
 
       <Button type="submit" disabled={isSubmitting}>

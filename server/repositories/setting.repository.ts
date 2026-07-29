@@ -7,6 +7,9 @@ export type SettingRow = {
   timezone: string;
   dateFormat: string;
   logoUrl: string | null;
+  companyAddress: string | null;
+  companyContactPhone: string | null;
+  companyContactEmail: string | null;
   features: {
     aiResumeAnalysis: boolean;
     smsNotifications: boolean;
@@ -30,6 +33,9 @@ function serialize(row: RawRow): SettingRow {
     timezone: row.timezone as string,
     dateFormat: row.dateFormat as string,
     logoUrl: (row.logoUrl as string | undefined) ?? null,
+    companyAddress: (row.companyAddress as string | undefined) ?? null,
+    companyContactPhone: (row.companyContactPhone as string | undefined) ?? null,
+    companyContactEmail: (row.companyContactEmail as string | undefined) ?? null,
     features: {
       aiResumeAnalysis: features.aiResumeAnalysis ?? true,
       smsNotifications: features.smsNotifications ?? true,
@@ -57,6 +63,9 @@ export const settingRepository = {
     companyName: string;
     timezone: string;
     dateFormat: string;
+    companyAddress: string;
+    companyContactPhone: string;
+    companyContactEmail: string;
     features: Partial<SettingRow["features"]>;
     appearance: Partial<SettingRow["appearance"]>;
   }>): Promise<SettingRow> {
@@ -69,6 +78,9 @@ export const settingRepository = {
     if (input.companyName !== undefined) setOps.companyName = input.companyName;
     if (input.timezone !== undefined) setOps.timezone = input.timezone;
     if (input.dateFormat !== undefined) setOps.dateFormat = input.dateFormat;
+    if (input.companyAddress !== undefined) setOps.companyAddress = input.companyAddress;
+    if (input.companyContactPhone !== undefined) setOps.companyContactPhone = input.companyContactPhone;
+    if (input.companyContactEmail !== undefined) setOps.companyContactEmail = input.companyContactEmail;
     for (const [key, value] of Object.entries(input.features ?? {})) {
       setOps[`features.${key}`] = value;
     }

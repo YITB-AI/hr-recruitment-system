@@ -14,6 +14,13 @@ const settingSchema = new Schema(
     timezone: { type: String, default: "Asia/Karachi" },
     dateFormat: { type: String, default: "MMM D, YYYY" },
     logoUrl: { type: String },
+    // Company Profile — physical address + contact info. Optional (many
+    // companies won't have filled these in yet); consumed by the AI-call
+    // flow's onsite-interview payload (features/applicants/services/
+    // ai-call.service.ts), never required to save General settings.
+    companyAddress: { type: String, trim: true },
+    companyContactPhone: { type: String, trim: true },
+    companyContactEmail: { type: String, trim: true, lowercase: true },
     features: {
       aiResumeAnalysis: { type: Boolean, default: true },
       smsNotifications: { type: Boolean, default: true },
