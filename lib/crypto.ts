@@ -2,17 +2,30 @@ import crypto from "node:crypto";
 
 // AES-256-GCM field-level encryption for secrets stored in
 // CompanyIntegrationConfig (n8n API credentials, SMTP passwords, social
-// media OAuth client secrets/tokens) and CalendarConnection (OAuth access/
-// refresh tokens) — the first field-level encryption capability in this
+// media OAuth client secrets/tokens), CalendarConnection (OAuth access/
+// refresh tokens), User.mfaSecretEncrypted, and Employee.basicSalary/
+// grossSalary — the first field-level encryption capability in this
 // codebase (SECURITY_STANDARDS.md's "Encryption for sensitive fields"
-// mandate). Key rotation is intentionally not handled here — see
-// CONFIG_ENCRYPTION_KEY's env var comment for the follow-up this implies.
+// mandate). Key rotation tool: scripts/rotate-config-encryption-key.ts.
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12; // 96-bit IV, GCM's recommended size
 const KEY_LENGTH = 32; // AES-256
 
 let cachedKey: Buffer | null = null;
+
+/**
+ * Validates a base64-encoded key the same way `loadKey` does below —
+ * exported so scripts/rotate-config-encryption-key.ts can validate a
+ * candidate NEW key with the identical rule, without duplicating it.
+ */
+export function parseEncryptionKey(base64: string, envVarName = "CONFIG_ENCRYPTION_KEY"): Buffer {
+  const key = Buffer.from(base64, "base64");
+  if (key.length !== KEY_LENGTH) {
+    throw new Error(`${envVarName} must decode to exactly ${KEY_LENGTH} bytes (got ${key.length}). Generate one with \`openssl rand -base64 32\`.`);
+  }
+  return key;
+}
 
 // Validated lazily on first actual use, not at module load — ES module
 // imports are hoisted and evaluated before any of an importing script's own
@@ -30,29 +43,28 @@ function loadKey(): Buffer {
       "CONFIG_ENCRYPTION_KEY is not set. Generate one with `openssl rand -base64 32` and add it to .env.local — required before any encrypted config field can be saved or read.",
     );
   }
-  const key = Buffer.from(raw, "base64");
-  if (key.length !== KEY_LENGTH) {
-    throw new Error(
-      `CONFIG_ENCRYPTION_KEY must decode to exactly ${KEY_LENGTH} bytes (got ${key.length}). Generate one with \`openssl rand -base64 32\`.`,
-    );
-  }
-  cachedKey = key;
-  return key;
+  cachedKey = parseEncryptionKey(raw);
+  return cachedKey;
 }
 
-/** Format: base64(iv):base64(authTag):base64(ciphertext) */
-export function encryptSecret(plaintext: string): string {
+/**
+ * Format: base64(iv):base64(authTag):base64(ciphertext)
+ * @param keyOverride Only used by the key-rotation script — every real call
+ * site in the app omits this and uses the current CONFIG_ENCRYPTION_KEY.
+ */
+export function encryptSecret(plaintext: string, keyOverride?: Buffer): string {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, loadKey(), iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, keyOverride ?? loadKey(), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return [iv.toString("base64"), authTag.toString("base64"), encrypted.toString("base64")].join(":");
 }
 
-export function decryptSecret(ciphertext: string): string {
+/** @param keyOverride Only used by the key-rotation script — see encryptSecret's comment. */
+export function decryptSecret(ciphertext: string, keyOverride?: Buffer): string {
   const [ivB64, tagB64, dataB64] = ciphertext.split(":");
   if (!ivB64 || !tagB64 || !dataB64) throw new Error("Malformed ciphertext");
-  const decipher = crypto.createDecipheriv(ALGORITHM, loadKey(), Buffer.from(ivB64, "base64"));
+  const decipher = crypto.createDecipheriv(ALGORITHM, keyOverride ?? loadKey(), Buffer.from(ivB64, "base64"));
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]).toString("utf8");
 }
