@@ -6,16 +6,14 @@ export type { UserRole } from "@/constants/user";
 
 const userSchema = new Schema(
   {
-    // Optional for now, not required — Phase 1 (multi-tenancy foundation) is
-    // being rolled out in stages so the live app never breaks mid-migration.
-    // Becomes required once scripts/migrate-tenancy.ts has backfilled every
-    // existing row and every write path supplies it (see the plan's Phase 1
-    // sequencing). The old global-unique `email` index also becomes a
-    // compound `{companyId, email}` unique index at that same point, once
-    // every row actually has a companyId to make the compound index meaningful.
-    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
+    // Required since Security Hardening Phase 4 — scripts/migrate-tenancy.ts
+    // backfilled every existing row long ago and every write path has
+    // supplied it since. The old global-unique `email` index is now the
+    // compound `{companyId, email}` unique index below: the same email can
+    // legitimately exist at two different client companies.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: USER_ROLES, default: "recruiter" },
     title: { type: String, trim: true },
@@ -79,6 +77,12 @@ const userSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// The same email can exist at two different client companies — uniqueness
+// is scoped per-tenant, not global. Applying the index actually still
+// requires scripts/migrate-user-email-index.ts's own separate `--confirm`
+// run against production (Mongoose does not alter existing live indexes).
+userSchema.index({ companyId: 1, email: 1 }, { unique: true });
 
 export type UserDoc = InferSchemaType<typeof userSchema>;
 

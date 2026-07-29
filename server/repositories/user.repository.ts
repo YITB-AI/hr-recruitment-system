@@ -147,8 +147,8 @@ export const userRepository = {
     await User.updateOne({ _id: id }, { mfaBackupCodeHashes: remainingHashes });
   },
 
-  async findByEmail(email: string): Promise<{ _id: string } | null> {
-    const row = await User.findOne({ email: email.toLowerCase().trim() }).select("_id").lean<{ _id: unknown } | null>();
+  async findByEmail(companyId: string, email: string): Promise<{ _id: string } | null> {
+    const row = await User.findOne({ companyId, email: email.toLowerCase().trim() }).select("_id").lean<{ _id: unknown } | null>();
     return row ? { _id: String(row._id) } : null;
   },
   // Deliberately unscoped — for the platform-admin-only orphaned-record
@@ -207,9 +207,8 @@ export const userRepository = {
       .lean<RawProfileRow | null>();
     return row ? serializeOwnProfile(row) : null;
   },
-  /** Global — email uniqueness isn't yet scoped to companyId (staged rollout, see models/User.ts). */
-  async isEmailTaken(email: string, excludeUserId: string): Promise<boolean> {
-    const count = await User.countDocuments({ email: email.toLowerCase().trim(), _id: { $ne: excludeUserId } });
+  async isEmailTaken(companyId: string, email: string, excludeUserId: string): Promise<boolean> {
+    const count = await User.countDocuments({ companyId, email: email.toLowerCase().trim(), _id: { $ne: excludeUserId } });
     return count > 0;
   },
   async setPendingEmailChange(

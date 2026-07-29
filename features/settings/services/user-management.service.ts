@@ -30,7 +30,7 @@ export async function createCompanyUser(input: CreateUserInput): Promise<CreateC
   requireRole(actor, "user.manage");
 
   const email = input.email.toLowerCase().trim();
-  const existing = await userRepository.findByEmail(email);
+  const existing = await userRepository.findByEmail(actor.companyId, email);
   if (existing) throw new Error(`A user with email "${email}" already exists`);
 
   const tempPassword = generateTempPassword();

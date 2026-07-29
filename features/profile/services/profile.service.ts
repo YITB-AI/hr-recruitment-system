@@ -213,7 +213,7 @@ export async function requestEmailChange(newEmail: string, currentPassword: stri
 
   const normalizedEmail = newEmail.toLowerCase().trim();
   if (normalizedEmail === user.email) return { success: false, error: "That's already your current email" };
-  if (await userRepository.isEmailTaken(normalizedEmail, actor.id)) {
+  if (await userRepository.isEmailTaken(actor.companyId, normalizedEmail, actor.id)) {
     return { success: false, error: "That email is already in use" };
   }
 
@@ -325,7 +325,7 @@ export async function confirmEmailChange(code: string): Promise<ConfirmEmailChan
     return { success: false, error: "Invalid or expired code" };
   }
 
-  if (await userRepository.isEmailTaken(pendingEmail, actor.id)) {
+  if (await userRepository.isEmailTaken(actor.companyId, pendingEmail, actor.id)) {
     await userRepository.clearPendingEmailChange(actor.companyId, actor.id);
     return { success: false, error: "That email is no longer available" };
   }

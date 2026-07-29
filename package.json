@@ -12,6 +12,7 @@
     "seed": "tsx scripts/seed.ts",
     "migrate:tenancy": "tsx scripts/migrate-tenancy.ts",
     "migrate:encrypt-salaries": "tsx scripts/migrate-encrypt-employee-salaries.ts",
+    "migrate:user-email-index": "tsx scripts/migrate-user-email-index.ts",
     "rotate:encryption-key": "tsx scripts/rotate-config-encryption-key.ts",
     "create:company": "tsx scripts/create-company.ts",
     "create:demo-applicant": "tsx scripts/create-demo-applicant.ts"

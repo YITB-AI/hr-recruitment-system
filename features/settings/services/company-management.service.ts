@@ -204,9 +204,11 @@ export async function createCompanyWithAdmin(input: {
   if (existing) throw new Error(`A company with ID "${slug}" already exists`);
 
   const email = input.adminEmail.toLowerCase().trim();
-  const existingUser = await User.findOne({ email });
-  if (existingUser) throw new Error(`A user with email "${email}" already exists`);
-
+  // No cross-company email-existence check here: the same email can
+  // legitimately be an admin at two different client companies (compound
+  // {companyId, email} unique index on User), and this new company has no
+  // users yet regardless — a global check here would only ever function as
+  // a cross-tenant existence oracle, never a real duplicate-prevention rule.
   const companyDoc = await Company.create({ name: input.name, slug });
 
   const tempPassword = generateTempPassword();
