@@ -10,6 +10,7 @@ import { EmployeesTable } from "@/features/employees/components/employees-table"
 import { EmployeeImportDialog } from "@/features/employees/components/employee-import-dialog";
 import { getEmployeesPageData } from "@/features/employees/services/employee.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
+import { listAllActiveEmployeeLookups } from "@/features/settings/services/employee-lookup.service";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import type { EmploymentStatus } from "@/constants/employee";
 
@@ -19,28 +20,43 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 8;
 
 type EmployeesPageProps = {
-  searchParams: Promise<{ page?: string; status?: string; department?: string; search?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    status?: string;
+    department?: string;
+    groupId?: string;
+    regionId?: string;
+    stationId?: string;
+    search?: string;
+  }>;
 };
 
 export default async function EmployeesPage({ searchParams }: EmployeesPageProps) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [data, employeeStatuses] = await Promise.all([
+  const [data, employeeStatuses, lookups] = await Promise.all([
     getEmployeesPageData({
       page,
       pageSize: PAGE_SIZE,
       status: params.status as EmploymentStatus | undefined,
       department: params.department,
+      groupId: params.groupId,
+      regionId: params.regionId,
+      stationId: params.stationId,
       search: params.search,
     }),
     listActiveStatuses("employee"),
+    listAllActiveEmployeeLookups(),
   ]);
 
   function buildHref(targetPage: number) {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.department) query.set("department", params.department);
+    if (params.groupId) query.set("groupId", params.groupId);
+    if (params.regionId) query.set("regionId", params.regionId);
+    if (params.stationId) query.set("stationId", params.stationId);
     if (params.search) query.set("search", params.search);
     query.set("page", String(targetPage));
     return `/employees?${query.toString()}`;
@@ -49,6 +65,9 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
   const exportQuery = new URLSearchParams();
   if (params.status) exportQuery.set("status", params.status);
   if (params.department) exportQuery.set("department", params.department);
+  if (params.groupId) exportQuery.set("groupId", params.groupId);
+  if (params.regionId) exportQuery.set("regionId", params.regionId);
+  if (params.stationId) exportQuery.set("stationId", params.stationId);
   if (params.search) exportQuery.set("search", params.search);
   const exportHref = `/api/employees/export?${exportQuery.toString()}`;
 
@@ -77,7 +96,7 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
 
       <div className="overflow-hidden rounded-2xl border bg-card">
         <div className="border-b p-4">
-          <EmployeeFilters departments={data.departments} />
+          <EmployeeFilters departments={data.departments} lookups={lookups} />
         </div>
         <EmployeesTable employees={data.rows} />
         <div className="border-t">

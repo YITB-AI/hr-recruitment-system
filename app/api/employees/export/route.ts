@@ -30,6 +30,9 @@ export async function GET(request: Request) {
   const { rows } = await employeeRepository.findAll(actor.companyId, {
     status: (searchParams.get("status") as EmploymentStatus) || undefined,
     department: searchParams.get("department") || undefined,
+    groupId: searchParams.get("groupId") || undefined,
+    regionId: searchParams.get("regionId") || undefined,
+    stationId: searchParams.get("stationId") || undefined,
     search: searchParams.get("search") || undefined,
     page: 1,
     pageSize: 10_000,

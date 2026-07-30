@@ -29,6 +29,10 @@ export function EmployeesTable({ employees }: { employees: EmployeeListRow[] }) 
           <th className="px-4 py-3 font-medium">Department</th>
           <th className="px-4 py-3 font-medium">Designation</th>
           <th className="px-4 py-3 font-medium">Status</th>
+          <th className="px-4 py-3 font-medium">Group</th>
+          <th className="px-4 py-3 font-medium">Region</th>
+          <th className="px-4 py-3 font-medium">Station</th>
+          <th className="px-4 py-3 font-medium">City</th>
           <th className="px-4 py-3 font-medium">Email</th>
           <th className="px-4 py-3 font-medium">Phone</th>
           <th className="px-4 py-3 font-medium">Joining Date</th>
@@ -58,6 +62,10 @@ export function EmployeesTable({ employees }: { employees: EmployeeListRow[] }) 
             <td className="px-4 py-3">
               <StatusBadge status={employee.employmentStatus} />
             </td>
+            <td className="px-4 py-3 text-foreground/80">{employee.group?.name ?? "—"}</td>
+            <td className="px-4 py-3 text-foreground/80">{employee.region?.name ?? "—"}</td>
+            <td className="px-4 py-3 text-foreground/80">{employee.station?.name ?? "—"}</td>
+            <td className="px-4 py-3 text-foreground/80">{employee.city ?? "—"}</td>
             <td className="px-4 py-3 text-foreground/80">{employee.email}</td>
             <td className="px-4 py-3 text-foreground/80">{employee.phone ?? "—"}</td>
             <td className="px-4 py-3 text-foreground/80">

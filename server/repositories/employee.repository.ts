@@ -70,6 +70,9 @@ function encryptOptionalField(value: number | string | undefined | null): string
  * "Tenant Isolation Mechanism" section): explicit, reviewable in every diff,
  * and works the same inside scripts (no request context) as inside services.
  */
+/** A resolved {_id, name} lookup reference — the shape every new FK field below resolves to. */
+export type EmployeeLookupRef = { _id: string; name: string } | null;
+
 export type EmployeeListRow = {
   _id: string;
   employeeCode: string;
@@ -80,10 +83,17 @@ export type EmployeeListRow = {
   designation: string;
   employmentStatus: EmploymentStatus;
   joiningDate: Date;
-};
 
-/** A resolved {_id, name} lookup reference — the shape every new FK field below resolves to. */
-export type EmployeeLookupRef = { _id: string; name: string } | null;
+  // A focused, high-value subset of the Employee Module Enhancement's new
+  // fields — not the full ~50-column set, matching this app's existing
+  // list-view convention (every other list page shows a focused column
+  // set, not every stored field). The full field set lives on the
+  // create/edit form, the detail view, and the export template.
+  group: EmployeeLookupRef;
+  region: EmployeeLookupRef;
+  station: EmployeeLookupRef;
+  city: string | null;
+};
 
 export type EmployeeDetailRow = EmployeeListRow & {
   employmentType: string;
@@ -161,6 +171,9 @@ export type EmployeeRow = {
 export type EmployeeListFilters = {
   status?: EmploymentStatus;
   department?: string;
+  groupId?: string;
+  regionId?: string;
+  stationId?: string;
   search?: string;
   page: number;
   pageSize: number;
@@ -283,6 +296,11 @@ function serializeListRow(row: RawListRow): EmployeeListRow {
     designation: row.designation as string,
     employmentStatus: row.employmentStatus as EmploymentStatus,
     joiningDate: row.joiningDate as Date,
+
+    group: resolveRef(row.groupId as RawRef),
+    region: resolveRef(row.regionId as RawRef),
+    station: resolveRef(row.stationId as RawRef),
+    city: (row.city as string | undefined) ?? null,
   };
 }
 
@@ -365,7 +383,12 @@ function serializeDetailRow(row: RawDetailRow): EmployeeDetailRow {
   };
 }
 
-const LIST_FIELDS = "employeeCode name email phone department designation employmentStatus joiningDate";
+const LIST_FIELDS = "employeeCode name email phone department designation employmentStatus joiningDate groupId regionId stationId city";
+const LIST_POPULATE_PATHS = [
+  { path: "groupId", select: "name" },
+  { path: "regionId", select: "name" },
+  { path: "stationId", select: "name" },
+];
 
 // The default seed statuses that represent an employee no longer working
 // here — see constants/employee.ts. employmentStatus is a free-form
@@ -424,6 +447,9 @@ export const employeeRepository = {
     const query: Record<string, unknown> = { companyId };
     if (filters.status) query.employmentStatus = filters.status;
     if (filters.department) query.department = filters.department;
+    if (filters.groupId) query.groupId = filters.groupId;
+    if (filters.regionId) query.regionId = filters.regionId;
+    if (filters.stationId) query.stationId = filters.stationId;
     if (filters.search) {
       const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
       query.$or = [{ name: pattern }, { email: pattern }, { employeeCode: pattern }, { designation: pattern }];
@@ -432,6 +458,7 @@ export const employeeRepository = {
     const [rows, total] = await Promise.all([
       Employee.find(query)
         .select(LIST_FIELDS)
+        .populate(LIST_POPULATE_PATHS)
         .sort({ createdAt: -1 })
         .skip((filters.page - 1) * filters.pageSize)
         .limit(filters.pageSize)

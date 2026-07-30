@@ -13,8 +13,15 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useStatusLookup } from "@/components/shared/status-config-provider";
+import type { EmployeeLookupKind } from "@/constants/employee-lookup";
+import type { EmployeeLookupRow } from "@/server/repositories/employee-lookup.repository";
 
-export function EmployeeFilters({ departments }: { departments: string[] }) {
+type EmployeeFiltersProps = {
+  departments: string[];
+  lookups: Record<EmployeeLookupKind, EmployeeLookupRow[]>;
+};
+
+export function EmployeeFilters({ departments, lookups }: EmployeeFiltersProps) {
   const { statuses } = useStatusLookup();
   const STATUS_TABS = [
     { value: undefined, label: "All Employees" },
@@ -28,6 +35,9 @@ export function EmployeeFilters({ departments }: { departments: string[] }) {
 
   const currentStatus = searchParams.get("status") ?? undefined;
   const currentDepartment = searchParams.get("department") ?? "";
+  const currentGroupId = searchParams.get("groupId") ?? "";
+  const currentRegionId = searchParams.get("regionId") ?? "";
+  const currentStationId = searchParams.get("stationId") ?? "";
 
   function navigate(updates: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -43,6 +53,9 @@ export function EmployeeFilters({ departments }: { departments: string[] }) {
     { value: "__all__", label: "All Departments" },
     ...departments.map((d) => ({ value: d, label: d })),
   ];
+  const groupItems = [{ value: "__all__", label: "All Groups" }, ...lookups.group.map((g) => ({ value: g._id, label: g.name }))];
+  const regionItems = [{ value: "__all__", label: "All Regions" }, ...lookups.region.map((r) => ({ value: r._id, label: r.name }))];
+  const stationItems = [{ value: "__all__", label: "All Stations" }, ...lookups.station.map((s) => ({ value: s._id, label: s.name }))];
 
   return (
     <div className="space-y-4">
@@ -77,6 +90,57 @@ export function EmployeeFilters({ departments }: { departments: string[] }) {
           </SelectTrigger>
           <SelectContent>
             {departmentItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          items={groupItems}
+          value={currentGroupId || "__all__"}
+          onValueChange={(v) => navigate({ groupId: v === "__all__" ? undefined : (v ?? undefined) })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groupItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          items={regionItems}
+          value={currentRegionId || "__all__"}
+          onValueChange={(v) => navigate({ regionId: v === "__all__" ? undefined : (v ?? undefined) })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {regionItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          items={stationItems}
+          value={currentStationId || "__all__"}
+          onValueChange={(v) => navigate({ stationId: v === "__all__" ? undefined : (v ?? undefined) })}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {stationItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
