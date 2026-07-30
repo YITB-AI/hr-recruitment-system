@@ -34,6 +34,7 @@ export async function createDepartment(input: CreateDepartmentInput): Promise<De
   const department = await departmentRepository.create({
     companyId: actor.companyId,
     name: input.name,
+    code: input.code,
     createdBy: resolveActorId(actor),
   });
 
@@ -62,7 +63,7 @@ export async function updateDepartment(input: UpdateDepartmentInput): Promise<De
     throw new Error(`A department named "${input.name}" already exists`);
   }
 
-  const department = await departmentRepository.update(actor.companyId, input.id, { name: input.name });
+  const department = await departmentRepository.update(actor.companyId, input.id, { name: input.name, code: input.code });
   if (!department) throw new Error("Department not found");
 
   await activityLogRepository.create({

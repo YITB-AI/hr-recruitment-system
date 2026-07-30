@@ -4,6 +4,7 @@ import { escapeRegex } from "@/lib/regex";
 export type DepartmentRow = {
   _id: string;
   name: string;
+  code: string | null;
   isActive: boolean;
   order: number;
 };
@@ -14,6 +15,7 @@ function serialize(row: RawRow): DepartmentRow {
   return {
     _id: String(row._id),
     name: row.name as string,
+    code: (row.code as string | undefined) ?? null,
     isActive: Boolean(row.isActive),
     order: row.order as number,
   };
@@ -22,10 +24,11 @@ function serialize(row: RawRow): DepartmentRow {
 export type CreateDepartmentInput = {
   companyId: string;
   name: string;
+  code?: string;
   createdBy?: string;
 };
 
-export type UpdateDepartmentInput = Partial<{ name: string; isActive: boolean }>;
+export type UpdateDepartmentInput = Partial<{ name: string; code: string; isActive: boolean }>;
 
 export const departmentRepository = {
   async findAll(companyId: string, includeInactive = true): Promise<DepartmentRow[]> {

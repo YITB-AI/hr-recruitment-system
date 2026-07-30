@@ -477,6 +477,33 @@ export const employeeRepository = {
     return row ? serializeDetailRow(row) : null;
   },
 
+  // For app/api/employees/export/route.ts — the export template needs the
+  // FULL field set (per the explicit requirement that import/export stay in
+  // sync with the rest of the module), unlike findAll's focused list-view
+  // projection. Reuses the exact same POPULATE_PATHS + serializeDetailRow as
+  // findById so decryption/derived-field logic can't drift between the
+  // detail page and the export — same filters as the list view, uncapped
+  // pagination (capped at a flat 10,000-row ceiling instead).
+  async findAllForExport(companyId: string, filters: Omit<EmployeeListFilters, "page" | "pageSize">): Promise<EmployeeDetailRow[]> {
+    const query: Record<string, unknown> = { companyId };
+    if (filters.status) query.employmentStatus = filters.status;
+    if (filters.department) query.department = filters.department;
+    if (filters.groupId) query.groupId = filters.groupId;
+    if (filters.regionId) query.regionId = filters.regionId;
+    if (filters.stationId) query.stationId = filters.stationId;
+    if (filters.search) {
+      const pattern = new RegExp(escapeRegex(filters.search.trim()), "i");
+      query.$or = [{ name: pattern }, { email: pattern }, { employeeCode: pattern }, { designation: pattern }];
+    }
+
+    const rows = await Employee.find(query)
+      .populate(POPULATE_PATHS)
+      .sort({ createdAt: -1 })
+      .limit(10_000)
+      .lean<RawDetailRow[]>();
+    return rows.map(serializeDetailRow);
+  },
+
   countTotal(companyId: string) {
     return Employee.countDocuments({ companyId });
   },
@@ -611,5 +638,15 @@ export const employeeRepository = {
   async findByCode(companyId: string, employeeCode: string): Promise<{ _id: string; name: string } | null> {
     const row = await Employee.findOne({ companyId, employeeCode }).select("name").lean<{ _id: unknown; name: string } | null>();
     return row ? { _id: String(row._id), name: row.name } : null;
+  },
+
+  // For the export route's "Report To" column — round-trippable with the
+  // import template's "Manager Employee Code" column, so exporting then
+  // re-importing the same data preserves the reporting relationship. Covers
+  // every employee at this company, not just the currently-filtered/
+  // exported subset, since a manager can fall outside the active filter.
+  async findEmployeeCodeMap(companyId: string): Promise<Record<string, string>> {
+    const rows = await Employee.find({ companyId }).select("employeeCode").lean<Array<{ _id: unknown; employeeCode: string }>>();
+    return Object.fromEntries(rows.map((r) => [String(r._id), r.employeeCode]));
   },
 };

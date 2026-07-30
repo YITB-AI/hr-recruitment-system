@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { EmployeeDocument } from "@/models/EmployeeDocument";
 
 export type EmployeeDocumentRow = {
@@ -75,5 +76,21 @@ export const employeeDocumentRepository = {
   async deleteById(companyId: string, id: string): Promise<EmployeeDocumentRow | null> {
     const row = await EmployeeDocument.findOneAndDelete({ _id: id, companyId }).lean<RawRow | null>();
     return row ? serialize(row) : null;
+  },
+
+  // For the employee export's "Documents" column — one aggregate query
+  // instead of N per-employee counts.
+  async countByEmployeeIds(companyId: string, employeeIds: string[]): Promise<Record<string, number>> {
+    if (employeeIds.length === 0) return {};
+    const rows = await EmployeeDocument.aggregate<{ _id: unknown; count: number }>([
+      {
+        $match: {
+          companyId: new Types.ObjectId(companyId),
+          employeeId: { $in: employeeIds.map((id) => new Types.ObjectId(id)) },
+        },
+      },
+      { $group: { _id: "$employeeId", count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [String(r._id), r.count]));
   },
 };

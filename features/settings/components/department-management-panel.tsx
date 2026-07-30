@@ -24,6 +24,7 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EditingState>(null);
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(
@@ -33,11 +34,13 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
 
   function openCreate() {
     setName("");
+    setCode("");
     setEditing({ mode: "create" });
   }
 
   function openEdit(department: DepartmentRow) {
     setName(department.name);
+    setCode(department.code ?? "");
     setEditing({ mode: "edit", department });
   }
 
@@ -45,8 +48,8 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
     startTransition(async () => {
       const result =
         editing?.mode === "edit"
-          ? await updateDepartmentAction({ id: editing.department._id, name })
-          : await createDepartmentAction({ name });
+          ? await updateDepartmentAction({ id: editing.department._id, name, code: code || undefined })
+          : await createDepartmentAction({ name, code: code || undefined });
 
       if (result.success) {
         toast.success(editing?.mode === "edit" ? "Department updated" : "Department added");
@@ -122,7 +125,10 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
                     <ChevronDown className="size-3.5" />
                   </button>
                 </div>
-                <p className="text-sm font-medium">{department.name}</p>
+                <p className="text-sm font-medium">
+                  {department.name}
+                  {department.code && <span className="ml-2 text-xs text-muted-foreground">({department.code})</span>}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={department.isActive} onCheckedChange={() => handleToggleActive(department)} disabled={isPending} />
@@ -147,6 +153,10 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
             <div className="space-y-1.5">
               <Label htmlFor="department-name">Name</Label>
               <Input id="department-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engineering" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="department-code">Code (optional)</Label>
+              <Input id="department-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. ENG" />
             </div>
           </div>
           <DialogFooter>

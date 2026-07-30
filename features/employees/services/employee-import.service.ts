@@ -10,27 +10,22 @@ import { employeeRepository } from "@/server/repositories/employee.repository";
 import { departmentRepository } from "@/server/repositories/department.repository";
 import { employeeTypeRepository } from "@/server/repositories/employee-type.repository";
 import { statusRepository } from "@/server/repositories/status.repository";
-import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS, type EmploymentType } from "@/constants/employee";
+import { employeeLookupRepository, type EmployeeLookupRow } from "@/server/repositories/employee-lookup.repository";
+import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABELS, GENDER_OPTIONS, GENDER_LABELS, type EmploymentType, type Gender } from "@/constants/employee";
+import { EMPLOYEE_LOOKUP_KINDS, EMPLOYEE_LOOKUP_LABELS, type EmployeeLookupKind } from "@/constants/employee-lookup";
+import { EMPLOYEE_COLUMNS } from "@/constants/employee-columns";
 import { createEmployeeCore } from "./employee.service";
 
 const MAX_ROWS = 1000;
 
 // Expected template columns → the raw-row keys the rest of this file works
-// with, tolerant of header case/whitespace (see normalizeHeader).
-const HEADER_MAP: Record<string, string> = {
-  name: "name",
-  email: "email",
-  phone: "phone",
-  department: "department",
-  designation: "designation",
-  "employee type": "employeeType",
-  "manager employee code": "managerEmployeeCode",
-  "joining date": "joiningDate",
-  "employment type": "employmentType",
-  status: "employmentStatus",
-  "basic salary": "basicSalary",
-  "gross salary": "grossSalary",
-};
+// with, tolerant of header case/whitespace (see normalizeHeader). Built from
+// the single shared constants/employee-columns.ts list — the exact thing
+// that had drifted before (import template had 12 columns, export had 8,
+// neither matched the other or this file's own resolution logic).
+const HEADER_MAP: Record<string, string> = Object.fromEntries(
+  EMPLOYEE_COLUMNS.filter((col) => col.importKey).map((col) => [col.header.toLowerCase(), col.importKey as string]),
+);
 
 function normalizeHeader(header: string): string {
   return header.trim().toLowerCase().replace(/\s+/g, " ");
@@ -89,10 +84,11 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
   if (records.length === 0) throw new Error("No data rows found in this file — check it has a header row and at least one employee.");
   if (records.length > MAX_ROWS) throw new Error(`This file has ${records.length} rows — the limit is ${MAX_ROWS} per import.`);
 
-  const [departments, employeeTypes, statuses] = await Promise.all([
+  const [departments, employeeTypes, statuses, lookupsByKind] = await Promise.all([
     departmentRepository.findAll(actor.companyId, false),
     employeeTypeRepository.findAll(actor.companyId, false),
     statusRepository.findAllForModule(actor.companyId, "employee", false),
+    employeeLookupRepository.findAllByKind(actor.companyId, false),
   ]);
   const departmentByName = new Map(departments.map((d) => [d.name.toLowerCase(), d]));
   const employeeTypeByName = new Map(employeeTypes.map((t) => [t.name.toLowerCase(), t]));
@@ -103,6 +99,52 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
       [EMPLOYMENT_TYPE_LABELS[t].toLowerCase(), t],
     ] as [string, EmploymentType][]),
   );
+  // One name→row map per lookup kind (Group/Region/Station/Cost Center/
+  // Vendor/Role Template/Payroll Setup/Area) — same by-name resolution
+  // pattern as department/employeeType/status above, generalized across
+  // all 8 registry-driven lookups instead of 8 near-duplicate blocks.
+  const lookupNameMaps = Object.fromEntries(
+    EMPLOYEE_LOOKUP_KINDS.map((kind) => [kind, new Map(lookupsByKind[kind].map((row) => [row.name.toLowerCase(), row]))]),
+  ) as Record<EmployeeLookupKind, Map<string, EmployeeLookupRow>>;
+
+  function resolveLookup(kind: EmployeeLookupKind, errors: string[], raw?: string): string | undefined {
+    if (!raw) return undefined;
+    const row = lookupNameMaps[kind].get(raw.toLowerCase());
+    if (!row) {
+      errors.push(
+        `Unknown ${EMPLOYEE_LOOKUP_LABELS[kind]} "${raw}" — valid options: ${lookupsByKind[kind].map((r) => r.name).join(", ") || "none configured yet"}`,
+      );
+      return undefined;
+    }
+    return row._id;
+  }
+
+  function resolveGender(errors: string[], raw?: string): Gender | undefined {
+    if (!raw) return undefined;
+    const match = GENDER_OPTIONS.find((g) => g === raw.toLowerCase() || GENDER_LABELS[g].toLowerCase() === raw.toLowerCase());
+    if (!match) {
+      errors.push(`Unknown gender "${raw}" — valid options: ${GENDER_OPTIONS.map((g) => GENDER_LABELS[g]).join(", ")}`);
+    }
+    return match;
+  }
+
+  function validateOptionalDateString(errors: string[], label: string, raw?: string): string | undefined {
+    if (!raw) return undefined;
+    if (Number.isNaN(new Date(raw).getTime())) {
+      errors.push(`Invalid ${label} "${raw}" — use YYYY-MM-DD`);
+      return undefined;
+    }
+    return raw;
+  }
+
+  function validateOptionalNumberString(errors: string[], label: string, raw?: string): string | undefined {
+    if (!raw) return undefined;
+    if (!/^\d+(\.\d+)?$/.test(raw)) {
+      errors.push(`Invalid ${label} "${raw}" — must be a number`);
+      return undefined;
+    }
+    return raw;
+  }
 
   const seenEmails = new Set<string>();
   const results: ImportRowResult[] = [];
@@ -173,6 +215,47 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
 
     seenEmails.add(email);
 
+    // --- Employee Module Enhancement — every remaining new field, resolved
+    // the same way department/employeeType/status already are above: FK
+    // fields by name against this company's real master data, dates
+    // validated as real dates, allowances validated as real numbers,
+    // everything else passed through as-is. All optional.
+    const groupId = resolveLookup("group", errors, data.group);
+    const regionId = resolveLookup("region", errors, data.region);
+    const stationId = resolveLookup("station", errors, data.station);
+    const costCenterId = resolveLookup("cost_center", errors, data.costCenter);
+    const vendorId = resolveLookup("vendor", errors, data.vendor);
+    const roleTemplateId = resolveLookup("role_template", errors, data.roleTemplate);
+    const payrollSetupId = resolveLookup("payroll_setup", errors, data.payrollSetup);
+    const areaId = resolveLookup("area", errors, data.area);
+
+    let subDepartmentId: string | undefined;
+    if (data.subDepartment) {
+      const sub = departmentByName.get(data.subDepartment.toLowerCase());
+      if (!sub) {
+        errors.push(`Unknown sub department "${data.subDepartment}" — valid options: ${departments.map((d) => d.name).join(", ") || "none configured yet"}`);
+      } else {
+        subDepartmentId = sub._id;
+      }
+    }
+
+    const gender = resolveGender(errors, data.gender);
+    const dateOfBirth = validateOptionalDateString(errors, "date of birth", data.dateOfBirth);
+    const leavingDate = validateOptionalDateString(errors, "leaving date", data.leavingDate);
+    const expectedProbationEndDate = validateOptionalDateString(errors, "expected probation end date", data.expectedProbationEndDate);
+    const confirmationDate = validateOptionalDateString(errors, "confirmation date", data.confirmationDate);
+    const nationalIdExpiryDate = validateOptionalDateString(errors, "CNIC / Emirates ID expiry date", data.nationalIdExpiryDate);
+    const passportExpiryDate = validateOptionalDateString(errors, "passport expiry date", data.passportExpiryDate);
+    const eobiEntryDate = validateOptionalDateString(errors, "EOBI entry date", data.eobiEntryDate);
+    const resignationDate = validateOptionalDateString(errors, "resignation date", data.resignationDate);
+    const contractStartDate = validateOptionalDateString(errors, "contract start date", data.contractStartDate);
+    const contractEndDate = validateOptionalDateString(errors, "contract end date", data.contractEndDate);
+    const inactiveDate = validateOptionalDateString(errors, "inactive date", data.inactiveDate);
+    const foodAllowance = validateOptionalNumberString(errors, "food allowance", data.foodAllowance);
+    const transportAllowance = validateOptionalNumberString(errors, "transport allowance", data.transportAllowance);
+    const stipend = validateOptionalNumberString(errors, "stipend", data.stipend);
+    const alcanzaAllowance = validateOptionalNumberString(errors, "alcanza allowance", data.alcanzaAllowance);
+
     if (errors.length > 0) {
       results.push({ row: rowNumber, name: data.name, email, success: false, errors });
       continue;
@@ -196,6 +279,47 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
         employmentStatus: status!.key,
         basicSalary: data.basicSalary,
         grossSalary: data.grossSalary,
+
+        groupId,
+        regionId,
+        stationId,
+        costCenterId,
+        vendorId,
+        roleTemplateId,
+        payrollSetupId,
+        areaId,
+        subDepartmentId,
+
+        dateOfBirth,
+        gender,
+        city: data.city || undefined,
+        country: data.country || undefined,
+        province: data.province || undefined,
+        familyCode: data.familyCode || undefined,
+
+        nationalIdNumber: data.nationalIdNumber || undefined,
+        nationalIdExpiryDate,
+        passportExpiryDate,
+        eobiEntryDate,
+        eobiRegistrationNumber: data.eobiRegistrationNumber || undefined,
+        socialSecurityNumber: data.socialSecurityNumber || undefined,
+        punchCode: data.punchCode || undefined,
+
+        expectedProbationEndDate,
+        confirmationDate,
+        contractStartDate,
+        contractEndDate,
+        resignationDate,
+        leavingDate,
+        leavingReason: data.leavingReason || undefined,
+        inactiveDate,
+
+        foodAllowance,
+        transportAllowance,
+        stipend,
+        alcanzaAllowance,
+
+        technicalNotes: data.technicalNotes || undefined,
       },
     });
   }
