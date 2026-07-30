@@ -14,6 +14,7 @@ export const PERMISSION_MODULE_LABELS: Record<string, string> = {
   status: "Statuses",
   department: "Departments",
   employee_type: "Employee Types",
+  employee_lookup: "Employee Lists",
 };
 
 export const PERMISSION_ACTION_LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
   "status.manage": "Manage applicant/employee statuses",
   "department.manage": "Manage departments",
   "employee_type.manage": "Manage employee types",
+  "employee_lookup.manage": "Manage employee lists (Group/Region/Station/Cost Center/Vendor/Role Template/Payroll Setup/Area)",
 };
 
 export function permissionModule(action: string): string {

@@ -28,6 +28,7 @@ export const PERMISSION_ACTIONS = [
   "status.manage",
   "department.manage",
   "employee_type.manage",
+  "employee_lookup.manage",
   "ai_call_question.manage",
   "user.impersonate",
 ] as const;

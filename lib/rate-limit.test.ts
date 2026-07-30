@@ -5,13 +5,21 @@ import { checkRateLimit } from "@/lib/rate-limit";
 describe("lib/rate-limit", () => {
   it("allows requests up to the limit, then rejects", async () => {
     await connectDB();
-    // A window wide enough that a handful of sequential in-memory-DB round
-    // trips can never spill into the next window and roll the counter over.
+    // checkRateLimit's fixed window is aligned to absolute epoch time
+    // (Math.floor(now / windowMs) * windowMs), not to this test's own start
+    // time — so ANY windowMs has some real chance of a boundary landing
+    // between two of these sequential round trips under load, flipping r4
+    // to a fresh (allowed) window instead of the exhausted one. 10s wasn't
+    // wide enough in practice (observed failing intermittently under load,
+    // confirmed by re-running standalone vs. in the full suite); an hour is
+    // wide enough that this test's brief real duration can't plausibly
+    // straddle a boundary regardless of machine load.
     const key = `test-rate-limit-burst-${Date.now()}`;
-    const r1 = await checkRateLimit(key, 3, 10_000);
-    const r2 = await checkRateLimit(key, 3, 10_000);
-    const r3 = await checkRateLimit(key, 3, 10_000);
-    const r4 = await checkRateLimit(key, 3, 10_000);
+    const windowMs = 60 * 60 * 1000;
+    const r1 = await checkRateLimit(key, 3, windowMs);
+    const r2 = await checkRateLimit(key, 3, windowMs);
+    const r3 = await checkRateLimit(key, 3, windowMs);
+    const r4 = await checkRateLimit(key, 3, windowMs);
 
     expect(r1.allowed).toBe(true);
     expect(r2.allowed).toBe(true);

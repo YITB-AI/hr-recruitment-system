@@ -9,6 +9,9 @@ const departmentSchema = new Schema(
   {
     companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
     name: { type: String, required: true, trim: true },
+    // Optional short code (e.g. "ENG") shown alongside the name — the
+    // Employee module's "Department Code" column.
+    code: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
     order: { type: Number, required: true, default: 0 },
     deletedAt: { type: Date },

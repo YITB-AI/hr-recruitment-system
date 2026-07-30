@@ -8,6 +8,7 @@ import {
   Tag,
   Building2,
   Network,
+  ListTree,
   Building,
   Briefcase,
   AlertTriangle,
@@ -30,6 +31,7 @@ import { TenantInfoCard } from "@/features/settings/components/tenant-info-card"
 import { StatusManagementPanel } from "@/features/settings/components/status-management-panel";
 import { DepartmentManagementPanel } from "@/features/settings/components/department-management-panel";
 import { EmployeeTypeManagementPanel } from "@/features/settings/components/employee-type-management-panel";
+import { EmployeeLookupManagementPanel } from "@/features/settings/components/employee-lookup-management-panel";
 import { AiCallQuestionManagementPanel } from "@/features/settings/components/ai-call-question-management-panel";
 import { CompanyIntegrationConfigPanel } from "@/features/settings/components/company-integration-config-panel";
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
@@ -41,6 +43,7 @@ import { listCompanies } from "@/features/settings/services/company-management.s
 import { listStatuses } from "@/features/settings/services/status-management.service";
 import { listDepartments } from "@/features/settings/services/department.service";
 import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
+import { listAllEmployeeLookups } from "@/features/settings/services/employee-lookup.service";
 import { listAiCallQuestions } from "@/features/settings/services/ai-call-question.service";
 import { getCompanyIntegrationConfig } from "@/features/settings/services/company-integration-config.service";
 import { listRoleSummaries, getAllPermissionActions } from "@/features/settings/services/permissions.service";
@@ -80,6 +83,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     orphanedApplicants,
     departments,
     employeeTypes,
+    employeeLookups,
     aiCallQuestions,
     integrationConfig,
     notificationPreferences,
@@ -99,6 +103,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
     isAdmin ? listDepartments() : Promise.resolve(null),
     isAdmin ? listEmployeeTypes() : Promise.resolve(null),
+    isAdmin ? listAllEmployeeLookups() : Promise.resolve(null),
     isAdmin ? listAiCallQuestions() : Promise.resolve(null),
     isAdmin ? getCompanyIntegrationConfig() : Promise.resolve(null),
     getOwnNotificationPreferences(actor.companyId, actor.id),
@@ -153,6 +158,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <TabsTrigger value="employee-types" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
                 <Network className="size-4" />
                 Employee Types
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="employee-lists" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
+                <ListTree className="size-4" />
+                Employee Lists
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -244,6 +255,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               {isAdmin && employeeTypes && (
                 <TabsContent value="employee-types">
                   <EmployeeTypeManagementPanel employeeTypes={employeeTypes} />
+                </TabsContent>
+              )}
+
+              {isAdmin && employeeLookups && (
+                <TabsContent value="employee-lists">
+                  <EmployeeLookupManagementPanel rowsByKind={employeeLookups} />
                 </TabsContent>
               )}
 
