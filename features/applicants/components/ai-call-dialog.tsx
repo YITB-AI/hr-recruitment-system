@@ -184,7 +184,7 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="message">Message / Prompt</Label>
+            <Label htmlFor="message">Message / Prompt (Optional)</Label>
             <Textarea id="message" rows={4} placeholder="What should the AI say on this call?" {...register("message")} />
             {errors.message && <p className="text-xs text-destructive">{errors.message.message}</p>}
           </div>

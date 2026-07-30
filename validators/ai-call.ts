@@ -25,7 +25,7 @@ export const requestAiCallSchema = z.object({
   jobTitle: z.string().optional().or(z.literal("")),
   callDate: z.string().min(1, "Call date is required"),
   callTime: z.string().min(1, "Call time is required"),
-  message: z.string().min(1, "Message/prompt is required").max(2000, "Message is too long"),
+  message: z.string().max(2000, "Message is too long").optional().or(z.literal("")),
   // Comma-separated in the form/schema; split into a real string[] in
   // ai-call.service.ts (kept out of the schema itself, since a .transform()
   // here would make the resolver's output type diverge from useForm's input

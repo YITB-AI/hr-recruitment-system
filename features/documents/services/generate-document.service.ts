@@ -179,6 +179,20 @@ function resolveSystemFieldValue(
       return formatTimeWithPreset(nowInTimeZone(companyTimezone), timeFormat ?? "h:mm A");
     case "generated_by":
       return generatedByName;
+    // A dedicated, opt-in way to force a blank line to survive into the
+    // generated PDF. A genuinely empty Word paragraph (no runs at all) is
+    // preserved correctly in the .docx output, but mammoth — used only for
+    // the separate PDF-preview/download copy (lib/pdf-conversion.ts) —
+    // drops fully-empty paragraphs by design (its own documented
+    // `ignoreEmptyParagraphs` default). Rather than changing that shared,
+    // already-working PDF conversion behavior for every existing document,
+    // a template author who needs a guaranteed blank line adds a field
+    // keyed "blank_line" (or "line_break") to their template and places
+    // {{blank_line}} on that line — it resolves to a non-breaking space, a
+    // real (non-empty) paragraph that survives both the .docx and the PDF.
+    case "blank_line":
+    case "line_break":
+      return " ";
     default:
       return undefined;
   }

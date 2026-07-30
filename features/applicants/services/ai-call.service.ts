@@ -131,7 +131,7 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
       company: company?.name ?? null,
       date: input.callDate,
       time: input.callTime,
-      message: input.message,
+      message: input.message || null,
       interviewerNames,
       meetingLink: input.meetingLink,
       callType: input.callType,
