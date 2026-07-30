@@ -3,6 +3,7 @@ import { readFileByKey } from "@/lib/file-storage";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { connectDB } from "@/server/db/connect";
 import { generatedDocumentRepository } from "@/server/repositories/generated-document.repository";
+import { employeeDocumentRepository } from "@/server/repositories/employee-document.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -46,8 +47,9 @@ export async function GET(req: Request, ctx: RouteContext<"/api/files/[...path]"
   const safeFilename = requestedFilename?.replace(/["\r\n]/g, "").trim();
   const filename = safeFilename || segments[segments.length - 1];
 
-  // If this file is a real generated document, confirm it belongs to the
-  // caller's own company before serving it — a cross-tenant match is
+  // If this file is a real generated document OR an employee attachment
+  // (CNIC/passport scans, contracts — highly sensitive), confirm it belongs
+  // to the caller's own company before serving it — a cross-tenant match is
   // rejected identically to "not found," never confirming a match exists
   // under another tenant. Other file types (avatars, letterheads,
   // templates, company logos) only get the auth check above for now —
@@ -56,7 +58,9 @@ export async function GET(req: Request, ctx: RouteContext<"/api/files/[...path]"
   // broader change not attempted in this pass.
   await connectDB();
   const matchedDocument = await generatedDocumentRepository.findByFileOrPdfUrlUnscoped(`/api/files/${storageKey}`);
-  if (matchedDocument && matchedDocument.companyId !== actor.companyId) {
+  const matchedEmployeeDocument = matchedDocument ? null : await employeeDocumentRepository.findByFileKeyUnscoped(storageKey);
+  const matchedTenantRecord = matchedDocument ?? matchedEmployeeDocument;
+  if (matchedTenantRecord && matchedTenantRecord.companyId !== actor.companyId) {
     return NextResponse.json({ success: false, error: { message: "File not found" } }, { status: 404 });
   }
 
@@ -80,6 +84,20 @@ export async function GET(req: Request, ctx: RouteContext<"/api/files/[...path]"
             message: `${actor.name} downloaded "${filename}"`,
           })
           .catch((error) => console.error("Failed to log document download:", error)),
+      );
+    } else if (matchedEmployeeDocument) {
+      after(() =>
+        activityLogRepository
+          .create({
+            companyId: actor.companyId,
+            actorId: resolveActorId(actor),
+            actorName: actor.name,
+            action: "employee_document.downloaded",
+            entityType: "employee",
+            entityId: matchedEmployeeDocument._id,
+            message: `${actor.name} downloaded "${filename}"`,
+          })
+          .catch((error) => console.error("Failed to log employee document download:", error)),
       );
     }
 

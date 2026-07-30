@@ -8,8 +8,10 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { EmployeeProfileCard } from "@/features/employees/components/employee-profile-card";
 import { EmployeeOverview } from "@/features/employees/components/employee-overview";
 import { EmployeeDocumentsTab } from "@/features/employees/components/employee-documents-tab";
+import { EmployeeAttachmentsTab } from "@/features/employees/components/employee-attachments-tab";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
 import { getEmployee, getEmployeeDocuments } from "@/features/employees/services/employee.service";
+import { getEmployeeAttachments } from "@/features/employees/services/employee-document.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 
 export const metadata: Metadata = { title: "Employee Profile" };
@@ -23,9 +25,10 @@ const PLACEHOLDER_TABS = [
 
 export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [employee, documents, employeeStatuses] = await Promise.all([
+  const [employee, documents, attachments, employeeStatuses] = await Promise.all([
     getEmployee(id),
     getEmployeeDocuments(id),
+    getEmployeeAttachments(id),
     listActiveStatuses("employee"),
   ]);
 
@@ -51,6 +54,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
               <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="attachments">Attachments</TabsTrigger>
                 {PLACEHOLDER_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
                     {tab.label}
@@ -64,6 +68,10 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
 
               <TabsContent value="documents" className="pt-6">
                 <EmployeeDocumentsTab documents={documents} />
+              </TabsContent>
+
+              <TabsContent value="attachments" className="pt-6">
+                <EmployeeAttachmentsTab employeeId={employee._id} initialDocuments={attachments} />
               </TabsContent>
 
               {PLACEHOLDER_TABS.map((tab) => (
