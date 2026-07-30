@@ -1,5 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { EMPLOYMENT_TYPES } from "@/constants/employee";
+import { EMPLOYMENT_TYPES, GENDER_OPTIONS } from "@/constants/employee";
 
 const employeeSchema = new Schema(
   {
@@ -40,6 +40,76 @@ const employeeSchema = new Schema(
     // place; decryptSalaryField tolerates both shapes.
     basicSalary: { type: String, required: true },
     grossSalary: { type: String, required: true },
+
+    // --- Employee Module Enhancement (~50-field request) ---
+    // FK fields into the 8 registry-driven lookup lists — see
+    // constants/employee-lookup.ts for the model/kind/permission registry
+    // these all share.
+    groupId: { type: Schema.Types.ObjectId, ref: "Group", index: true },
+    regionId: { type: Schema.Types.ObjectId, ref: "Region", index: true },
+    stationId: { type: Schema.Types.ObjectId, ref: "Station", index: true },
+    costCenterId: { type: Schema.Types.ObjectId, ref: "CostCenter", index: true },
+    vendorId: { type: Schema.Types.ObjectId, ref: "Vendor", index: true },
+    roleTemplateId: { type: Schema.Types.ObjectId, ref: "RoleTemplate", index: true },
+    payrollSetupId: { type: Schema.Types.ObjectId, ref: "PayrollSetup", index: true },
+    areaId: { type: Schema.Types.ObjectId, ref: "Area", index: true },
+    // "Sub Department" — a second, independent FK into the SAME Department
+    // collection (not a separate hierarchy/collection — see Phase 1's plan
+    // note on why parentDepartmentId was dropped as unnecessary complexity).
+    subDepartmentId: { type: Schema.Types.ObjectId, ref: "Department", index: true },
+
+    // Personal information
+    dateOfBirth: { type: Date },
+    gender: { type: String, enum: GENDER_OPTIONS },
+    city: { type: String, trim: true },
+    // Fixed, universal list (constants/country.ts) — not a per-company
+    // configurable lookup, unlike Group/Region/etc. above.
+    country: { type: String, trim: true },
+    province: { type: String, trim: true },
+    familyCode: { type: String, trim: true },
+
+    // National ID / government identifiers. nationalIdNumber covers both
+    // CNIC (Pakistan) and Emirates ID (UAE) as one field — encrypted at rest
+    // (same mechanism as basicSalary/grossSalary), with a deterministic
+    // sidecar hash (lib/crypto.ts's hashForUniqueness) enforcing real
+    // per-company uniqueness on the PLAINTEXT value, since AES-GCM's random
+    // IV means the ciphertext itself is never the same twice and can't back
+    // a unique index. eobiRegistrationNumber/socialSecurityNumber are
+    // encrypted the same way but without a uniqueness constraint (lower
+    // real-world need — avoids overengineering every ID field uniformly).
+    nationalIdNumber: { type: String },
+    nationalIdNumberHash: { type: String },
+    nationalIdExpiryDate: { type: Date },
+    passportExpiryDate: { type: Date },
+    eobiEntryDate: { type: Date },
+    eobiRegistrationNumber: { type: String },
+    socialSecurityNumber: { type: String },
+    punchCode: { type: String, trim: true },
+
+    // Lifecycle dates. expectedProbationEndDate/confirmationDate default to
+    // joiningDate + 3 months at creation time (server/repositories/
+    // employee.repository.ts reuses lib/employee-milestones.ts's existing
+    // getEmployeeMilestones math for this default — not reimplemented) but
+    // stay independently editable afterward, since a company may need to
+    // extend/shorten an individual employee's probation.
+    expectedProbationEndDate: { type: Date },
+    confirmationDate: { type: Date },
+    contractStartDate: { type: Date },
+    contractEndDate: { type: Date },
+    resignationDate: { type: Date },
+    leavingDate: { type: Date },
+    leavingReason: { type: String, trim: true },
+    inactiveDate: { type: Date },
+
+    // Payroll — encrypted the same way as basicSalary/grossSalary above.
+    // "Monthly Salary" from the request IS basicSalary (relabeled in the
+    // UI only, per the confirmed decision) — not a new field.
+    foodAllowance: { type: String },
+    transportAllowance: { type: String },
+    stipend: { type: String },
+    alcanzaAllowance: { type: String },
+
+    technicalNotes: { type: String },
   },
   { timestamps: true },
 );
@@ -51,6 +121,17 @@ employeeSchema.index({ name: "text", email: "text", employeeCode: "text" });
 // another company's existing one (nextEmployeeCode's sequence starts over
 // per company).
 employeeSchema.index({ companyId: 1, employeeCode: 1 }, { unique: true });
+// A partial index, NOT sparse — for a COMPOUND index, `sparse` only
+// excludes a document that is missing ALL indexed fields; since companyId
+// is always present, a plain sparse index here would still index every
+// employee lacking nationalIdNumberHash as an explicit `null`, and any two
+// such employees at the same company would collide as a "duplicate null".
+// partialFilterExpression correctly excludes any document where
+// nationalIdNumberHash doesn't exist, regardless of companyId.
+employeeSchema.index(
+  { companyId: 1, nationalIdNumberHash: 1 },
+  { unique: true, partialFilterExpression: { nationalIdNumberHash: { $exists: true } } },
+);
 
 export type EmployeeDoc = InferSchemaType<typeof employeeSchema>;
 

@@ -1,7 +1,8 @@
 import { Employee } from "@/models";
-import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { encryptSecret, decryptSecret, hashForUniqueness } from "@/lib/crypto";
 import { escapeRegex } from "@/lib/regex";
-import type { EmploymentStatus, EmploymentType } from "@/constants/employee";
+import { getEmployeeMilestones } from "@/lib/employee-milestones";
+import type { EmploymentStatus, EmploymentType, Gender } from "@/constants/employee";
 
 // basicSalary/grossSalary are encrypted at rest (models/Employee.ts) —
 // this pair of helpers is the ONLY place that boundary lives. Every other
@@ -25,6 +26,35 @@ function decryptSalaryField(raw: unknown): number {
 }
 
 function encryptSalaryField(value: number): string {
+  return encryptSecret(String(value));
+}
+
+// The 7 new encrypted fields (4 recurring allowances + nationalIdNumber +
+// eobiRegistrationNumber + socialSecurityNumber) are all optional and never
+// existed as legacy plaintext — unlike decryptSalaryField above, no
+// tolerate-a-raw-number fallback is needed. `null` (not 0/"") represents
+// "not set", matching every other optional field's serialization elsewhere
+// in this repository.
+function decryptOptionalNumberField(raw: unknown): number | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    return Number(decryptSecret(raw));
+  } catch {
+    return null;
+  }
+}
+
+function decryptOptionalStringField(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    return decryptSecret(raw);
+  } catch {
+    return null;
+  }
+}
+
+function encryptOptionalField(value: number | string | undefined | null): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
   return encryptSecret(String(value));
 }
 
@@ -52,6 +82,9 @@ export type EmployeeListRow = {
   joiningDate: Date;
 };
 
+/** A resolved {_id, name} lookup reference — the shape every new FK field below resolves to. */
+export type EmployeeLookupRef = { _id: string; name: string } | null;
+
 export type EmployeeDetailRow = EmployeeListRow & {
   employmentType: string;
   basicSalary: number;
@@ -60,6 +93,53 @@ export type EmployeeDetailRow = EmployeeListRow & {
   departmentId: string | null;
   employeeType: { _id: string; name: string } | null;
   createdAt: Date;
+
+  // --- Employee Module Enhancement ---
+  group: EmployeeLookupRef;
+  region: EmployeeLookupRef;
+  station: EmployeeLookupRef;
+  costCenter: EmployeeLookupRef;
+  vendor: EmployeeLookupRef;
+  roleTemplate: EmployeeLookupRef;
+  payrollSetup: EmployeeLookupRef;
+  area: EmployeeLookupRef;
+  subDepartment: EmployeeLookupRef;
+
+  dateOfBirth: Date | null;
+  gender: Gender | null;
+  city: string | null;
+  country: string | null;
+  province: string | null;
+  familyCode: string | null;
+
+  nationalIdNumber: string | null;
+  nationalIdExpiryDate: Date | null;
+  passportExpiryDate: Date | null;
+  eobiEntryDate: Date | null;
+  eobiRegistrationNumber: string | null;
+  socialSecurityNumber: string | null;
+  punchCode: string | null;
+
+  expectedProbationEndDate: Date | null;
+  confirmationDate: Date | null;
+  contractStartDate: Date | null;
+  contractEndDate: Date | null;
+  resignationDate: Date | null;
+  leavingDate: Date | null;
+  leavingReason: string | null;
+  inactiveDate: Date | null;
+
+  foodAllowance: number | null;
+  transportAllowance: number | null;
+  stipend: number | null;
+  alcanzaAllowance: number | null;
+
+  technicalNotes: string | null;
+
+  // Derived, never stored — see the plan's "Derived, never stored" note.
+  age: number | null;
+  yearsOfService: number;
+  isActive: boolean;
 };
 
 /** Minimal shape used by pickers (document generation, interviewer lists, etc). */
@@ -107,15 +187,90 @@ export type CreateEmployeeInput = {
   basicSalary: number;
   grossSalary: number;
   applicantId?: string;
+
+  // --- Employee Module Enhancement ---
+  groupId?: string;
+  regionId?: string;
+  stationId?: string;
+  costCenterId?: string;
+  vendorId?: string;
+  roleTemplateId?: string;
+  payrollSetupId?: string;
+  areaId?: string;
+  subDepartmentId?: string;
+
+  dateOfBirth?: Date;
+  gender?: Gender;
+  city?: string;
+  country?: string;
+  province?: string;
+  familyCode?: string;
+
+  nationalIdNumber?: string;
+  nationalIdExpiryDate?: Date;
+  passportExpiryDate?: Date;
+  eobiEntryDate?: Date;
+  eobiRegistrationNumber?: string;
+  socialSecurityNumber?: string;
+  punchCode?: string;
+
+  // Left undefined to auto-default from joiningDate + 3mo (see create()) —
+  // pass explicitly to override.
+  expectedProbationEndDate?: Date;
+  confirmationDate?: Date;
+  contractStartDate?: Date;
+  contractEndDate?: Date;
+  resignationDate?: Date;
+  leavingDate?: Date;
+  leavingReason?: string;
+  inactiveDate?: Date;
+
+  foodAllowance?: number;
+  transportAllowance?: number;
+  stipend?: number;
+  alcanzaAllowance?: number;
+
+  technicalNotes?: string;
 };
 
 export type UpdateEmployeeInput = Partial<Omit<CreateEmployeeInput, "employeeCode">>;
 
 type RawListRow = Record<string, unknown> & { _id: unknown };
+type RawRef = { _id: unknown; name: string } | null;
 type RawDetailRow = RawListRow & {
-  managerId: { _id: unknown; name: string } | null;
-  employeeTypeId: { _id: unknown; name: string } | null;
+  managerId: RawRef;
+  employeeTypeId: RawRef;
+  groupId: RawRef;
+  regionId: RawRef;
+  stationId: RawRef;
+  costCenterId: RawRef;
+  vendorId: RawRef;
+  roleTemplateId: RawRef;
+  payrollSetupId: RawRef;
+  areaId: RawRef;
+  subDepartmentId: RawRef;
 };
+
+// Shared by findById/create/update below — every FK field on Employee that
+// resolves to a {_id, name} reference, in one place so the 3 call sites
+// can't drift from each other.
+const POPULATE_PATHS = [
+  { path: "managerId", select: "name" },
+  { path: "employeeTypeId", select: "name" },
+  { path: "groupId", select: "name" },
+  { path: "regionId", select: "name" },
+  { path: "stationId", select: "name" },
+  { path: "costCenterId", select: "name" },
+  { path: "vendorId", select: "name" },
+  { path: "roleTemplateId", select: "name" },
+  { path: "payrollSetupId", select: "name" },
+  { path: "areaId", select: "name" },
+  { path: "subDepartmentId", select: "name" },
+];
+
+function resolveRef(ref: RawRef): EmployeeLookupRef {
+  return ref ? { _id: String(ref._id), name: ref.name } : null;
+}
 
 function serializeListRow(row: RawListRow): EmployeeListRow {
   return {
@@ -131,16 +286,82 @@ function serializeListRow(row: RawListRow): EmployeeListRow {
   };
 }
 
+function ageFromDateOfBirth(dateOfBirth: Date | null): number | null {
+  if (!dateOfBirth) return null;
+  const now = new Date();
+  let age = now.getFullYear() - dateOfBirth.getFullYear();
+  const hasNotHadBirthdayYet =
+    now.getMonth() < dateOfBirth.getMonth() || (now.getMonth() === dateOfBirth.getMonth() && now.getDate() < dateOfBirth.getDate());
+  if (hasNotHadBirthdayYet) age -= 1;
+  return age;
+}
+
+function yearsOfServiceFromJoiningDate(joiningDate: Date): number {
+  const now = new Date();
+  let years = now.getFullYear() - joiningDate.getFullYear();
+  const hasNotHadAnniversaryYet =
+    now.getMonth() < joiningDate.getMonth() || (now.getMonth() === joiningDate.getMonth() && now.getDate() < joiningDate.getDate());
+  if (hasNotHadAnniversaryYet) years -= 1;
+  return Math.max(0, years);
+}
+
 function serializeDetailRow(row: RawDetailRow): EmployeeDetailRow {
+  const dateOfBirth = (row.dateOfBirth as Date | undefined) ?? null;
+  const joiningDate = row.joiningDate as Date;
   return {
     ...serializeListRow(row),
     employmentType: row.employmentType as string,
     basicSalary: decryptSalaryField(row.basicSalary),
     grossSalary: decryptSalaryField(row.grossSalary),
-    manager: row.managerId ? { _id: String(row.managerId._id), name: row.managerId.name } : null,
+    manager: resolveRef(row.managerId),
     departmentId: row.departmentId ? String(row.departmentId) : null,
-    employeeType: row.employeeTypeId ? { _id: String(row.employeeTypeId._id), name: row.employeeTypeId.name } : null,
+    employeeType: resolveRef(row.employeeTypeId),
     createdAt: row.createdAt as Date,
+
+    group: resolveRef(row.groupId),
+    region: resolveRef(row.regionId),
+    station: resolveRef(row.stationId),
+    costCenter: resolveRef(row.costCenterId),
+    vendor: resolveRef(row.vendorId),
+    roleTemplate: resolveRef(row.roleTemplateId),
+    payrollSetup: resolveRef(row.payrollSetupId),
+    area: resolveRef(row.areaId),
+    subDepartment: resolveRef(row.subDepartmentId),
+
+    dateOfBirth,
+    gender: (row.gender as Gender | undefined) ?? null,
+    city: (row.city as string | undefined) ?? null,
+    country: (row.country as string | undefined) ?? null,
+    province: (row.province as string | undefined) ?? null,
+    familyCode: (row.familyCode as string | undefined) ?? null,
+
+    nationalIdNumber: decryptOptionalStringField(row.nationalIdNumber),
+    nationalIdExpiryDate: (row.nationalIdExpiryDate as Date | undefined) ?? null,
+    passportExpiryDate: (row.passportExpiryDate as Date | undefined) ?? null,
+    eobiEntryDate: (row.eobiEntryDate as Date | undefined) ?? null,
+    eobiRegistrationNumber: decryptOptionalStringField(row.eobiRegistrationNumber),
+    socialSecurityNumber: decryptOptionalStringField(row.socialSecurityNumber),
+    punchCode: (row.punchCode as string | undefined) ?? null,
+
+    expectedProbationEndDate: (row.expectedProbationEndDate as Date | undefined) ?? null,
+    confirmationDate: (row.confirmationDate as Date | undefined) ?? null,
+    contractStartDate: (row.contractStartDate as Date | undefined) ?? null,
+    contractEndDate: (row.contractEndDate as Date | undefined) ?? null,
+    resignationDate: (row.resignationDate as Date | undefined) ?? null,
+    leavingDate: (row.leavingDate as Date | undefined) ?? null,
+    leavingReason: (row.leavingReason as string | undefined) ?? null,
+    inactiveDate: (row.inactiveDate as Date | undefined) ?? null,
+
+    foodAllowance: decryptOptionalNumberField(row.foodAllowance),
+    transportAllowance: decryptOptionalNumberField(row.transportAllowance),
+    stipend: decryptOptionalNumberField(row.stipend),
+    alcanzaAllowance: decryptOptionalNumberField(row.alcanzaAllowance),
+
+    technicalNotes: (row.technicalNotes as string | undefined) ?? null,
+
+    age: ageFromDateOfBirth(dateOfBirth),
+    yearsOfService: yearsOfServiceFromJoiningDate(joiningDate),
+    isActive: !TERMINAL_EMPLOYMENT_STATUSES.includes(row.employmentStatus as string),
   };
 }
 
@@ -225,7 +446,7 @@ export const employeeRepository = {
   // another company must resolve to "not found", never leak the document
   // (the IDOR case: guessing/enumerating another tenant's employee id).
   async findById(companyId: string, id: string): Promise<EmployeeDetailRow | null> {
-    const row = await Employee.findOne({ _id: id, companyId }).populate("managerId", "name").populate("employeeTypeId", "name").lean<RawDetailRow | null>();
+    const row = await Employee.findOne({ _id: id, companyId }).populate(POPULATE_PATHS).lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },
 
@@ -265,22 +486,66 @@ export const employeeRepository = {
   },
 
   async create(companyId: string, input: CreateEmployeeInput): Promise<EmployeeDetailRow> {
+    const milestones = getEmployeeMilestones(input.joiningDate, input.employmentType);
     const doc = await Employee.create({
       ...input,
       companyId,
       basicSalary: encryptSalaryField(input.basicSalary),
       grossSalary: encryptSalaryField(input.grossSalary),
+      nationalIdNumber: encryptOptionalField(input.nationalIdNumber),
+      nationalIdNumberHash: input.nationalIdNumber ? hashForUniqueness(input.nationalIdNumber) : undefined,
+      eobiRegistrationNumber: encryptOptionalField(input.eobiRegistrationNumber),
+      socialSecurityNumber: encryptOptionalField(input.socialSecurityNumber),
+      foodAllowance: encryptOptionalField(input.foodAllowance),
+      transportAllowance: encryptOptionalField(input.transportAllowance),
+      stipend: encryptOptionalField(input.stipend),
+      alcanzaAllowance: encryptOptionalField(input.alcanzaAllowance),
+      // Defaulted from joiningDate + 3mo (reusing lib/employee-milestones.ts's
+      // existing math, not reimplemented) whenever not explicitly provided —
+      // still independently editable afterward via update() below.
+      expectedProbationEndDate: input.expectedProbationEndDate ?? milestones.probationEndDate,
+      confirmationDate: input.confirmationDate ?? milestones.confirmationDate,
     });
-    const populated = await Employee.findById(doc._id).populate("managerId", "name").populate("employeeTypeId", "name").lean<RawDetailRow>();
+    const populated = await Employee.findById(doc._id).populate(POPULATE_PATHS).lean<RawDetailRow>();
     return serializeDetailRow(populated!);
   },
 
   async update(companyId: string, id: string, input: UpdateEmployeeInput): Promise<EmployeeDetailRow | null> {
     const patch: Record<string, unknown> = { ...input };
+
     if (input.basicSalary !== undefined) patch.basicSalary = encryptSalaryField(input.basicSalary);
     if (input.grossSalary !== undefined) patch.grossSalary = encryptSalaryField(input.grossSalary);
-    const row = await Employee.findOneAndUpdate({ _id: id, companyId }, patch, { returnDocument: "after" })
-      .populate("managerId", "name").populate("employeeTypeId", "name")
+
+    // The 7 optional encrypted fields: encryptOptionalField returns
+    // `undefined` when the caller is clearing the field (e.g. an empty
+    // string) — but $set-ing a key to `undefined` is silently dropped by
+    // the MongoDB driver (a no-op, not a clear), so those go through
+    // $unset instead. Only touched when the caller actually included the
+    // field in this partial update (`!== undefined` on the INPUT, not the
+    // encrypted result).
+    const unset: Record<string, ""> = {};
+    const maybeEncrypt = (key: keyof UpdateEmployeeInput, targetField: string) => {
+      if (input[key] === undefined) return;
+      const encrypted = encryptOptionalField(input[key] as string | number);
+      if (encrypted === undefined) unset[targetField] = "";
+      else patch[targetField] = encrypted;
+      delete patch[key];
+    };
+    maybeEncrypt("nationalIdNumber", "nationalIdNumber");
+    maybeEncrypt("eobiRegistrationNumber", "eobiRegistrationNumber");
+    maybeEncrypt("socialSecurityNumber", "socialSecurityNumber");
+    maybeEncrypt("foodAllowance", "foodAllowance");
+    maybeEncrypt("transportAllowance", "transportAllowance");
+    maybeEncrypt("stipend", "stipend");
+    maybeEncrypt("alcanzaAllowance", "alcanzaAllowance");
+    if (input.nationalIdNumber !== undefined) {
+      if (input.nationalIdNumber) patch.nationalIdNumberHash = hashForUniqueness(input.nationalIdNumber);
+      else unset.nationalIdNumberHash = "";
+    }
+
+    const update = Object.keys(unset).length > 0 ? { $set: patch, $unset: unset } : patch;
+    const row = await Employee.findOneAndUpdate({ _id: id, companyId }, update, { returnDocument: "after" })
+      .populate(POPULATE_PATHS)
       .lean<RawDetailRow | null>();
     return row ? serializeDetailRow(row) : null;
   },

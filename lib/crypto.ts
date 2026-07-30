@@ -68,3 +68,16 @@ export function decryptSecret(ciphertext: string, keyOverride?: Buffer): string 
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]).toString("utf8");
 }
+
+/**
+ * Deterministic HMAC-SHA256 of a normalized plaintext, keyed by the same
+ * CONFIG_ENCRYPTION_KEY — for fields that must be BOTH encrypted (AES-GCM's
+ * random IV means encryptSecret's own output is never the same twice for
+ * the same input, so it can't back a unique index) AND uniqueness-checkable
+ * (e.g. Employee.nationalIdNumber — no two employees should share one).
+ * Store this alongside the real ciphertext and put the unique index on
+ * THIS field, never on the ciphertext itself.
+ */
+export function hashForUniqueness(plaintext: string): string {
+  return crypto.createHmac("sha256", loadKey()).update(plaintext.trim().toLowerCase()).digest("hex");
+}

@@ -18,3 +18,12 @@ export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
   contract: "Contract",
   internship: "Internship",
 };
+
+export const GENDER_OPTIONS = ["male", "female", "other"] as const;
+export type Gender = (typeof GENDER_OPTIONS)[number];
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  male: "Male",
+  female: "Female",
+  other: "Other",
+};
