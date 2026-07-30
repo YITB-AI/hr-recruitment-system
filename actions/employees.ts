@@ -13,20 +13,65 @@ import {
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
+function str(formData: FormData, key: string): string | undefined {
+  return String(formData.get(key) ?? "") || undefined;
+}
+
 function parseEmployeeForm(formData: FormData) {
   return employeeFormSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     email: String(formData.get("email") ?? ""),
-    phone: String(formData.get("phone") ?? "") || undefined,
+    phone: str(formData, "phone"),
     departmentId: String(formData.get("departmentId") ?? ""),
-    employeeTypeId: String(formData.get("employeeTypeId") ?? "") || undefined,
+    employeeTypeId: str(formData, "employeeTypeId"),
     designation: String(formData.get("designation") ?? ""),
-    managerId: String(formData.get("managerId") ?? "") || undefined,
+    managerId: str(formData, "managerId"),
     joiningDate: String(formData.get("joiningDate") ?? ""),
     employmentType: String(formData.get("employmentType") ?? ""),
     employmentStatus: String(formData.get("employmentStatus") ?? ""),
     basicSalary: Number(formData.get("basicSalary")),
     grossSalary: Number(formData.get("grossSalary")),
+
+    groupId: str(formData, "groupId"),
+    regionId: str(formData, "regionId"),
+    stationId: str(formData, "stationId"),
+    costCenterId: str(formData, "costCenterId"),
+    vendorId: str(formData, "vendorId"),
+    roleTemplateId: str(formData, "roleTemplateId"),
+    payrollSetupId: str(formData, "payrollSetupId"),
+    areaId: str(formData, "areaId"),
+    subDepartmentId: str(formData, "subDepartmentId"),
+
+    dateOfBirth: str(formData, "dateOfBirth"),
+    gender: str(formData, "gender"),
+    city: str(formData, "city"),
+    country: str(formData, "country"),
+    province: str(formData, "province"),
+    familyCode: str(formData, "familyCode"),
+
+    nationalIdNumber: str(formData, "nationalIdNumber"),
+    nationalIdExpiryDate: str(formData, "nationalIdExpiryDate"),
+    passportExpiryDate: str(formData, "passportExpiryDate"),
+    eobiEntryDate: str(formData, "eobiEntryDate"),
+    eobiRegistrationNumber: str(formData, "eobiRegistrationNumber"),
+    socialSecurityNumber: str(formData, "socialSecurityNumber"),
+    punchCode: str(formData, "punchCode"),
+
+    expectedProbationEndDate: str(formData, "expectedProbationEndDate"),
+    confirmationDate: str(formData, "confirmationDate"),
+    contractStartDate: str(formData, "contractStartDate"),
+    contractEndDate: str(formData, "contractEndDate"),
+    resignationDate: str(formData, "resignationDate"),
+    leavingDate: str(formData, "leavingDate"),
+    leavingReason: str(formData, "leavingReason"),
+    inactiveDate: str(formData, "inactiveDate"),
+
+    foodAllowance: str(formData, "foodAllowance"),
+    transportAllowance: str(formData, "transportAllowance"),
+    stipend: str(formData, "stipend"),
+    alcanzaAllowance: str(formData, "alcanzaAllowance"),
+
+    technicalNotes: str(formData, "technicalNotes"),
   });
 }
 

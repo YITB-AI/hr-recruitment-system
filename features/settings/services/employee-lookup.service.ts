@@ -41,6 +41,13 @@ export async function listAllEmployeeLookups(): Promise<Record<EmployeeLookupKin
   return employeeLookupRepository.findAllByKind(companyId, true);
 }
 
+/** All 8 lists, active rows only — what the Employee create/edit form's FK selects render from. */
+export async function listAllActiveEmployeeLookups(): Promise<Record<EmployeeLookupKind, EmployeeLookupRow[]>> {
+  await connectDB();
+  const { companyId } = await getCurrentUser();
+  return employeeLookupRepository.findAllByKind(companyId, false);
+}
+
 export async function createEmployeeLookup(kind: EmployeeLookupKind, input: CreateInput): Promise<EmployeeLookupRow> {
   await connectDB();
   const actor = await getCurrentUser();

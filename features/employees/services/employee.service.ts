@@ -9,10 +9,12 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { statusRepository } from "@/server/repositories/status.repository";
 import { departmentRepository } from "@/server/repositories/department.repository";
 import { employeeTypeRepository } from "@/server/repositories/employee-type.repository";
+import { employeeLookupRepository } from "@/server/repositories/employee-lookup.repository";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
 import { computeTrend, getWeekWindows } from "@/lib/trend";
 import { notifyHrStaff } from "@/lib/staff-notify";
+import { EMPLOYEE_LOOKUP_KINDS, EMPLOYEE_LOOKUP_FIELD, EMPLOYEE_LOOKUP_LABELS } from "@/constants/employee-lookup";
 import type { EmployeeFormInput } from "@/validators/employee";
 import type { SessionUser } from "@/types/user";
 
@@ -36,6 +38,82 @@ async function resolveDepartmentName(companyId: string, departmentId: string): P
 async function assertValidEmployeeType(companyId: string, employeeTypeId: string): Promise<void> {
   const employeeType = await employeeTypeRepository.findById(companyId, employeeTypeId);
   if (!employeeType || !employeeType.isActive) throw new Error("Invalid or inactive employee type");
+}
+
+// Validates every provided FK against this company's own active list —
+// same reasoning as resolveDepartmentName/assertValidEmployeeType above,
+// applied once across all 9 new FK fields (Phase 1's 8 registry-driven
+// lookups + "Sub Department", a second FK into Department) instead of 9
+// near-duplicate checks. A spoofed/stale id from another company or a
+// deactivated/deleted row is rejected here, not silently stored.
+async function assertValidLookupRefs(companyId: string, input: EmployeeFormInput): Promise<void> {
+  for (const kind of EMPLOYEE_LOOKUP_KINDS) {
+    const field = EMPLOYEE_LOOKUP_FIELD[kind] as keyof EmployeeFormInput;
+    const id = input[field] as string | undefined;
+    if (!id) continue;
+    const row = await employeeLookupRepository.findById(kind, companyId, id);
+    if (!row || !row.isActive) throw new Error(`Invalid or inactive ${EMPLOYEE_LOOKUP_LABELS[kind]}`);
+  }
+  if (input.subDepartmentId) {
+    const sub = await departmentRepository.findById(companyId, input.subDepartmentId);
+    if (!sub || !sub.isActive) throw new Error("Invalid or inactive sub department");
+  }
+}
+
+function toDate(value?: string): Date | undefined {
+  return value ? new Date(value) : undefined;
+}
+
+function toNumber(value?: string): number | undefined {
+  return value ? Number(value) : undefined;
+}
+
+// Every new plain/date/encrypted field from the Employee Module Enhancement
+// that create/update pass through identically — kept in one place so the
+// two call sites below can't drift from each other.
+function buildEnhancementFields(input: EmployeeFormInput) {
+  return {
+    groupId: input.groupId || undefined,
+    regionId: input.regionId || undefined,
+    stationId: input.stationId || undefined,
+    costCenterId: input.costCenterId || undefined,
+    vendorId: input.vendorId || undefined,
+    roleTemplateId: input.roleTemplateId || undefined,
+    payrollSetupId: input.payrollSetupId || undefined,
+    areaId: input.areaId || undefined,
+    subDepartmentId: input.subDepartmentId || undefined,
+
+    dateOfBirth: toDate(input.dateOfBirth),
+    gender: input.gender,
+    city: input.city,
+    country: input.country,
+    province: input.province,
+    familyCode: input.familyCode,
+
+    nationalIdNumber: input.nationalIdNumber,
+    nationalIdExpiryDate: toDate(input.nationalIdExpiryDate),
+    passportExpiryDate: toDate(input.passportExpiryDate),
+    eobiEntryDate: toDate(input.eobiEntryDate),
+    eobiRegistrationNumber: input.eobiRegistrationNumber,
+    socialSecurityNumber: input.socialSecurityNumber,
+    punchCode: input.punchCode,
+
+    expectedProbationEndDate: toDate(input.expectedProbationEndDate),
+    confirmationDate: toDate(input.confirmationDate),
+    contractStartDate: toDate(input.contractStartDate),
+    contractEndDate: toDate(input.contractEndDate),
+    resignationDate: toDate(input.resignationDate),
+    leavingDate: toDate(input.leavingDate),
+    leavingReason: input.leavingReason,
+    inactiveDate: toDate(input.inactiveDate),
+
+    foodAllowance: toNumber(input.foodAllowance),
+    transportAllowance: toNumber(input.transportAllowance),
+    stipend: toNumber(input.stipend),
+    alcanzaAllowance: toNumber(input.alcanzaAllowance),
+
+    technicalNotes: input.technicalNotes,
+  };
 }
 
 /** Everything the Employees list page needs: paginated rows + the 4 stat cards + filter option lists. */
@@ -100,6 +178,7 @@ export async function createEmployeeCore(actor: SessionUser, input: EmployeeForm
   await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
   const departmentName = await resolveDepartmentName(actor.companyId, input.departmentId);
   if (input.employeeTypeId) await assertValidEmployeeType(actor.companyId, input.employeeTypeId);
+  await assertValidLookupRefs(actor.companyId, input);
 
   const employeeCode = await employeeRepository.nextEmployeeCode(actor.companyId);
   const created = await employeeRepository.create(actor.companyId, {
@@ -117,6 +196,7 @@ export async function createEmployeeCore(actor: SessionUser, input: EmployeeForm
     employmentStatus: input.employmentStatus,
     basicSalary: input.basicSalary,
     grossSalary: input.grossSalary,
+    ...buildEnhancementFields(input),
   });
 
   await activityLogRepository.create({
@@ -154,6 +234,7 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
   await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
   const departmentName = await resolveDepartmentName(actor.companyId, input.departmentId);
   if (input.employeeTypeId) await assertValidEmployeeType(actor.companyId, input.employeeTypeId);
+  await assertValidLookupRefs(actor.companyId, input);
 
   const updated = await employeeRepository.update(actor.companyId, id, {
     name: input.name,
@@ -169,6 +250,7 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
     employmentStatus: input.employmentStatus,
     basicSalary: input.basicSalary,
     grossSalary: input.grossSalary,
+    ...buildEnhancementFields(input),
   });
   if (!updated) return null;
 

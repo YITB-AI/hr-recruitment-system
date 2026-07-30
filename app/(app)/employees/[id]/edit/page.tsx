@@ -8,18 +8,20 @@ import { getEmployee, listManagerOptions } from "@/features/employees/services/e
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { listActiveDepartments } from "@/features/settings/services/department.service";
 import { listActiveEmployeeTypes } from "@/features/settings/services/employee-type.service";
+import { listAllActiveEmployeeLookups } from "@/features/settings/services/employee-lookup.service";
 
 export const metadata: Metadata = { title: "Edit Employee" };
 export const dynamic = "force-dynamic";
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [employee, managers, statuses, departments, employeeTypes] = await Promise.all([
+  const [employee, managers, statuses, departments, employeeTypes, lookups] = await Promise.all([
     getEmployee(id),
     listManagerOptions(),
     listActiveStatuses("employee"),
     listActiveDepartments(),
     listActiveEmployeeTypes(),
+    listAllActiveEmployeeLookups(),
   ]);
 
   if (!employee) notFound();
@@ -45,6 +47,7 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
             statuses={statuses}
             departments={departments}
             employeeTypes={employeeTypes}
+            lookups={lookups}
             existing={employee}
           />
         </CardContent>

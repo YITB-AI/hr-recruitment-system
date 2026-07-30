@@ -7,16 +7,18 @@ import { listManagerOptions } from "@/features/employees/services/employee.servi
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { listActiveDepartments } from "@/features/settings/services/department.service";
 import { listActiveEmployeeTypes } from "@/features/settings/services/employee-type.service";
+import { listAllActiveEmployeeLookups } from "@/features/settings/services/employee-lookup.service";
 
 export const metadata: Metadata = { title: "Add Employee" };
 export const dynamic = "force-dynamic";
 
 export default async function NewEmployeePage() {
-  const [managers, statuses, departments, employeeTypes] = await Promise.all([
+  const [managers, statuses, departments, employeeTypes, lookups] = await Promise.all([
     listManagerOptions(),
     listActiveStatuses("employee"),
     listActiveDepartments(),
     listActiveEmployeeTypes(),
+    listAllActiveEmployeeLookups(),
   ]);
 
   return (
@@ -31,7 +33,13 @@ export default async function NewEmployeePage() {
 
       <Card className="mx-auto max-w-2xl">
         <CardContent className="pt-6">
-          <EmployeeForm managers={managers} statuses={statuses} departments={departments} employeeTypes={employeeTypes} />
+          <EmployeeForm
+            managers={managers}
+            statuses={statuses}
+            departments={departments}
+            employeeTypes={employeeTypes}
+            lookups={lookups}
+          />
         </CardContent>
       </Card>
     </div>

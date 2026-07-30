@@ -543,6 +543,21 @@ export const employeeRepository = {
       else unset.nationalIdNumberHash = "";
     }
 
+    // Every other optional field (phone, managerId, dateOfBirth, city, all
+    // the Employee Module Enhancement fields, etc.) that the caller
+    // explicitly included as `undefined` — e.g. the edit form was submitted
+    // with that field left blank — means "clear this," not "leave
+    // unchanged." The MongoDB driver silently drops undefined-valued $set
+    // keys (treats as omitted), so those go through $unset instead, same
+    // reasoning as the encrypted fields above, generalized to every field
+    // instead of hand-writing this per key.
+    for (const key of Object.keys(patch)) {
+      if (patch[key] === undefined) {
+        unset[key] = "";
+        delete patch[key];
+      }
+    }
+
     const update = Object.keys(unset).length > 0 ? { $set: patch, $unset: unset } : patch;
     const row = await Employee.findOneAndUpdate({ _id: id, companyId }, update, { returnDocument: "after" })
       .populate(POPULATE_PATHS)
