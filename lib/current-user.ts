@@ -28,6 +28,8 @@ async function getSystemUser(): Promise<SessionUser> {
     avatarUrl: null,
     isPlatformAdmin: true,
     impersonatedBy: null,
+    mustChangePassword: false,
+    mfaSetupRequired: false,
   };
 }
 

@@ -74,6 +74,14 @@ const userSchema = new Schema(
     mfaSecretEncrypted: { type: String },
     mfaBackupCodeHashes: { type: [String], default: [] },
     mfaEnabledAt: { type: Date },
+    // Set once, permanently, the first time an admin completes MFA
+    // enrollment — unlike mfaEnabledAt, disableMfa never unsets this. It's
+    // the one durable signal for "has this admin EVER finished setup,"
+    // independent of whether MFA happens to be on right now. Required-MFA
+    // enforcement (actions/auth.ts, app/(app)/layout.tsx) checks THIS field,
+    // not mfaEnabled, so disabling MFA later never re-triggers the forced
+    // setup flow — mirrors mustChangePassword's own one-time-nudge model.
+    mfaSetupCompletedAt: { type: Date },
   },
   { timestamps: true },
 );

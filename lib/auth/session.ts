@@ -35,6 +35,8 @@ type RawUser = {
   role: UserRole;
   avatarUrl?: string;
   isPlatformAdmin?: boolean;
+  mustChangePassword?: boolean;
+  mfaSetupCompletedAt?: Date;
 };
 
 // The authoritative check — proxy.ts only does an optimistic cookie-presence
@@ -97,6 +99,8 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     avatarUrl: user.avatarUrl ?? null,
     isPlatformAdmin: Boolean(user.isPlatformAdmin),
     impersonatedBy,
+    mustChangePassword: Boolean(user.mustChangePassword),
+    mfaSetupRequired: user.role === "admin" && !user.mfaSetupCompletedAt,
   };
 }
 

@@ -21,4 +21,14 @@ export type SessionUser = {
   // Set only while an admin is impersonating this user (see
   // lib/auth/impersonation.ts) — null on every normal session.
   impersonatedBy: { id: string; name: string } | null;
+  // The two "must complete this before using the app" onboarding flags,
+  // checked both at login (actions/auth.ts) and on every subsequent request
+  // to an (app)-group page (app/(app)/layout.tsx) — a session alone must
+  // never grant access to /dashboard etc. while either is still pending.
+  mustChangePassword: boolean;
+  // Computed from mfaSetupCompletedAt (a field that survives a later MFA
+  // disable), NOT from the toggleable mfaEnabled — so this only asks "has
+  // this admin EVER finished setup," never re-becoming true just because
+  // MFA was turned off again. Always false for non-admins.
+  mfaSetupRequired: boolean;
 };

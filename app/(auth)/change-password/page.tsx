@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
 import { requireSession } from "@/lib/auth/session";
@@ -6,8 +7,13 @@ import { requireSession } from "@/lib/auth/session";
 export const metadata: Metadata = { title: "Change Password" };
 export const dynamic = "force-dynamic";
 
+// Symmetric with app/(auth)/mfa-setup/page.tsx's own guard: this page is
+// only ever used for the forced first-login flow (Profile's own voluntary
+// password change is a fully separate component, ChangePasswordCard) — once
+// mustChangePassword is no longer true, there's nothing left to do here.
 export default async function ChangePasswordPage() {
   const user = await requireSession();
+  if (!user.mustChangePassword) redirect(user.mfaSetupRequired ? "/mfa-setup" : "/dashboard");
 
   return (
     <div className="w-full max-w-sm space-y-6 rounded-2xl border bg-card p-8 shadow-sm">

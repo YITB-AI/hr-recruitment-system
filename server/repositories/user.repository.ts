@@ -135,7 +135,10 @@ export const userRepository = {
     await User.updateOne({ _id: id, companyId }, { mfaSecretEncrypted: secretEncrypted, mfaEnabled: false });
   },
   async confirmMfaEnrollment(companyId: string, id: string, backupCodeHashes: string[]): Promise<void> {
-    await User.updateOne({ _id: id, companyId }, { mfaEnabled: true, mfaBackupCodeHashes: backupCodeHashes, mfaEnabledAt: new Date() });
+    await User.updateOne(
+      { _id: id, companyId },
+      { mfaEnabled: true, mfaBackupCodeHashes: backupCodeHashes, mfaEnabledAt: new Date(), mfaSetupCompletedAt: new Date() },
+    );
   },
   async disableMfa(companyId: string, id: string): Promise<void> {
     await User.updateOne(

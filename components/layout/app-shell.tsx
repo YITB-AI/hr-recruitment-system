@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Topbar } from "@/components/layout/topbar";
@@ -17,6 +18,16 @@ import { getCurrentUser } from "@/lib/current-user";
 // instead of holding up everything else.
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
+
+  // Authoritative enforcement of the same two onboarding checks
+  // actions/auth.ts's loginAction applies right after login — this is the
+  // one shared layout for every route under the (app) group (including
+  // /dashboard), so a session with either flag still pending can never
+  // reach a real page just by navigating straight to its URL instead of
+  // following the login redirect. /change-password and /mfa-setup live
+  // under the separate (auth) route group, so this can't loop against them.
+  if (user.mustChangePassword) redirect("/change-password");
+  if (user.mfaSetupRequired) redirect("/mfa-setup");
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">

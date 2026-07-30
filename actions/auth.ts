@@ -152,12 +152,18 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     message: `${user.name} logged in`,
   });
 
-  // Admins must have MFA enrolled — mirrors the mustChangePassword redirect
-  // immediately below (a one-time nudge right after login, same scope as
-  // that existing precedent, not a persistent middleware-level block on
-  // every subsequent page load).
-  if (user.role === "admin" && !user.mfaEnabled) redirect("/mfa-setup");
-  redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
+  // mustChangePassword is checked FIRST — a freshly-provisioned admin
+  // (mustChangePassword: true, mfaSetupCompletedAt unset) must set a real
+  // password before anything else, including MFA enrollment. Admins must
+  // also have completed MFA enrollment at least once, ever — checked via
+  // mfaSetupCompletedAt (survives a later disable), not the toggleable
+  // mfaEnabled, so disabling MFA afterward never re-forces this page. This
+  // is a one-time nudge right after login; app/(app)/layout.tsx enforces
+  // the same two checks on every subsequent request so neither can be
+  // bypassed by navigating straight to a URL instead of following the redirect.
+  if (user.mustChangePassword) redirect("/change-password");
+  if (user.role === "admin" && !user.mfaSetupCompletedAt) redirect("/mfa-setup");
+  redirect("/dashboard");
 }
 
 // Second factor for accounts with MFA enrolled — reads the short-lived

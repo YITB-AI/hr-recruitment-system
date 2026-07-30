@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { MfaSetupFlow } from "@/features/auth/components/mfa-setup-flow";
 import { requireSession } from "@/lib/auth/session";
-import { getOwnProfile } from "@/features/profile/services/profile.service";
 
 export const metadata: Metadata = { title: "Set Up Two-Factor Authentication" };
 export const dynamic = "force-dynamic";
@@ -11,11 +10,14 @@ export const dynamic = "force-dynamic";
 // Mirrors app/(auth)/change-password/page.tsx exactly: a real session
 // already exists (requireSession succeeds), this is a one-time forced
 // redirect target set right after login, not a persistent middleware-level
-// block on every subsequent page load — see actions/auth.ts's loginAction.
+// block on every subsequent page load — see actions/auth.ts's loginAction
+// and app/(app)/layout.tsx (which enforces the same two checks on every
+// other page). mustChangePassword is checked first, matching that same
+// ordering everywhere else this pair of checks appears.
 export default async function MfaSetupPage() {
   const user = await requireSession();
-  const profile = await getOwnProfile();
-  if (profile.mfaEnabled) redirect("/dashboard");
+  if (user.mustChangePassword) redirect("/change-password");
+  if (!user.mfaSetupRequired) redirect("/dashboard");
 
   return (
     <div className="w-full max-w-sm space-y-6 rounded-2xl border bg-card p-8 shadow-sm">

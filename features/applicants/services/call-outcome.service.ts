@@ -33,6 +33,8 @@ function systemActorFor(companyId: string): SessionUser {
     avatarUrl: null,
     isPlatformAdmin: false,
     impersonatedBy: null,
+    mustChangePassword: false,
+    mfaSetupRequired: false,
   };
 }
 
