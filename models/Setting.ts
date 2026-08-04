@@ -31,7 +31,17 @@ const settingSchema = new Schema(
     appearance: {
       primaryColor: { type: String, default: DEFAULT_PRIMARY_COLOR },
       fontKey: { type: String, default: DEFAULT_FONT_KEY },
+      secondaryColor: { type: String },
+      faviconUrl: { type: String },
     },
+    // Locale/formatting defaults set once at company creation (Create
+    // Company wizard's Configurations step), editable afterward on the
+    // General settings tab alongside timezone/dateFormat above.
+    weekStartsOn: { type: String, enum: ["sunday", "monday"], default: "monday" },
+    timeFormat: { type: String, enum: ["12h", "24h"], default: "12h" },
+    currency: { type: String, default: "USD" },
+    numberFormat: { type: String, enum: ["1,234.56", "1.234,56", "1 234.56"], default: "1,234.56" },
+    multiLanguageEnabled: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

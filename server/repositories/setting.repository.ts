@@ -18,7 +18,14 @@ export type SettingRow = {
   appearance: {
     primaryColor: string;
     fontKey: string;
+    secondaryColor: string | null;
+    faviconUrl: string | null;
   };
+  weekStartsOn: "sunday" | "monday";
+  timeFormat: "12h" | "24h";
+  currency: string;
+  numberFormat: string;
+  multiLanguageEnabled: boolean;
 };
 
 type RawRow = Record<string, unknown>;
@@ -44,9 +51,32 @@ function serialize(row: RawRow): SettingRow {
     appearance: {
       primaryColor: appearance.primaryColor ?? DEFAULT_PRIMARY_COLOR,
       fontKey: appearance.fontKey ?? DEFAULT_FONT_KEY,
+      secondaryColor: (appearance.secondaryColor as string | undefined) ?? null,
+      faviconUrl: (appearance.faviconUrl as string | undefined) ?? null,
     },
+    weekStartsOn: (row.weekStartsOn as SettingRow["weekStartsOn"] | undefined) ?? "monday",
+    timeFormat: (row.timeFormat as SettingRow["timeFormat"] | undefined) ?? "12h",
+    currency: (row.currency as string | undefined) ?? "USD",
+    numberFormat: (row.numberFormat as string | undefined) ?? "1,234.56",
+    multiLanguageEnabled: (row.multiLanguageEnabled as boolean | undefined) ?? false,
   };
 }
+
+export type SettingUpdateInput = Partial<{
+  companyName: string;
+  timezone: string;
+  dateFormat: string;
+  companyAddress: string;
+  companyContactPhone: string;
+  companyContactEmail: string;
+  weekStartsOn: SettingRow["weekStartsOn"];
+  timeFormat: SettingRow["timeFormat"];
+  currency: string;
+  numberFormat: string;
+  multiLanguageEnabled: boolean;
+  features: Partial<SettingRow["features"]>;
+  appearance: Partial<SettingRow["appearance"]>;
+}>;
 
 export const settingRepository = {
   /** One Setting document per company — created with defaults on first read if it doesn't exist yet for this companyId. */
@@ -59,16 +89,7 @@ export const settingRepository = {
     return serialize(row);
   },
 
-  async update(companyId: string, input: Partial<{
-    companyName: string;
-    timezone: string;
-    dateFormat: string;
-    companyAddress: string;
-    companyContactPhone: string;
-    companyContactEmail: string;
-    features: Partial<SettingRow["features"]>;
-    appearance: Partial<SettingRow["appearance"]>;
-  }>): Promise<SettingRow> {
+  async update(companyId: string, input: SettingUpdateInput): Promise<SettingRow> {
     // Ensure this company's row exists, then merge the partial update — using
     // dot-paths for the nested objects so a partial `features`/`appearance`
     // update doesn't clobber the sibling fields that weren't included.
@@ -81,6 +102,11 @@ export const settingRepository = {
     if (input.companyAddress !== undefined) setOps.companyAddress = input.companyAddress;
     if (input.companyContactPhone !== undefined) setOps.companyContactPhone = input.companyContactPhone;
     if (input.companyContactEmail !== undefined) setOps.companyContactEmail = input.companyContactEmail;
+    if (input.weekStartsOn !== undefined) setOps.weekStartsOn = input.weekStartsOn;
+    if (input.timeFormat !== undefined) setOps.timeFormat = input.timeFormat;
+    if (input.currency !== undefined) setOps.currency = input.currency;
+    if (input.numberFormat !== undefined) setOps.numberFormat = input.numberFormat;
+    if (input.multiLanguageEnabled !== undefined) setOps.multiLanguageEnabled = input.multiLanguageEnabled;
     for (const [key, value] of Object.entries(input.features ?? {})) {
       setOps[`features.${key}`] = value;
     }

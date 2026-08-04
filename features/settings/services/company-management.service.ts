@@ -7,11 +7,13 @@ import { companyRepository, type CompanyRow, type CompanyListFilters } from "@/s
 import { userRepository, type CompanyUserRow } from "@/server/repositories/user.repository";
 import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
 import { activityLogRepository, type ActivityLogRow } from "@/server/repositories/activity-log.repository";
+import { settingRepository } from "@/server/repositories/setting.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmailHtml } from "@/lib/email-templates";
+import { DEFAULT_ENABLED_COMPANY_FEATURES, isValidCompanyFeatureKey } from "@/constants/company-features";
 import type { CompanyStatus } from "@/models/Company";
 
 // Platform-admin-only — see the isPlatformAdmin comment on models/User.ts.
@@ -96,6 +98,28 @@ export async function updateCompany(companyId: string, input: { name: string }):
     entityType: "setting",
     entityId: company._id,
     message: `${actor.name} updated company "${company.name}"`,
+  });
+
+  return company;
+}
+
+export async function updateCompanyFeatures(companyId: string, enabledFeatures: string[]): Promise<CompanyRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const filtered = enabledFeatures.filter(isValidCompanyFeatureKey);
+  const company = await companyRepository.update(companyId, { enabledFeatures: filtered });
+  if (!company) throw new Error("Company not found");
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: resolveActorId(actor),
+    actorName: actor.name,
+    action: "company.updated",
+    entityType: "setting",
+    entityId: company._id,
+    message: `${actor.name} updated Model Access for company "${company.name}"`,
   });
 
   return company;
@@ -194,6 +218,22 @@ export async function createCompanyWithAdmin(input: {
   name: string;
   adminName: string;
   adminEmail: string;
+  legalName?: string;
+  industry?: string;
+  companySize?: string;
+  adminPhone?: string;
+  country?: string;
+  defaultLanguage?: string;
+  enabledFeatures?: string[];
+  timezone?: string;
+  weekStartsOn?: "sunday" | "monday";
+  dateFormat?: string;
+  timeFormat?: "12h" | "24h";
+  currency?: string;
+  numberFormat?: string;
+  multiLanguageEnabled?: boolean;
+  primaryColor?: string;
+  secondaryColor?: string;
 }): Promise<CreateCompanyResult> {
   await connectDB();
   const actor = await getCurrentUser();
@@ -204,12 +244,47 @@ export async function createCompanyWithAdmin(input: {
   if (existing) throw new Error(`A company with ID "${slug}" already exists`);
 
   const email = input.adminEmail.toLowerCase().trim();
+  // Only real, validated non-core feature keys are ever persisted — silently
+  // drop anything else rather than trusting client input (defense in depth,
+  // on top of the validator's own zod refine).
+  const enabledFeatures = (input.enabledFeatures ?? DEFAULT_ENABLED_COMPANY_FEATURES).filter(isValidCompanyFeatureKey);
+
   // No cross-company email-existence check here: the same email can
   // legitimately be an admin at two different client companies (compound
   // {companyId, email} unique index on User), and this new company has no
   // users yet regardless — a global check here would only ever function as
   // a cross-tenant existence oracle, never a real duplicate-prevention rule.
-  const companyDoc = await Company.create({ name: input.name, slug });
+  const companyDoc = await Company.create({
+    name: input.name,
+    slug,
+    legalName: input.legalName,
+    industry: input.industry,
+    companySize: input.companySize,
+    adminPhone: input.adminPhone,
+    country: input.country,
+    defaultLanguage: input.defaultLanguage,
+    enabledFeatures,
+  });
+
+  // One Setting row created up front (Configurations step), rather than
+  // waiting for settingRepository.get()'s lazy-create-on-first-read default
+  // — a new company's platform config/branding choices from the wizard
+  // should be live from the moment the company exists, not overwritten by
+  // generic defaults the first time anyone visits Settings.
+  await settingRepository.update(String(companyDoc._id), {
+    companyName: input.name,
+    timezone: input.timezone,
+    dateFormat: input.dateFormat,
+    weekStartsOn: input.weekStartsOn,
+    timeFormat: input.timeFormat,
+    currency: input.currency,
+    numberFormat: input.numberFormat,
+    multiLanguageEnabled: input.multiLanguageEnabled,
+    appearance: {
+      primaryColor: input.primaryColor,
+      secondaryColor: input.secondaryColor,
+    },
+  });
 
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);

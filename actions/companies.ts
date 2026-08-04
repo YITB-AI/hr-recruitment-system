@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createCompanySchema, updateCompanySchema, setCompanyStatusSchema } from "@/validators/company";
+import { isValidCompanyFeatureKey } from "@/constants/company-features";
 import {
   createCompanyWithAdmin,
   updateCompany,
+  updateCompanyFeatures,
   setCompanyStatus,
   uploadCompanyLogo,
   deleteCompany,
@@ -43,6 +45,20 @@ export async function updateCompanyAction(input: unknown): Promise<CompanyAction
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to update company" };
+  }
+}
+
+export async function updateCompanyFeaturesAction(companyId: string, enabledFeatures: unknown): Promise<CompanyActionResult> {
+  if (!Array.isArray(enabledFeatures) || !enabledFeatures.every((k) => typeof k === "string" && isValidCompanyFeatureKey(k))) {
+    return { success: false, error: "Invalid feature selection" };
+  }
+
+  try {
+    await updateCompanyFeatures(companyId, enabledFeatures);
+    revalidatePath(`/platform/companies/${companyId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update features" };
   }
 }
 

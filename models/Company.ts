@@ -16,6 +16,24 @@ const companySchema = new Schema(
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     status: { type: String, enum: COMPANY_STATUSES, default: "active", index: true },
     logoUrl: { type: String },
+    // Company profile fields, set once at creation via the platform admin's
+    // "Create New Company" wizard — all optional, purely informational today
+    // (not read by any business logic), matching the wizard's Basic
+    // Information step.
+    legalName: { type: String, trim: true },
+    industry: { type: String, trim: true },
+    companySize: { type: String, trim: true },
+    adminPhone: { type: String, trim: true },
+    country: { type: String, trim: true },
+    defaultLanguage: { type: String, trim: true, default: "en" },
+    // Global Super Admin's per-company Model Access grant (see
+    // constants/company-features.ts). Stores only the non-core keys this
+    // company has been granted — core keys are always on and never stored
+    // here. An empty/absent array means "unrestricted" (every feature
+    // enabled), not "nothing enabled" — this is what every company created
+    // before this field existed already has, and it must never be
+    // retroactively locked out of features it already relies on.
+    enabledFeatures: { type: [String], default: [] },
   },
   { timestamps: true },
 );

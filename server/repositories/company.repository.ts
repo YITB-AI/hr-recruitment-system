@@ -8,6 +8,13 @@ export type CompanyRow = {
   status: CompanyStatus;
   logoUrl: string | null;
   createdAt: Date;
+  legalName: string | null;
+  industry: string | null;
+  companySize: string | null;
+  adminPhone: string | null;
+  country: string | null;
+  defaultLanguage: string;
+  enabledFeatures: string[];
 };
 
 type RawRow = Record<string, unknown> & { _id: unknown };
@@ -20,15 +27,29 @@ function serialize(row: RawRow): CompanyRow {
     status: row.status as CompanyStatus,
     logoUrl: (row.logoUrl as string | undefined) ?? null,
     createdAt: row.createdAt as Date,
+    legalName: (row.legalName as string | undefined) ?? null,
+    industry: (row.industry as string | undefined) ?? null,
+    companySize: (row.companySize as string | undefined) ?? null,
+    adminPhone: (row.adminPhone as string | undefined) ?? null,
+    country: (row.country as string | undefined) ?? null,
+    defaultLanguage: (row.defaultLanguage as string | undefined) ?? "en",
+    enabledFeatures: Array.isArray(row.enabledFeatures) ? (row.enabledFeatures as string[]) : [],
   };
 }
 
 export type CreateCompanyInput = {
   name: string;
   slug: string;
+  legalName?: string;
+  industry?: string;
+  companySize?: string;
+  adminPhone?: string;
+  country?: string;
+  defaultLanguage?: string;
+  enabledFeatures?: string[];
 };
 
-export type UpdateCompanyInput = Partial<{ name: string; logoUrl: string }>;
+export type UpdateCompanyInput = Partial<{ name: string; logoUrl: string; enabledFeatures: string[] }>;
 
 export type CompanyListFilters = {
   search?: string;
