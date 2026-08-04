@@ -57,8 +57,13 @@ export async function confirmMfaEnrollmentAction(formData: FormData): Promise<Co
     message: `${actor.name} enabled two-factor authentication`,
   });
 
+  // Deliberately NOT revalidating "/mfa-setup" — that page's own server
+  // logic redirects away once mfaSetupRequired flips to false (which this
+  // call just caused), so revalidating it here would yank the user off the
+  // backup-codes screen within seconds of it appearing, before they have a
+  // real chance to save the codes. The "Done" button's router.push in
+  // mfa-setup-flow.tsx is the only intended way off this screen.
   revalidatePath("/profile");
-  revalidatePath("/mfa-setup");
   return { success: true, backupCodes };
 }
 

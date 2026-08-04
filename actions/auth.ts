@@ -16,6 +16,7 @@ import { verifyTurnstileToken } from "@/lib/turnstile";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, findAndConsumeBackupCode } from "@/lib/mfa";
 import { changeOwnPassword } from "@/features/profile/services/profile.service";
+import { getCurrentUser } from "@/lib/current-user";
 import {
   createUserSession,
   destroyCurrentSession,
@@ -163,7 +164,10 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   // bypassed by navigating straight to a URL instead of following the redirect.
   if (user.mustChangePassword) redirect("/change-password");
   if (user.role === "admin" && !user.mfaSetupCompletedAt) redirect("/mfa-setup");
-  redirect("/dashboard");
+  // A platform admin's "home" is the Global Super Admin workspace, not
+  // their own company's tenant dashboard — they can always switch to the
+  // tenant view via the link in that workspace's sidebar.
+  redirect(user.isPlatformAdmin ? "/platform/dashboard" : "/dashboard");
 }
 
 // Second factor for accounts with MFA enrolled — reads the short-lived
@@ -241,7 +245,8 @@ export async function verifyMfaAction(formData: FormData): Promise<LoginResult> 
     message: `${user.name} logged in (MFA verified)`,
   });
 
-  redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
+  if (user.mustChangePassword) redirect("/change-password");
+  redirect(user.isPlatformAdmin ? "/platform/dashboard" : "/dashboard");
 }
 
 export type ChangePasswordResult = { success: true } | { success: false; error: string };
@@ -263,7 +268,13 @@ export async function changeOwnPasswordAction(formData: FormData): Promise<Chang
   const result = await changeOwnPassword(parsed.data);
   if (!result.success) return result;
 
-  redirect("/dashboard");
+  // This action is also the forced first-login flow's redirect target
+  // (app/(auth)/change-password/page.tsx) — check mfaSetupRequired next,
+  // same ordering as loginAction, instead of relying solely on the shared
+  // layouts' own enforcement to catch it one hop later.
+  const user = await getCurrentUser();
+  if (user.mfaSetupRequired) redirect("/mfa-setup");
+  redirect(user.isPlatformAdmin ? "/platform/dashboard" : "/dashboard");
 }
 
 export type AdminResetPasswordResult = { success: true } | { success: false; error: string };

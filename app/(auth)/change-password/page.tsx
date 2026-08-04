@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 // mustChangePassword is no longer true, there's nothing left to do here.
 export default async function ChangePasswordPage() {
   const user = await requireSession();
-  if (!user.mustChangePassword) redirect(user.mfaSetupRequired ? "/mfa-setup" : "/dashboard");
+  if (!user.mustChangePassword) {
+    redirect(user.mfaSetupRequired ? "/mfa-setup" : user.isPlatformAdmin ? "/platform/dashboard" : "/dashboard");
+  }
 
   return (
     <div className="w-full max-w-sm space-y-6 rounded-2xl border bg-card p-8 shadow-sm">

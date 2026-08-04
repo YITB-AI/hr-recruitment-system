@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 export default async function MfaSetupPage() {
   const user = await requireSession();
   if (user.mustChangePassword) redirect("/change-password");
-  if (!user.mfaSetupRequired) redirect("/dashboard");
+  const homeRoute = user.isPlatformAdmin ? "/platform/dashboard" : "/dashboard";
+  if (!user.mfaSetupRequired) redirect(homeRoute);
 
   return (
     <div className="w-full max-w-sm space-y-6 rounded-2xl border bg-card p-8 shadow-sm">
@@ -32,7 +33,7 @@ export default async function MfaSetupPage() {
           </p>
         </div>
       </div>
-      <MfaSetupFlow />
+      <MfaSetupFlow homeRoute={homeRoute} />
     </div>
   );
 }
