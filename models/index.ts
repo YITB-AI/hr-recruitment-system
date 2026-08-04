@@ -35,3 +35,4 @@ export * from "./RoleTemplate";
 export * from "./PayrollSetup";
 export * from "./Area";
 export * from "./EmployeeDocument";
+export * from "./PlatformErrorLog";

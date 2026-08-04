@@ -9,14 +9,14 @@ import {
   Building2,
   Network,
   ListTree,
-  Building,
-  Briefcase,
-  AlertTriangle,
   MessageCircleQuestion,
   Plug,
+  ShieldAlert,
 } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { GeneralSettingsForm } from "@/features/settings/components/general-settings-form";
 import { NotificationSettingsForm } from "@/features/settings/components/notification-settings-form";
@@ -24,9 +24,6 @@ import { NotificationPreferencesForm } from "@/features/notifications/components
 import { LetterheadManagementPanel } from "@/features/settings/components/letterhead-management-panel";
 import { AppearanceSettingsForm } from "@/features/settings/components/appearance-settings-form";
 import { UsersTable } from "@/features/settings/components/users-table";
-import { UnmappedJobsTable } from "@/features/settings/components/unmapped-jobs-table";
-import { OrphanedApplicantsTable } from "@/features/settings/components/orphaned-applicants-table";
-import { CompaniesTable } from "@/features/settings/components/companies-table";
 import { TenantInfoCard } from "@/features/settings/components/tenant-info-card";
 import { StatusManagementPanel } from "@/features/settings/components/status-management-panel";
 import { DepartmentManagementPanel } from "@/features/settings/components/department-management-panel";
@@ -37,9 +34,6 @@ import { CompanyIntegrationConfigPanel } from "@/features/settings/components/co
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
-import { listUnmappedJobs, listCompaniesForMapping } from "@/features/settings/services/job-mapping.service";
-import { listOrphanedApplicants } from "@/features/settings/services/data-repair.service";
-import { listCompanies } from "@/features/settings/services/company-management.service";
 import { listStatuses } from "@/features/settings/services/status-management.service";
 import { listDepartments } from "@/features/settings/services/department.service";
 import { listEmployeeTypes } from "@/features/settings/services/employee-type.service";
@@ -71,16 +65,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const [
     settings,
     users,
-    unmappedJobs,
-    companiesForMapping,
-    allCompanies,
     company,
     teamMembers,
     applicantStatuses,
     employeeStatuses,
     applicantSources,
     roleSummaries,
-    orphanedApplicants,
     departments,
     employeeTypes,
     employeeLookups,
@@ -91,16 +81,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   ] = await Promise.all([
     getSettings(),
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
-    isPlatformAdmin ? listUnmappedJobs() : Promise.resolve(null),
-    isPlatformAdmin ? listCompaniesForMapping() : Promise.resolve(null),
-    isPlatformAdmin ? listCompanies() : Promise.resolve(null),
     companyRepository.findById(actor.companyId),
     userRepository.findAll(actor.companyId),
     isAdmin ? listStatuses("applicant") : Promise.resolve(null),
     isAdmin ? listStatuses("employee") : Promise.resolve(null),
     isAdmin ? listStatuses("applicant_source") : Promise.resolve(null),
     isAdmin ? listRoleSummaries() : Promise.resolve(null),
-    isPlatformAdmin ? listOrphanedApplicants() : Promise.resolve(null),
     isAdmin ? listDepartments() : Promise.resolve(null),
     isAdmin ? listEmployeeTypes() : Promise.resolve(null),
     isAdmin ? listAllEmployeeLookups() : Promise.resolve(null),
@@ -113,7 +99,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <PageHeader title="Settings" description="Manage your organization's configuration and appearance." />
+      <PageHeader
+        title="Settings"
+        description="Manage your organization's configuration and appearance."
+        actions={
+          isPlatformAdmin ? (
+            <Button variant="outline" nativeButton={false} render={<Link href="/platform/dashboard" />}>
+              <ShieldAlert className="size-4" />
+              Global Admin Workspace
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
         <Tabs defaultValue={defaultTab} orientation="vertical" className="items-start">
@@ -176,24 +173,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <TabsTrigger value="integrations" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
                 <Plug className="size-4" />
                 Integrations
-              </TabsTrigger>
-            )}
-            {isPlatformAdmin && (
-              <TabsTrigger value="companies" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
-                <Building className="size-4" />
-                Companies
-              </TabsTrigger>
-            )}
-            {isPlatformAdmin && (
-              <TabsTrigger value="unmapped-jobs" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
-                <Briefcase className="size-4" />
-                Unmapped Jobs
-              </TabsTrigger>
-            )}
-            {isPlatformAdmin && (
-              <TabsTrigger value="orphaned-applicants" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
-                <AlertTriangle className="size-4" />
-                Orphaned Applicants
               </TabsTrigger>
             )}
           </TabsList>
@@ -283,24 +262,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               {isAdmin && roleSummaries && (
                 <TabsContent value="permissions">
                   <PermissionsPanel roles={roleSummaries} allActions={allPermissionActions} />
-                </TabsContent>
-              )}
-
-              {isPlatformAdmin && allCompanies && (
-                <TabsContent value="companies">
-                  <CompaniesTable companies={allCompanies} />
-                </TabsContent>
-              )}
-
-              {isPlatformAdmin && unmappedJobs && companiesForMapping && (
-                <TabsContent value="unmapped-jobs">
-                  <UnmappedJobsTable jobs={unmappedJobs} companies={companiesForMapping} />
-                </TabsContent>
-              )}
-
-              {isPlatformAdmin && orphanedApplicants && companiesForMapping && (
-                <TabsContent value="orphaned-applicants">
-                  <OrphanedApplicantsTable applicants={orphanedApplicants} companies={companiesForMapping} />
                 </TabsContent>
               )}
             </CardContent>

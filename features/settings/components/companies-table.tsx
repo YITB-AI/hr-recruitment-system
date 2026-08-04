@@ -152,7 +152,7 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
                   {paged.map((company) => (
                     <tr key={company._id} className="hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">
-                        <Link href={`/settings/companies/${company._id}`} className="hover:underline">
+                        <Link href={`/platform/companies/${company._id}`} className="hover:underline">
                           {company.name}
                         </Link>
                       </td>

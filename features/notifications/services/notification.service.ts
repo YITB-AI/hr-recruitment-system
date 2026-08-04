@@ -68,6 +68,12 @@ export async function getNotificationDetail(
   return { notification, entityLink };
 }
 
+// No requireRole gate on these three — same self-service reasoning as
+// disconnectOwnCalendar in calendar-connection.service.ts. userId/companyId
+// are never client-supplied; every caller (actions/notifications.ts) passes
+// them straight from getCurrentUser(), so RBAC has nothing to check here —
+// a user marking their own notification read, or setting their own
+// notification preferences, isn't an action any role could be denied.
 export async function markNotificationRead(id: string, userId: string): Promise<void> {
   await connectDB();
   await notificationRepository.markRead(id, userId);
@@ -88,6 +94,7 @@ export async function getOwnNotificationPreferences(
   return Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, raw[type] !== false])) as Record<NotificationType, boolean>;
 }
 
+// Self-service — see the comment on markNotificationRead above.
 export async function updateOwnNotificationPreferences(
   companyId: string,
   userId: string,

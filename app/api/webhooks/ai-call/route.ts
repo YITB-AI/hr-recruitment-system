@@ -7,6 +7,7 @@ import { getInboundWebhookSecret } from "@/config/webhooks";
 import { aiCallWebhookSchema } from "@/validators/ai-call-webhook";
 import { applicantFollowupRepository } from "@/server/repositories/applicant-followup.repository";
 import { handleCallStarted, handleCallCompleted, handleCallFailed } from "@/features/applicants/services/call-outcome.service";
+import { logPlatformError } from "@/lib/platform-error";
 
 // n8n calling BACK into this app with AI-call progress/outcome. There is no
 // session cookie here — n8n is a server, not a browser — so this route must
@@ -98,16 +99,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No active call found for this followupId/applicantId" }, { status: 404 });
   }
 
-  switch (parsed.data.event) {
-    case "started":
-      await handleCallStarted(followup);
-      break;
-    case "completed":
-      await handleCallCompleted(followup, parsed.data);
-      break;
-    case "failed":
-      await handleCallFailed(followup, parsed.data.error);
-      break;
+  try {
+    switch (parsed.data.event) {
+      case "started":
+        await handleCallStarted(followup);
+        break;
+      case "completed":
+        await handleCallCompleted(followup, parsed.data);
+        break;
+      case "failed":
+        await handleCallFailed(followup, parsed.data.error);
+        break;
+    }
+  } catch (error) {
+    console.error("Failed to process ai-call webhook event:", error);
+    await logPlatformError({
+      source: "webhook.ai-call",
+      error,
+      companyId: followup.companyId,
+      action: parsed.data.event,
+      context: { followupId: followup._id, applicantId: followup.applicantId },
+    });
+    return NextResponse.json({ error: "Failed to process event" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

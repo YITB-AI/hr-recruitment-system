@@ -52,6 +52,16 @@ export const companyRepository = {
     const rows = await Company.find().sort({ createdAt: -1 }).lean<RawRow[]>();
     return rows.map(serialize);
   },
+  async findRecent(limit: number): Promise<CompanyRow[]> {
+    const rows = await Company.find().sort({ createdAt: -1 }).limit(limit).lean<RawRow[]>();
+    return rows.map(serialize);
+  },
+  countTotal(): Promise<number> {
+    return Company.countDocuments();
+  },
+  countByStatus(status: CompanyStatus): Promise<number> {
+    return Company.countDocuments({ status });
+  },
   async findAllPaginated(filters: CompanyListFilters): Promise<CompanyListResult> {
     const query: Record<string, unknown> = {};
     if (filters.status) query.status = filters.status;

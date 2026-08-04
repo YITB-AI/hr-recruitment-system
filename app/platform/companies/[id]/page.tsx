@@ -27,8 +27,8 @@ export default async function CompanyDetailsPage({ params }: { params: Promise<{
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Link href="/settings" className="hover:text-foreground">
-          Settings
+        <Link href="/platform/companies" className="hover:text-foreground">
+          Companies
         </Link>
         <ChevronRight className="size-3.5" />
         <span className="text-foreground">Company Details</span>

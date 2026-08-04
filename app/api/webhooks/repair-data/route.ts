@@ -11,6 +11,7 @@ import {
   autoRepairResolvableOrphanedJobs,
   autoRepairResolvableOrphanedNotifications,
 } from "@/features/settings/services/data-repair.service";
+import { logPlatformError } from "@/lib/platform-error";
 
 // Same trust boundary as /api/webhooks/ai-call — n8n calling INTO this app,
 // no session cookie, shared-secret auth only. Meant to be the last step of
@@ -52,20 +53,26 @@ export async function POST(request: Request) {
 
   await connectDB();
 
-  // Applicants first — ResumeAnalyses' own repair only resolves rows whose
-  // linked Applicant is already fixed (see its header comment), so running
-  // it after gives this single call the best chance of fixing everything in
-  // one pass rather than needing to be hit twice.
-  const applicants = await autoRepairResolvableOrphanedApplicants();
-  const [incompleteApplicants, resumeAnalyses, jobs, notifications] = await Promise.all([
-    autoRepairIncompleteApplicants(),
-    autoRepairResolvableOrphanedResumeAnalyses(),
-    autoRepairResolvableOrphanedJobs(),
-    autoRepairResolvableOrphanedNotifications(),
-  ]);
+  try {
+    // Applicants first — ResumeAnalyses' own repair only resolves rows whose
+    // linked Applicant is already fixed (see its header comment), so running
+    // it after gives this single call the best chance of fixing everything in
+    // one pass rather than needing to be hit twice.
+    const applicants = await autoRepairResolvableOrphanedApplicants();
+    const [incompleteApplicants, resumeAnalyses, jobs, notifications] = await Promise.all([
+      autoRepairIncompleteApplicants(),
+      autoRepairResolvableOrphanedResumeAnalyses(),
+      autoRepairResolvableOrphanedJobs(),
+      autoRepairResolvableOrphanedNotifications(),
+    ]);
 
-  return NextResponse.json({
-    success: true,
-    results: { applicants, incompleteApplicants, resumeAnalyses, jobs, notifications },
-  });
+    return NextResponse.json({
+      success: true,
+      results: { applicants, incompleteApplicants, resumeAnalyses, jobs, notifications },
+    });
+  } catch (error) {
+    console.error("Failed to process repair-data webhook:", error);
+    await logPlatformError({ source: "webhook.repair-data", error });
+    return NextResponse.json({ error: "Failed to run repair" }, { status: 500 });
+  }
 }
