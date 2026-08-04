@@ -3,6 +3,7 @@ import { connectDB } from "@/server/db/connect";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { jobRepository } from "@/server/repositories/job.repository";
 import { companyIntegrationConfigRepository } from "@/server/repositories/company-integration-config.repository";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
 import { buildJobUrl } from "@/lib/job-posting/job-url";
 
 function escapeXml(value: string): string {
@@ -26,6 +27,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ com
 
   const company = await companyRepository.findBySlug(companySlug);
   if (!company) return new NextResponse("Not found", { status: 404 });
+  // Two independent gates: the Global Super Admin must have granted the
+  // Job Board Feed (Indeed) module at all, AND the company's own admin must
+  // have opted in via config.indeed.feedEnabled -- neither substitutes for
+  // the other.
+  if (!hasCompanyFeature(company, "indeedJobFeed")) return new NextResponse("Not found", { status: 404 });
 
   const config = await companyIntegrationConfigRepository.get(company._id);
   if (!config.indeed.feedEnabled) return new NextResponse("Feed not enabled", { status: 404 });

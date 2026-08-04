@@ -4,8 +4,11 @@ import {
   type CompanyIntegrationConfigRow,
 } from "@/server/repositories/company-integration-config.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { requireCompanyFeature } from "@/lib/auth/feature-access";
+import type { CompanyFeatureKey } from "@/constants/company-features";
 import type {
   UpdateWebhookConfigInput,
   UpdateEmailConfigInput,
@@ -13,6 +16,12 @@ import type {
   UpdateFacebookAppCredentialsInput,
   UpdateXAppCredentialsInput,
 } from "@/validators/company-integration-config";
+
+async function assertCompanyFeature(companyId: string, key: CompanyFeatureKey): Promise<void> {
+  const company = await companyRepository.findById(companyId);
+  if (!company) throw new Error("Company not found");
+  requireCompanyFeature(company, key);
+}
 
 export async function getCompanyIntegrationConfig(): Promise<CompanyIntegrationConfigRow> {
   await connectDB();
@@ -24,6 +33,7 @@ export async function updateWebhookConfig(input: UpdateWebhookConfigInput): Prom
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "n8nAutomations");
 
   const updated = await companyIntegrationConfigRepository.updateWebhookConfig(actor.companyId, input);
 
@@ -44,6 +54,7 @@ export async function updateEmailConfig(input: UpdateEmailConfigInput): Promise<
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "emailNotifications");
 
   const updated = await companyIntegrationConfigRepository.updateEmailConfig(actor.companyId, input);
 
@@ -64,6 +75,7 @@ export async function updateLinkedinConfig(input: UpdateLinkedinConfigInput): Pr
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "socialJobPosting");
   return companyIntegrationConfigRepository.updateLinkedin(actor.companyId, input);
 }
 
@@ -71,6 +83,7 @@ export async function updateFacebookAppCredentials(input: UpdateFacebookAppCrede
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "socialJobPosting");
   return companyIntegrationConfigRepository.updateFacebookAppCredentials(actor.companyId, input);
 }
 
@@ -78,6 +91,7 @@ export async function updateXAppCredentials(input: UpdateXAppCredentialsInput): 
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "socialJobPosting");
   return companyIntegrationConfigRepository.updateXAppCredentials(actor.companyId, input);
 }
 
@@ -85,5 +99,6 @@ export async function setIndeedFeedEnabled(feedEnabled: boolean): Promise<Compan
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+  await assertCompanyFeature(actor.companyId, "indeedJobFeed");
   return companyIntegrationConfigRepository.setIndeedFeedEnabled(actor.companyId, feedEnabled);
 }

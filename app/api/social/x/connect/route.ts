@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { connectDB } from "@/server/db/connect";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { companyIntegrationConfigRepository } from "@/server/repositories/company-integration-config.repository";
 
 const STATE_COOKIE = "x_oauth_state";
@@ -20,6 +22,12 @@ export async function GET() {
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "settings.manage");
+
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+  if (!hasCompanyFeature(company, "socialJobPosting")) {
+    return NextResponse.json({ error: "Social Job Posting is not enabled for your company." }, { status: 403 });
+  }
 
   const credentials = await companyIntegrationConfigRepository.getXAppCredentials(actor.companyId);
   if (!credentials) {

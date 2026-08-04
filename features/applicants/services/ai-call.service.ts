@@ -8,6 +8,7 @@ import { aiCallQuestionRepository } from "@/server/repositories/ai-call-question
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { requireCompanyFeature } from "@/lib/auth/feature-access";
 import { triggerWebhook } from "@/lib/webhook";
 import type { RequestAiCallInput } from "@/validators/ai-call";
 
@@ -27,6 +28,10 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
   const actor = await getCurrentUser();
   requireRole(actor, "applicant.notify");
   await connectDB();
+
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) return { success: false, error: "Company not found" };
+  requireCompanyFeature(company, "aiScreeningCalls");
 
   const applicant = await applicantRepository.findById(actor.companyId, input.applicantId);
   if (!applicant) return { success: false, error: "Applicant not found" };
@@ -51,7 +56,6 @@ export async function requestAiCall(input: RequestAiCallInput): Promise<AiCallRe
     .filter(Boolean);
   if (interviewerNames.length === 0) return { success: false, error: "At least one interviewer name is required" };
 
-  const company = await companyRepository.findById(actor.companyId);
   const retryCount = await applicantFollowupRepository.countPriorAttempts(actor.companyId, input.applicantId, "call");
   const customQuestions = await aiCallQuestionRepository.findActiveOrdered(actor.companyId);
 

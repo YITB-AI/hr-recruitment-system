@@ -2,6 +2,8 @@ import ExcelJS from "exceljs";
 import { connectDB } from "@/server/db/connect";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { requireCompanyFeature } from "@/lib/auth/feature-access";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { notifyHrStaff } from "@/lib/staff-notify";
 import { parseCsv } from "@/lib/csv";
 import { employeeImportRowSchema } from "@/validators/employee-import";
@@ -79,6 +81,9 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "employee.create");
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) throw new Error("Company not found");
+  requireCompanyFeature(company, "bulkEmployeeImport");
 
   const records = await parseFileToRecords(fileBuffer, fileName);
   if (records.length === 0) throw new Error("No data rows found in this file — check it has a header row and at least one employee.");
@@ -345,6 +350,9 @@ export async function commitEmployeeImport(
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "employee.create");
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) throw new Error("Company not found");
+  requireCompanyFeature(company, "bulkEmployeeImport");
 
   const results: ImportCommitResultItem[] = [];
   for (const { row, input } of rows) {
