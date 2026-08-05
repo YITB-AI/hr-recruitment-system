@@ -3,13 +3,13 @@ import type { NotificationType } from "@/constants/notification";
 
 export type UserRow = { _id: string; name: string; title: string | null };
 
-export type TeamMemberRow = { _id: string; name: string; role: UserRole; avatarUrl: string | null };
+export type TeamMemberRow = { _id: string; name: string; role: string; avatarUrl: string | null };
 
 export type OwnProfileRow = {
   _id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: string;
   title: string | null;
   department: string | null;
   phone: string | null;
@@ -29,7 +29,7 @@ function serializeOwnProfile(row: RawProfileRow): OwnProfileRow {
     _id: String(row._id),
     name: row.name as string,
     email: row.email as string,
-    role: row.role as UserRole,
+    role: row.role as string,
     title: (row.title as string | undefined) ?? null,
     department: (row.department as string | undefined) ?? null,
     phone: (row.phone as string | undefined) ?? null,
@@ -50,7 +50,7 @@ export type CompanyUserRow = {
   _id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: string;
   mustChangePassword: boolean;
   createdAt: Date;
 };
@@ -62,7 +62,7 @@ function serializeCompanyUser(row: RawCompanyUserRow): CompanyUserRow {
     _id: String(row._id),
     name: row.name as string,
     email: row.email as string,
-    role: row.role as UserRole,
+    role: row.role as string,
     mustChangePassword: Boolean(row.mustChangePassword),
     createdAt: row.createdAt as Date,
   };
@@ -71,12 +71,12 @@ function serializeCompanyUser(row: RawCompanyUserRow): CompanyUserRow {
 export type CreateCompanyUserInput = {
   name: string;
   email: string;
-  role: UserRole;
+  role: string;
   passwordHash: string;
   mustChangePassword: boolean;
 };
 
-export type UpdateCompanyUserInput = Partial<{ name: string; role: UserRole }>;
+export type UpdateCompanyUserInput = Partial<{ name: string; role: string }>;
 
 // Every function takes companyId first and filters by it — see the
 // tenant-isolation comment in server/repositories/employee.repository.ts.
@@ -93,7 +93,7 @@ export const userRepository = {
     if (ids.length === 0) return [];
     const rows = await User.find({ _id: { $in: ids }, companyId })
       .select("name role avatarUrl")
-      .lean<Array<{ _id: unknown; name: string; role: UserRole; avatarUrl?: string }>>();
+      .lean<Array<{ _id: unknown; name: string; role: string; avatarUrl?: string }>>();
     return rows.map((row) => ({ _id: String(row._id), name: row.name, role: row.role, avatarUrl: row.avatarUrl ?? null }));
   },
   /** Full-ish shape for the admin-only Users management screen. */
@@ -179,8 +179,12 @@ export const userRepository = {
     if (!row) return null;
     return { _id: String(row._id), companyId: row.companyId ? String(row.companyId) : null };
   },
-  countByRole(companyId: string, role: UserRole): Promise<number> {
+  countByRole(companyId: string, role: string): Promise<number> {
     return User.countDocuments({ companyId, role });
+  },
+  /** Global (not companyId-scoped) — used by role.repository.ts's delete usage-guard, since Role is a platform-wide template, not per-company. */
+  countByRoleGlobal(role: string): Promise<number> {
+    return User.countDocuments({ role });
   },
   async create(companyId: string, input: CreateCompanyUserInput): Promise<CompanyUserRow> {
     const doc = await User.create({

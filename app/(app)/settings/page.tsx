@@ -45,9 +45,9 @@ import { getOwnNotificationPreferences } from "@/features/notifications/services
 import { listLetterheads } from "@/features/settings/services/letterhead.service";
 import { companyRepository } from "@/server/repositories/company.repository";
 import { userRepository } from "@/server/repositories/user.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { connectDB } from "@/server/db/connect";
-import type { UserRole } from "@/constants/user";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -67,6 +67,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     users,
     company,
     teamMembers,
+    roles,
     applicantStatuses,
     employeeStatuses,
     applicantSources,
@@ -83,6 +84,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isAdmin ? listCompanyUsers() : Promise.resolve(null),
     companyRepository.findById(actor.companyId),
     userRepository.findAll(actor.companyId),
+    // Not isAdmin-gated -- every user's TenantInfoCard needs to resolve
+    // their own role's display name (Dynamic RBAC: no longer a compile-
+    // time label lookup, see server/repositories/role.repository.ts).
+    roleRepository.findAll(),
     isAdmin ? listStatuses("applicant") : Promise.resolve(null),
     isAdmin ? listStatuses("employee") : Promise.resolve(null),
     isAdmin ? listStatuses("applicant_source") : Promise.resolve(null),
@@ -209,7 +214,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
               {isAdmin && users && (
                 <TabsContent value="users">
-                  <UsersTable users={users} />
+                  <UsersTable users={users} roles={roles} />
                 </TabsContent>
               )}
 
@@ -270,7 +275,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
         <div className="space-y-6">
           {company && (
-            <TenantInfoCard company={company} yourRole={actor.role as UserRole} userCount={teamMembers.length} />
+            <TenantInfoCard
+              company={company}
+              yourRoleName={roles.find((r) => r.key === actor.role)?.name ?? actor.role}
+              userCount={teamMembers.length}
+            />
           )}
         </div>
       </div>

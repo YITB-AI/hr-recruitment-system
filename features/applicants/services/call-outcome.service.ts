@@ -30,6 +30,7 @@ function systemActorFor(companyId: string): SessionUser {
     name: "AI Call Webhook",
     email: "system@internal",
     role: "admin",
+    permissions: "*",
     avatarUrl: null,
     isPlatformAdmin: false,
     impersonatedBy: null,

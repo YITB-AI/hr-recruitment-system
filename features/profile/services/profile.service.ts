@@ -4,6 +4,7 @@ import { connectDB } from "@/server/db/connect";
 import { requireSession } from "@/lib/auth/session";
 import { userRepository, type OwnProfileRow } from "@/server/repositories/user.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { notificationRepository } from "@/server/repositories/notification.repository";
 import { isNotificationTypeEnabled } from "@/lib/notification-preferences";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
@@ -23,7 +24,7 @@ const MAX_VERIFICATION_ATTEMPTS = 5;
 const MAX_VERIFICATION_SENDS_PER_WINDOW = 3;
 const SEND_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export type OwnProfile = OwnProfileRow & { companyName: string };
+export type OwnProfile = OwnProfileRow & { companyName: string; roleName: string };
 
 export async function getOwnProfile(): Promise<OwnProfile> {
   const actor = await requireSession();
@@ -33,7 +34,11 @@ export async function getOwnProfile(): Promise<OwnProfile> {
     companyRepository.findById(actor.companyId),
   ]);
   if (!profile) throw new Error("Profile not found");
-  return { ...profile, companyName: company?.name ?? "—" };
+  // Dynamic RBAC: a role's display name now lives in the Role collection,
+  // not a compile-time USER_ROLE_LABELS map — resolved here, once, rather
+  // than making every display component do its own lookup.
+  const role = await roleRepository.findByKey(profile.role);
+  return { ...profile, companyName: company?.name ?? "—", roleName: role?.name ?? profile.role };
 }
 
 export type ProfileActionResult = { success: true } | { success: false; error: string };

@@ -1,39 +1,43 @@
 import { connectDB } from "@/server/db/connect";
 import { userRepository } from "@/server/repositories/user.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
-import { getPermissionsForRole, PERMISSION_ACTIONS, type PermissionAction } from "@/lib/auth/permissions";
-import { USER_ROLES, USER_ROLE_LABELS, USER_ROLE_DESCRIPTIONS, type UserRole } from "@/constants/user";
+import { PERMISSION_ACTIONS, type PermissionAction } from "@/lib/auth/permissions";
 
 export type RoleSummary = {
-  role: UserRole;
+  role: string;
   label: string;
   description: string;
   userCount: number;
   permissions: PermissionAction[];
-  isSystemRole: true;
+  isWildcard: boolean;
+  isSystemRole: boolean;
 };
 
-// Read-only — this project's Roles & Permissions screen deliberately shows
-// the real fixed 4-role system (see lib/auth/permissions.ts) rather than
-// supporting custom roles; see the roadmap memory for why that scope was
-// cut. isSystemRole is always true today, kept on the type so a future
-// custom-role feature (if ever built) has an obvious place to plug in
-// without reshaping this response.
+// Dynamic RBAC: sourced from the live Role collection (server/repositories/
+// role.repository.ts), not a hardcoded 4-role list — this page shows
+// EVERY role the Global Super Admin has defined (built-in + custom),
+// each with how many of THIS company's users currently hold it. Creating/
+// editing/deleting a role itself happens from the Platform workspace
+// (/platform/roles), not here — this is a read-only view for a company's
+// own admin, matching this file's original read-only framing.
 export async function listRoleSummaries(): Promise<RoleSummary[]> {
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "user.manage");
 
-  const counts = await Promise.all(USER_ROLES.map((role) => userRepository.countByRole(actor.companyId, role)));
+  const roles = await roleRepository.findAll();
+  const counts = await Promise.all(roles.map((r) => userRepository.countByRole(actor.companyId, r.key)));
 
-  return USER_ROLES.map((role, index) => ({
-    role,
-    label: USER_ROLE_LABELS[role],
-    description: USER_ROLE_DESCRIPTIONS[role],
+  return roles.map((role, index) => ({
+    role: role.key,
+    label: role.name,
+    description: role.description,
     userCount: counts[index],
-    permissions: getPermissionsForRole(role),
-    isSystemRole: true as const,
+    permissions: role.isWildcard ? [...PERMISSION_ACTIONS] : role.permissions,
+    isWildcard: role.isWildcard,
+    isSystemRole: role.isSystem,
   }));
 }
 

@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { connectDB } from "@/server/db/connect";
 import { User } from "@/models/User";
 import { sessionRepository } from "@/server/repositories/session.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import type { UserRole } from "@/models/User";
 import type { SessionUser } from "@/types/user";
 
@@ -89,6 +90,15 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     if (admin) impersonatedBy = { id: String(session.impersonatedBy), name: admin.name };
   }
 
+  // Dynamic RBAC: resolved ONCE per request, here — not re-looked-up inside
+  // every individual requireRole call downstream (see that function's own
+  // comment in lib/auth/permissions.ts for why). A role that can't be
+  // resolved (shouldn't happen — Role.delete is usage-guarded against this
+  // exact situation — but defensively) fails SAFE to an empty permission
+  // set, never "*".
+  const role = await roleRepository.findByKey(user.role);
+  const permissions: SessionUser["permissions"] = role ? (role.isWildcard ? "*" : role.permissions) : [];
+
   return {
     id: String(user._id),
     sessionId: String(session._id),
@@ -96,6 +106,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     name: user.name,
     email: user.email,
     role: user.role,
+    permissions,
     avatarUrl: user.avatarUrl ?? null,
     isPlatformAdmin: Boolean(user.isPlatformAdmin),
     impersonatedBy,

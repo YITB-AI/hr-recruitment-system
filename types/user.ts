@@ -1,3 +1,5 @@
+import type { PermissionAction } from "@/lib/auth/permissions";
+
 export type SessionUser = {
   id: string;
   // The current Session row's own _id (distinct from the user's id above)
@@ -14,6 +16,14 @@ export type SessionUser = {
   name: string;
   email: string;
   role: string;
+  // Dynamic RBAC: this user's role's ACTUAL permission set, resolved once
+  // at session-verification time from the live Role document (see
+  // lib/auth/session.ts's verifySessionToken) — not derived from `role`
+  // again by every requireRole call. "*" mirrors admin's historical
+  // wildcard (every action, including ones added later); an array is an
+  // explicit, exact list. See lib/auth/permissions.ts's requireRole for
+  // how this is consumed.
+  permissions: "*" | PermissionAction[];
   avatarUrl: string | null;
   // Cross-company platform operator flag — see the comment on
   // models/User.ts's isPlatformAdmin. Distinct from role "admin".

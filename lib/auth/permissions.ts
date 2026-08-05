@@ -40,7 +40,16 @@ export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 // notifications, status changes, interviews, saved views), no employee
 // records, no settings. interviewer: read-only in this phase — no mutation
 // actions granted (feedback submission isn't built yet).
-const ROLE_PERMISSIONS: Record<UserRole, "*" | Set<PermissionAction>> = {
+//
+// This is no longer the live source of truth for authorization -- see the
+// comment on requireRole below. It's the one-time seed data for the 4
+// built-in system Roles (server/repositories/role.repository.ts), used the
+// first time the Role collection is ever read, and the fallback matrix for
+// any actor that never went through session resolution (scripts). Once
+// seeded, the Global Super Admin can edit any of these roles' actual
+// permissions from the Platform workspace with no code deployment -- this
+// object only ever reflects what shipped on day one.
+export const SYSTEM_ROLE_DEFAULTS: Record<UserRole, "*" | Set<PermissionAction>> = {
   admin: "*",
   hr: new Set([
     "employee.create",
@@ -89,20 +98,31 @@ export class ForbiddenError extends Error {
 // try/catch that turns a thrown Error into `{success:false, error: message}`
 // (the existing ActionResult pattern in actions/*.ts), so no new
 // error-handling shape is introduced.
-export function requireRole(user: { role: string }, action: PermissionAction): void {
-  const allowed = ROLE_PERMISSIONS[user.role as UserRole];
+//
+// Dynamic RBAC: `user.permissions` is resolved ONCE per request, at session
+// verification time (lib/auth/session.ts's verifySessionToken looks up the
+// caller's Role document and attaches the result to SessionUser) -- not
+// looked up again on every requireRole call. This keeps requireRole itself
+// synchronous, so none of its ~90 existing call sites needed to become
+// `await requireRole(...)`; the DB-backed part happens exactly once, up
+// front, where a missed `await` would be an immediate, obvious type error
+// (verifySessionToken already returns a Promise its caller must await)
+// rather than a silently-ignored one buried in a service function.
+//
+// Any actor that never went through session resolution (SYSTEM_USER in
+// scripts, or a test-constructed actor with no `permissions` field) falls
+// back to the hardcoded SYSTEM_ROLE_DEFAULTS matrix above -- the exact
+// behavior this function had before Dynamic RBAC shipped, so nothing
+// outside a real request is affected by this change.
+export function requireRole(user: { role: string; permissions?: "*" | PermissionAction[] }, action: PermissionAction): void {
+  if (user.permissions !== undefined) {
+    if (user.permissions === "*" || user.permissions.includes(action)) return;
+    throw new ForbiddenError(action);
+  }
+  const allowed = SYSTEM_ROLE_DEFAULTS[user.role as UserRole];
   if (allowed === "*") return;
   if (allowed?.has(action)) return;
   throw new ForbiddenError(action);
-}
-
-// Read-only view of the real matrix above, for the Settings > Permissions
-// screen (Roles & Permissions restyle) — never a second source of truth,
-// this just expands admin's "*" into the full action list so the UI has a
-// plain array to render per role instead of special-casing the wildcard.
-export function getPermissionsForRole(role: UserRole): PermissionAction[] {
-  const allowed = ROLE_PERMISSIONS[role];
-  return allowed === "*" ? [...PERMISSION_ACTIONS] : Array.from(allowed ?? []);
 }
 
 export class PlatformForbiddenError extends Error {

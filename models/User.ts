@@ -15,7 +15,13 @@ const userSchema = new Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: USER_ROLES, default: "recruiter" },
+    // Not schema-enum-constrained to USER_ROLES anymore — that array is now
+    // only the seed data for the 4 built-in system Roles (see models/Role.ts
+    // + server/repositories/role.repository.ts). A role key can be any
+    // Role.key the Global Super Admin has created, validated at the service
+    // layer (roleRepository.findByKey), the same FK-existence pattern
+    // already used for Department/EmployeeType — not a Mongoose enum.
+    role: { type: String, default: "recruiter" },
     title: { type: String, trim: true },
     department: { type: String, trim: true },
     phone: { type: String, trim: true },

@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { updateProfileSchema, type UpdateProfileInput } from "@/validators/profile";
 import { updateProfileAction, uploadAvatarAction } from "@/actions/profile";
-import { USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import type { OwnProfile } from "@/features/profile/services/profile.service";
 
 function initials(name: string) {
@@ -112,7 +111,7 @@ export function EditProfileForm({ profile }: { profile: OwnProfile }) {
               {profile.emailVerified ? "Verified" : "Unverified"}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{USER_ROLE_LABELS[profile.role as UserRole]}</p>
+          <p className="text-sm text-muted-foreground">{profile.roleName}</p>
           <p className="text-sm text-muted-foreground">{profile.email}</p>
         </div>
       </div>
@@ -140,7 +139,7 @@ export function EditProfileForm({ profile }: { profile: OwnProfile }) {
             <Input id="phone" {...register("phone")} placeholder="+1 (555) 000-0000" />
             {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
           </div>
-          <LockedField label="Role" value={USER_ROLE_LABELS[profile.role as UserRole]} />
+          <LockedField label="Role" value={profile.roleName} />
         </div>
 
         <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">

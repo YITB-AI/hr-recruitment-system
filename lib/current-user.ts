@@ -25,6 +25,7 @@ async function getSystemUser(): Promise<SessionUser> {
     name: "System",
     email: "system@internal",
     role: "admin",
+    permissions: "*",
     avatarUrl: null,
     isPlatformAdmin: true,
     impersonatedBy: null,

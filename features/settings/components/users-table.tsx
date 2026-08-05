@@ -34,16 +34,17 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { adminResetPasswordAction } from "@/actions/auth";
 import { createUserAction, updateUserAction, deleteUserAction } from "@/actions/users";
 import { startImpersonationAction } from "@/actions/impersonation";
-import { USER_ROLES, USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import type { CompanyUserRow } from "@/server/repositories/user.repository";
-
-const ROLE_ITEMS = USER_ROLES.map((role) => ({ value: role, label: USER_ROLE_LABELS[role] }));
+import type { RoleRow } from "@/server/repositories/role.repository";
 
 function initials(name: string) {
   return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 }
 
-export function UsersTable({ users }: { users: CompanyUserRow[] }) {
+export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: RoleRow[] }) {
+  const roleLabel = (key: string) => roles.find((r) => r.key === key)?.name ?? key;
+  const defaultRoleKey = roles.find((r) => r.key === "recruiter")?.key ?? roles[0]?.key ?? "";
+
   const [resetTarget, setResetTarget] = useState<CompanyUserRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
@@ -51,13 +52,13 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>("recruiter");
+  const [newRole, setNewRole] = useState(defaultRoleKey);
   const [isCreating, setIsCreating] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; tempPassword: string } | null>(null);
 
   const [editTarget, setEditTarget] = useState<CompanyUserRow | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState<UserRole>("recruiter");
+  const [editRole, setEditRole] = useState(defaultRoleKey);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [isRowActionPending, startRowAction] = useTransition();
@@ -89,7 +90,7 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
     setCreatedCredentials({ email: result.result.user.email, tempPassword: result.result.tempPassword });
     setNewName("");
     setNewEmail("");
-    setNewRole("recruiter");
+    setNewRole(defaultRoleKey);
   }
 
   function openEdit(user: CompanyUserRow) {
@@ -174,7 +175,7 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
                 </td>
                 <td className="px-4 py-3 text-foreground/80">{user.email}</td>
                 <td className="px-4 py-3">
-                  <Badge variant="outline">{USER_ROLE_LABELS[user.role]}</Badge>
+                  <Badge variant="outline">{roleLabel(user.role)}</Badge>
                 </td>
                 <td className="px-4 py-3">
                   {user.mustChangePassword ? (
@@ -250,14 +251,14 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Role</Label>
-                  <Select items={ROLE_ITEMS} value={newRole} onValueChange={(v) => setNewRole((v as UserRole) ?? "recruiter")}>
+                  <Select value={newRole} onValueChange={(v) => setNewRole(v ?? defaultRoleKey)}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {USER_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {USER_ROLE_LABELS[role]}
+                      {roles.map((role) => (
+                        <SelectItem key={role.key} value={role.key}>
+                          {role.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -309,14 +310,14 @@ export function UsersTable({ users }: { users: CompanyUserRow[] }) {
             </div>
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <Select items={ROLE_ITEMS} value={editRole} onValueChange={(v) => setEditRole((v as UserRole) ?? "recruiter")}>
+              <Select value={editRole} onValueChange={(v) => setEditRole(v ?? defaultRoleKey)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {USER_ROLES.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {USER_ROLE_LABELS[role]}
+                  {roles.map((role) => (
+                    <SelectItem key={role.key} value={role.key}>
+                      {role.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

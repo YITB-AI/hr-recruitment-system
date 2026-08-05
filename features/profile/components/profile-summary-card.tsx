@@ -1,7 +1,6 @@
 import { Building2, Calendar, Clock, Mail, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import { VerifyEmailAction } from "@/features/profile/components/verify-email-action";
 import { isDateInFuture } from "@/lib/is-future";
 import type { OwnProfile } from "@/features/profile/services/profile.service";
@@ -31,7 +30,7 @@ export function ProfileSummaryCard({ profile }: { profile: OwnProfile }) {
   const rows = [
     { icon: Mail, label: "Email", value: profile.email },
     { icon: Building2, label: "Company", value: profile.companyName },
-    { icon: ShieldCheck, label: "Role", value: USER_ROLE_LABELS[profile.role as UserRole] ?? profile.role },
+    { icon: ShieldCheck, label: "Role", value: profile.roleName },
     ...(profile.department ? [{ icon: Building2, label: "Department", value: profile.department }] : []),
     ...(profile.title ? [{ icon: ShieldCheck, label: "Designation", value: profile.title }] : []),
     { icon: Calendar, label: "Created", value: formatDate(profile.createdAt) },

@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { connectDB } from "@/server/db/connect";
 import { userRepository, type CompanyUserRow } from "@/server/repositories/user.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { revokeAllSessionsForUser } from "@/lib/auth/session";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
@@ -32,6 +33,8 @@ export async function createCompanyUser(input: CreateUserInput): Promise<CreateC
   const email = input.email.toLowerCase().trim();
   const existing = await userRepository.findByEmail(actor.companyId, email);
   if (existing) throw new Error(`A user with email "${email}" already exists`);
+
+  if (!(await roleRepository.findByKey(input.role))) throw new Error(`Role "${input.role}" doesn't exist`);
 
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
@@ -86,6 +89,8 @@ export async function updateCompanyUser(input: UpdateUserInput): Promise<Company
 
   const target = await userRepository.findById(actor.companyId, input.userId);
   if (!target) throw new Error("User not found");
+
+  if (!(await roleRepository.findByKey(input.role))) throw new Error(`Role "${input.role}" doesn't exist`);
 
   // Guard: don't let the last admin of a company demote themselves (or be
   // demoted) out of the admin role — that would leave the company with no

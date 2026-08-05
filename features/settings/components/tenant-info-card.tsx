@@ -1,6 +1,5 @@
 import { Building2, Calendar, ShieldCheck, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { USER_ROLE_LABELS, type UserRole } from "@/constants/user";
 import type { CompanyRow } from "@/server/repositories/company.repository";
 
 function formatDate(date: Date) {
@@ -9,11 +8,14 @@ function formatDate(date: Date) {
 
 type TenantInfoCardProps = {
   company: CompanyRow;
-  yourRole: UserRole;
+  // Pre-resolved to a real display name by the caller — Dynamic RBAC means
+  // this is no longer one of 4 compile-time labels (see
+  // server/repositories/role.repository.ts).
+  yourRoleName: string;
   userCount: number;
 };
 
-export function TenantInfoCard({ company, yourRole, userCount }: TenantInfoCardProps) {
+export function TenantInfoCard({ company, yourRoleName, userCount }: TenantInfoCardProps) {
   const rows = [
     { icon: Building2, label: "Company ID", value: <code className="text-xs">{company.slug}</code> },
     {
@@ -25,7 +27,7 @@ export function TenantInfoCard({ company, yourRole, userCount }: TenantInfoCardP
         </Badge>
       ),
     },
-    { icon: Users, label: "Your Role", value: USER_ROLE_LABELS[yourRole] },
+    { icon: Users, label: "Your Role", value: yourRoleName },
     { icon: Users, label: "Team Size", value: `${userCount} user${userCount === 1 ? "" : "s"}` },
     { icon: Calendar, label: "Created", value: formatDate(company.createdAt) },
   ];

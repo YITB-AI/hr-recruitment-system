@@ -34,7 +34,7 @@ export function PermissionsPanel({
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-medium text-muted-foreground">Roles</p>
-          <Button variant="outline" size="sm" disabled title="Custom roles aren't supported yet">
+          <Button variant="outline" size="sm" disabled title="Roles are created by your platform administrator, from the Global Roles & RBAC workspace">
             + Add Role
           </Button>
         </div>
@@ -61,7 +61,7 @@ export function PermissionsPanel({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-medium">{selected.label}</h3>
-                  <Badge variant="outline">System Role</Badge>
+                  <Badge variant="outline">{selected.isSystemRole ? "Built-in Role" : "Custom Role"}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">{selected.description}</p>
               </div>
@@ -130,14 +130,19 @@ export function PermissionsPanel({
             <div className="rounded-xl border p-4">
               <p className="mb-3 text-sm font-semibold">Role Actions</p>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" disabled title="Custom roles aren't supported yet">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled
+                  title="Role management happens in the Global Roles & RBAC workspace"
+                >
                   Duplicate Role
                 </Button>
                 <Button
                   variant="outline"
                   className="w-full justify-start text-destructive"
                   disabled
-                  title="System roles can't be deleted"
+                  title={selected.isSystemRole ? "Built-in roles can't be deleted" : "Role management happens in the Global Roles & RBAC workspace"}
                 >
                   Delete Role
                 </Button>
