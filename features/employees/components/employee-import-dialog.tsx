@@ -12,7 +12,7 @@ import type { ImportRowResult, ImportCommitResultItem } from "@/features/employe
 
 type Step = "upload" | "preview" | "results";
 
-export function EmployeeImportDialog() {
+export function EmployeeImportDialog({ bulkEmployeeImportEnabled }: { bulkEmployeeImportEnabled: boolean }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
@@ -63,9 +63,14 @@ export function EmployeeImportDialog() {
 
   return (
     <>
-      <Button variant="outline" onClick={openDialog}>
+      <Button
+        variant="outline"
+        onClick={openDialog}
+        disabled={!bulkEmployeeImportEnabled}
+        title={!bulkEmployeeImportEnabled ? "Bulk Employee Import isn't enabled for your company — contact your platform administrator." : undefined}
+      >
         <Upload className="size-4" />
-        Import
+        {bulkEmployeeImportEnabled ? "Import" : "Import (not enabled)"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

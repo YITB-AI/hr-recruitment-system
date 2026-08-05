@@ -31,6 +31,7 @@ import { EmployeeTypeManagementPanel } from "@/features/settings/components/empl
 import { EmployeeLookupManagementPanel } from "@/features/settings/components/employee-lookup-management-panel";
 import { AiCallQuestionManagementPanel } from "@/features/settings/components/ai-call-question-management-panel";
 import { CompanyIntegrationConfigPanel } from "@/features/settings/components/company-integration-config-panel";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
@@ -260,6 +261,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     config={integrationConfig}
                     companySlug={company?.slug ?? ""}
                     appBaseUrl={process.env.APP_BASE_URL || ""}
+                    n8nAutomationsEnabled={Boolean(company && hasCompanyFeature(company, "n8nAutomations"))}
+                    emailNotificationsEnabled={Boolean(company && hasCompanyFeature(company, "emailNotifications"))}
+                    socialJobPostingEnabled={Boolean(company && hasCompanyFeature(company, "socialJobPosting"))}
+                    indeedJobFeedEnabled={Boolean(company && hasCompanyFeature(company, "indeedJobFeed"))}
                   />
                 </TabsContent>
               )}

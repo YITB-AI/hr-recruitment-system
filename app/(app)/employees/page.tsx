@@ -12,6 +12,9 @@ import { getEmployeesPageData } from "@/features/employees/services/employee.ser
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { listAllActiveEmployeeLookups } from "@/features/settings/services/employee-lookup.service";
 import { StatusConfigProvider } from "@/components/shared/status-config-provider";
+import { getCurrentUser } from "@/lib/current-user";
+import { companyRepository } from "@/server/repositories/company.repository";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
 import type { EmploymentStatus } from "@/constants/employee";
 
 export const metadata: Metadata = { title: "Employees" };
@@ -35,7 +38,8 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [data, employeeStatuses, lookups] = await Promise.all([
+  const actor = await getCurrentUser();
+  const [data, employeeStatuses, lookups, company] = await Promise.all([
     getEmployeesPageData({
       page,
       pageSize: PAGE_SIZE,
@@ -48,7 +52,9 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
     }),
     listActiveStatuses("employee"),
     listAllActiveEmployeeLookups(),
+    companyRepository.findById(actor.companyId),
   ]);
+  const bulkEmployeeImportEnabled = Boolean(company && hasCompanyFeature(company, "bulkEmployeeImport"));
 
   function buildHref(targetPage: number) {
     const query = new URLSearchParams();
@@ -83,7 +89,7 @@ export default async function EmployeesPage({ searchParams }: EmployeesPageProps
               <Download className="size-4" />
               Export
             </Button>
-            <EmployeeImportDialog />
+            <EmployeeImportDialog bulkEmployeeImportEnabled={bulkEmployeeImportEnabled} />
             <Button nativeButton={false} render={<Link href="/employees/new" />}>
               <Plus className="size-4" />
               Add Employee

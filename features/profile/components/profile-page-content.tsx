@@ -24,11 +24,13 @@ export function ProfilePageContent({
   calendarConnections,
   currentSessionId,
   defaultTab,
+  calendarIntegrationEnabled,
 }: {
   profile: OwnProfile;
   calendarConnections: CalendarConnectionRow[];
   currentSessionId: string | null;
   defaultTab: string;
+  calendarIntegrationEnabled: boolean;
 }) {
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -86,7 +88,7 @@ export function ProfilePageContent({
               </TabsContent>
 
               <TabsContent value="calendar">
-                <CalendarConnectionsCard connections={calendarConnections} />
+                <CalendarConnectionsCard connections={calendarConnections} calendarIntegrationEnabled={calendarIntegrationEnabled} />
               </TabsContent>
             </CardContent>
           </Card>

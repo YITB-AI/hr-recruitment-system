@@ -35,6 +35,8 @@ import { emailLogRepository } from "@/server/repositories/email-log.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { getCurrentUser } from "@/lib/current-user";
+import { companyRepository } from "@/server/repositories/company.repository";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
 
 export const metadata: Metadata = { title: "Applicant Details" };
 export const dynamic = "force-dynamic";
@@ -55,11 +57,13 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
   if (!applicant) notFound();
 
   const { companyId } = await getCurrentUser();
-  const [interviews, applicantStatuses, applicantSources] = await Promise.all([
+  const [interviews, applicantStatuses, applicantSources, company] = await Promise.all([
     interviewRepository.findByApplicantId(companyId, id),
     listActiveStatuses("applicant"),
     listActiveStatuses("applicant_source"),
+    companyRepository.findById(companyId),
   ]);
+  const aiScreeningCallsEnabled = Boolean(company && hasCompanyFeature(company, "aiScreeningCalls"));
   const sourceLabel = applicantSources.find((s) => s.key === applicant.source)?.name ?? applicant.source;
   const latestInterviewId = interviews[0]?._id ?? null;
   const [latestEmails, interviewActivityById] = await Promise.all([
@@ -121,6 +125,7 @@ export default async function ApplicantDetailsPage({ params }: { params: Promise
                 phone={applicant.phone ?? ""}
                 jobTitle={applicant.jobId?.title ?? null}
                 latestInterviewId={latestInterviewId}
+                aiScreeningCallsEnabled={aiScreeningCallsEnabled}
               />
             </CardContent>
           </Card>

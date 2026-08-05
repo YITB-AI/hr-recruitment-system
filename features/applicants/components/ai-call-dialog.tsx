@@ -41,9 +41,10 @@ type AiCallDialogProps = {
   phone: string;
   email: string;
   jobTitle: string | null;
+  aiScreeningCallsEnabled: boolean;
 };
 
-export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCallDialogProps) {
+export function AiCallDialog({ applicantId, name, phone, email, jobTitle, aiScreeningCallsEnabled }: AiCallDialogProps) {
   const [open, setOpen] = useState(false);
   const hasPhone = Boolean(phone);
 
@@ -83,9 +84,12 @@ export function AiCallDialog({ applicantId, name, phone, email, jobTitle }: AiCa
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" className="w-full justify-start" disabled={!hasPhone} />}>
+      <DialogTrigger
+        render={<Button variant="outline" className="w-full justify-start" disabled={!hasPhone || !aiScreeningCallsEnabled} />}
+        title={!aiScreeningCallsEnabled ? "AI Screening Calls isn't enabled for your company — contact your platform administrator." : undefined}
+      >
         <PhoneCall />
-        {hasPhone ? "AI Call" : "No phone on file"}
+        {!aiScreeningCallsEnabled ? "AI Call not enabled" : hasPhone ? "AI Call" : "No phone on file"}
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>

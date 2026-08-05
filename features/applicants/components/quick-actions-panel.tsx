@@ -17,6 +17,7 @@ type QuickActionsPanelProps = {
   phone: string;
   jobTitle: string | null;
   latestInterviewId?: string | null;
+  aiScreeningCallsEnabled: boolean;
 };
 
 type SendKind = "sms" | null;
@@ -29,6 +30,7 @@ export function QuickActionsPanel({
   phone,
   jobTitle,
   latestInterviewId,
+  aiScreeningCallsEnabled,
 }: QuickActionsPanelProps) {
   const [isPending, startTransition] = useTransition();
   // Only the setter is used (handleSend's in-flight tracking) — the read
@@ -107,7 +109,14 @@ export function QuickActionsPanel({
         Send SMS
       </Button>
 
-      <AiCallDialog applicantId={applicantId} name={name} phone={phone} email={email} jobTitle={jobTitle} />
+      <AiCallDialog
+        applicantId={applicantId}
+        name={name}
+        phone={phone}
+        email={email}
+        jobTitle={jobTitle}
+        aiScreeningCallsEnabled={aiScreeningCallsEnabled}
+      />
 
       <Button
         variant="destructive"

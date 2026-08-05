@@ -11,7 +11,13 @@ import type { CalendarProvider } from "@/models/CalendarConnection";
 const PROVIDER_LABELS: Record<CalendarProvider, string> = { google: "Google Calendar", outlook: "Outlook Calendar" };
 const PROVIDERS: CalendarProvider[] = ["google", "outlook"];
 
-export function CalendarConnectionsCard({ connections }: { connections: CalendarConnectionRow[] }) {
+export function CalendarConnectionsCard({
+  connections,
+  calendarIntegrationEnabled,
+}: {
+  connections: CalendarConnectionRow[];
+  calendarIntegrationEnabled: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const byProvider = new Map(connections.map((c) => [c.provider, c]));
 
@@ -31,6 +37,11 @@ export function CalendarConnectionsCard({ connections }: { connections: Calendar
           Connect your calendar so interview scheduling can check for conflicts and add real events to it.
         </p>
       </div>
+      {!calendarIntegrationEnabled && (
+        <p className="rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          Calendar Integration isn&apos;t enabled for your company — contact your platform administrator to turn this on.
+        </p>
+      )}
       <div className="divide-y rounded-xl border">
         {PROVIDERS.map((provider) => {
           const connection = byProvider.get(provider);
@@ -60,7 +71,12 @@ export function CalendarConnectionsCard({ connections }: { connections: Calendar
                   Disconnect
                 </Button>
               ) : (
-                <Button size="sm" nativeButton={false} render={<a href={`/api/calendar/${provider}/connect`} />}>
+                <Button
+                  size="sm"
+                  nativeButton={false}
+                  disabled={!calendarIntegrationEnabled}
+                  render={<a href={calendarIntegrationEnabled ? `/api/calendar/${provider}/connect` : undefined} />}
+                >
                   <ExternalLink className="size-4" />
                   Connect
                 </Button>

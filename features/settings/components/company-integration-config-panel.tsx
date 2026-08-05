@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Copy, ExternalLink } from "lucide-react";
+import { Copy, ExternalLink, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +43,28 @@ const WEBHOOK_ACTION_LABELS: Record<WebhookAction, string> = {
 };
 const WEBHOOK_ACTIONS = Object.keys(WEBHOOK_ACTION_LABELS) as WebhookAction[];
 
-function WebhookConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+// Wraps a whole config section in a native <fieldset disabled> -- disables
+// every descendant input/button in one shot, no per-field prop needed --
+// plus a small banner explaining why, when the Global Super Admin hasn't
+// granted this company the corresponding Model Access feature. The
+// section still renders (not hidden) so an admin who's used to seeing it
+// isn't left wondering where it went; the banner tells them why it's
+// inert instead.
+function FeatureGate({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset disabled={!enabled} className={enabled ? undefined : "opacity-60"}>
+      {!enabled && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Lock className="size-3.5 shrink-0" />
+          Not enabled for your company — contact your platform administrator to turn this on.
+        </div>
+      )}
+      {children}
+    </fieldset>
+  );
+}
+
+function WebhookConfigForm({ config, enabled }: { config: CompanyIntegrationConfigRow; enabled: boolean }) {
   const {
     register,
     handleSubmit,
@@ -63,37 +84,39 @@ function WebhookConfigForm({ config }: { config: CompanyIntegrationConfigRow }) 
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-xl space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">n8n Integration</h3>
-        <p className="text-xs text-muted-foreground">
-          Override the webhook URL for any action below. Leave a field blank to use the shared default configured for this
-          deployment.
-        </p>
-      </div>
-      {WEBHOOK_ACTIONS.map((action) => (
-        <div key={action} className="space-y-1.5">
-          <Label htmlFor={`webhook-${action}`}>{WEBHOOK_ACTION_LABELS[action]}</Label>
-          <Input id={`webhook-${action}`} placeholder="https://..." {...register(`webhookUrls.${action}`)} />
+    <FeatureGate enabled={enabled}>
+      <form onSubmit={handleSubmit(onSubmit)} className="max-w-xl space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">n8n Integration</h3>
+          <p className="text-xs text-muted-foreground">
+            Override the webhook URL for any action below. Leave a field blank to use the shared default configured for this
+            deployment.
+          </p>
         </div>
-      ))}
-      <div className="space-y-1.5">
-        <Label htmlFor="webhookAuthHeaderValue">Webhook Auth Header Value</Label>
-        <Input
-          id="webhookAuthHeaderValue"
-          type="password"
-          placeholder={config.hasWebhookAuthHeaderValue ? "•••• (saved — leave blank to keep)" : "Not set"}
-          {...register("webhookAuthHeaderValue")}
-        />
-      </div>
-      <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Saving..." : "Save n8n Configuration"}
-      </Button>
-    </form>
+        {WEBHOOK_ACTIONS.map((action) => (
+          <div key={action} className="space-y-1.5">
+            <Label htmlFor={`webhook-${action}`}>{WEBHOOK_ACTION_LABELS[action]}</Label>
+            <Input id={`webhook-${action}`} placeholder="https://..." {...register(`webhookUrls.${action}`)} />
+          </div>
+        ))}
+        <div className="space-y-1.5">
+          <Label htmlFor="webhookAuthHeaderValue">Webhook Auth Header Value</Label>
+          <Input
+            id="webhookAuthHeaderValue"
+            type="password"
+            placeholder={config.hasWebhookAuthHeaderValue ? "•••• (saved — leave blank to keep)" : "Not set"}
+            {...register("webhookAuthHeaderValue")}
+          />
+        </div>
+        <Button type="submit" disabled={isSubmitting || !enabled}>
+          {isSubmitting ? "Saving..." : "Save n8n Configuration"}
+        </Button>
+      </form>
+    </FeatureGate>
   );
 }
 
-function EmailConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+function EmailConfigForm({ config, enabled }: { config: CompanyIntegrationConfigRow; enabled: boolean }) {
   const {
     register,
     handleSubmit,
@@ -121,58 +144,60 @@ function EmailConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-xl space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">Email Configuration</h3>
-        <p className="text-xs text-muted-foreground">
-          Sender identity and SMTP details passed to your n8n email workflow — this app doesn&apos;t send email directly,
-          it always relays through n8n.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="senderName">Sender Name</Label>
-          <Input id="senderName" {...register("senderName")} />
+    <FeatureGate enabled={enabled}>
+      <form onSubmit={handleSubmit(onSubmit)} className="max-w-xl space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">Email Configuration</h3>
+          <p className="text-xs text-muted-foreground">
+            Sender identity and SMTP details passed to your n8n email workflow — this app doesn&apos;t send email directly,
+            it always relays through n8n.
+          </p>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="senderEmail">Sender Email</Label>
-          <Input id="senderEmail" type="email" {...register("senderEmail")} />
-          {errors.senderEmail && <p className="text-xs text-destructive">{errors.senderEmail.message}</p>}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="senderName">Sender Name</Label>
+            <Input id="senderName" {...register("senderName")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="senderEmail">Sender Email</Label>
+            <Input id="senderEmail" type="email" {...register("senderEmail")} />
+            {errors.senderEmail && <p className="text-xs text-destructive">{errors.senderEmail.message}</p>}
+          </div>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="smtpHost">SMTP Host</Label>
-          <Input id="smtpHost" {...register("smtpHost")} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="smtpHost">SMTP Host</Label>
+            <Input id="smtpHost" {...register("smtpHost")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="smtpPort">SMTP Port</Label>
+            <Input id="smtpPort" type="number" {...register("smtpPort")} />
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="smtpPort">SMTP Port</Label>
-          <Input id="smtpPort" type="number" {...register("smtpPort")} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="smtpUser">SMTP User</Label>
+            <Input id="smtpUser" {...register("smtpUser")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="smtpPassword">SMTP Password</Label>
+            <Input
+              id="smtpPassword"
+              type="password"
+              placeholder={config.email.hasSmtpPassword ? "•••• (saved — leave blank to keep)" : "Not set"}
+              {...register("smtpPassword")}
+            />
+          </div>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="smtpUser">SMTP User</Label>
-          <Input id="smtpUser" {...register("smtpUser")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="smtpPassword">SMTP Password</Label>
-          <Input
-            id="smtpPassword"
-            type="password"
-            placeholder={config.email.hasSmtpPassword ? "•••• (saved — leave blank to keep)" : "Not set"}
-            {...register("smtpPassword")}
-          />
-        </div>
-      </div>
-      <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Saving..." : "Save Email Configuration"}
-      </Button>
-    </form>
+        <Button type="submit" disabled={isSubmitting || !enabled}>
+          {isSubmitting ? "Saving..." : "Save Email Configuration"}
+        </Button>
+      </form>
+    </FeatureGate>
   );
 }
 
-function LinkedinConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+function LinkedinConfigForm({ config, enabled }: { config: CompanyIntegrationConfigRow; enabled: boolean }) {
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateLinkedinConfigInput>({
     resolver: zodResolver(updateLinkedinConfigSchema),
     defaultValues: { organizationUrn: config.linkedin.organizationUrn ?? "" },
@@ -185,26 +210,28 @@ function LinkedinConfigForm({ config }: { config: CompanyIntegrationConfigRow })
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 rounded-xl border p-4">
-      <div>
-        <h4 className="text-sm font-semibold">LinkedIn</h4>
-        <p className="text-xs text-muted-foreground">
-          LinkedIn&apos;s real job-posting API requires a Talent Solutions partnership this app doesn&apos;t have — publishing
-          opens a pre-filled LinkedIn share link for you to post yourself, it&apos;s never fully automatic.
-        </p>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="organizationUrn">Organization URN (optional, for future partner API use)</Label>
-        <Input id="organizationUrn" placeholder="urn:li:organization:..." {...register("organizationUrn")} />
-      </div>
-      <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
-        {isSubmitting ? "Saving..." : "Save"}
-      </Button>
-    </form>
+    <FeatureGate enabled={enabled}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 rounded-xl border p-4">
+        <div>
+          <h4 className="text-sm font-semibold">LinkedIn</h4>
+          <p className="text-xs text-muted-foreground">
+            LinkedIn&apos;s real job-posting API requires a Talent Solutions partnership this app doesn&apos;t have — publishing
+            opens a pre-filled LinkedIn share link for you to post yourself, it&apos;s never fully automatic.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="organizationUrn">Organization URN (optional, for future partner API use)</Label>
+          <Input id="organizationUrn" placeholder="urn:li:organization:..." {...register("organizationUrn")} />
+        </div>
+        <Button type="submit" size="sm" variant="outline" disabled={isSubmitting || !enabled}>
+          {isSubmitting ? "Saving..." : "Save"}
+        </Button>
+      </form>
+    </FeatureGate>
   );
 }
 
-function FacebookConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+function FacebookConfigForm({ config, enabled }: { config: CompanyIntegrationConfigRow; enabled: boolean }) {
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateFacebookAppCredentialsInput>({
     resolver: zodResolver(updateFacebookAppCredentialsSchema),
     defaultValues: { appId: config.facebook.appId ?? "", appSecret: "" },
@@ -217,43 +244,45 @@ function FacebookConfigForm({ config }: { config: CompanyIntegrationConfigRow })
   }
 
   return (
-    <div className="space-y-3 rounded-xl border p-4">
-      <div>
-        <h4 className="text-sm font-semibold">Facebook</h4>
-        <p className="text-xs text-muted-foreground">
-          Requires your own Meta for Developers app. Meta&apos;s review for the posting permission requires business
-          verification and can take real time — posting will fail with a clear error until that&apos;s approved.
-        </p>
-      </div>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="fb-appId">App ID</Label>
-            <Input id="fb-appId" {...register("appId")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fb-appSecret">App Secret</Label>
-            <Input id="fb-appSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("appSecret")} />
-          </div>
+    <FeatureGate enabled={enabled}>
+      <div className="space-y-3 rounded-xl border p-4">
+        <div>
+          <h4 className="text-sm font-semibold">Facebook</h4>
+          <p className="text-xs text-muted-foreground">
+            Requires your own Meta for Developers app. Meta&apos;s review for the posting permission requires business
+            verification and can take real time — posting will fail with a clear error until that&apos;s approved.
+          </p>
         </div>
-        <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save Credentials"}
-        </Button>
-      </form>
-      <div className="flex items-center gap-2 border-t pt-3">
-        <Button size="sm" nativeButton={false} render={<a href="/api/social/facebook/connect" />}>
-          <ExternalLink className="size-4" />
-          {config.facebook.connected ? "Reconnect Page" : "Connect Page"}
-        </Button>
-        {config.facebook.connected && (
-          <span className="text-xs text-muted-foreground">Connected: Page {config.facebook.pageId}</span>
-        )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fb-appId">App ID</Label>
+              <Input id="fb-appId" {...register("appId")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fb-appSecret">App Secret</Label>
+              <Input id="fb-appSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("appSecret")} />
+            </div>
+          </div>
+          <Button type="submit" size="sm" variant="outline" disabled={isSubmitting || !enabled}>
+            {isSubmitting ? "Saving..." : "Save Credentials"}
+          </Button>
+        </form>
+        <div className="flex items-center gap-2 border-t pt-3">
+          <Button size="sm" nativeButton={false} disabled={!enabled} render={<a href="/api/social/facebook/connect" />}>
+            <ExternalLink className="size-4" />
+            {config.facebook.connected ? "Reconnect Page" : "Connect Page"}
+          </Button>
+          {config.facebook.connected && (
+            <span className="text-xs text-muted-foreground">Connected: Page {config.facebook.pageId}</span>
+          )}
+        </div>
       </div>
-    </div>
+    </FeatureGate>
   );
 }
 
-function XConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
+function XConfigForm({ config, enabled }: { config: CompanyIntegrationConfigRow; enabled: boolean }) {
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<UpdateXAppCredentialsInput>({
     resolver: zodResolver(updateXAppCredentialsSchema),
     defaultValues: { apiKey: config.x.apiKey ?? "", apiSecret: "" },
@@ -266,51 +295,53 @@ function XConfigForm({ config }: { config: CompanyIntegrationConfigRow }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border p-4">
-      <div>
-        <h4 className="text-sm font-semibold">X (Twitter)</h4>
-        <p className="text-xs text-muted-foreground">
-          Requires your own X developer app. Whether your current API tier permits posting is something to confirm on
-          X&apos;s pricing page.
-        </p>
-      </div>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="x-apiKey">API Key (Client ID)</Label>
-            <Input id="x-apiKey" {...register("apiKey")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="x-apiSecret">API Secret</Label>
-            <Input id="x-apiSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("apiSecret")} />
-          </div>
+    <FeatureGate enabled={enabled}>
+      <div className="space-y-3 rounded-xl border p-4">
+        <div>
+          <h4 className="text-sm font-semibold">X (Twitter)</h4>
+          <p className="text-xs text-muted-foreground">
+            Requires your own X developer app. Whether your current API tier permits posting is something to confirm on
+            X&apos;s pricing page.
+          </p>
         </div>
-        <Button type="submit" size="sm" variant="outline" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save Credentials"}
-        </Button>
-      </form>
-      <div className="flex items-center gap-2 border-t pt-3">
-        <Button size="sm" nativeButton={false} render={<a href="/api/social/x/connect" />}>
-          <ExternalLink className="size-4" />
-          {config.x.connected ? "Reconnect Account" : "Connect Account"}
-        </Button>
-        {config.x.connected && <span className="text-xs text-muted-foreground">Connected</span>}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="x-apiKey">API Key (Client ID)</Label>
+              <Input id="x-apiKey" {...register("apiKey")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="x-apiSecret">API Secret</Label>
+              <Input id="x-apiSecret" type="password" placeholder="•••• (leave blank to keep)" {...register("apiSecret")} />
+            </div>
+          </div>
+          <Button type="submit" size="sm" variant="outline" disabled={isSubmitting || !enabled}>
+            {isSubmitting ? "Saving..." : "Save Credentials"}
+          </Button>
+        </form>
+        <div className="flex items-center gap-2 border-t pt-3">
+          <Button size="sm" nativeButton={false} disabled={!enabled} render={<a href="/api/social/x/connect" />}>
+            <ExternalLink className="size-4" />
+            {config.x.connected ? "Reconnect Account" : "Connect Account"}
+          </Button>
+          {config.x.connected && <span className="text-xs text-muted-foreground">Connected</span>}
+        </div>
       </div>
-    </div>
+    </FeatureGate>
   );
 }
 
-function IndeedConfigForm({ config, feedUrl }: { config: CompanyIntegrationConfigRow; feedUrl: string }) {
+function IndeedConfigForm({ config, feedUrl, enabled }: { config: CompanyIntegrationConfigRow; feedUrl: string; enabled: boolean }) {
   const [isPending, startTransition] = useTransition();
-  const [enabled, setEnabled] = useState(config.indeed.feedEnabled);
+  const [isFeedOn, setIsFeedOn] = useState(config.indeed.feedEnabled);
 
   function handleToggle(checked: boolean) {
-    setEnabled(checked);
+    setIsFeedOn(checked);
     startTransition(async () => {
       const result = await setIndeedFeedEnabledAction(checked);
       if (!result.success) {
         toast.error(result.error);
-        setEnabled(!checked);
+        setIsFeedOn(!checked);
       }
     });
   }
@@ -321,26 +352,28 @@ function IndeedConfigForm({ config, feedUrl }: { config: CompanyIntegrationConfi
   }
 
   return (
-    <div className="space-y-3 rounded-xl border p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="text-sm font-semibold">Indeed</h4>
-          <p className="text-xs text-muted-foreground">
-            No OAuth — Indeed uses a public XML feed. Enable it, register the URL below once in your Indeed employer
-            account, then opt individual jobs into it from each job&apos;s Promote tab.
-          </p>
+    <FeatureGate enabled={enabled}>
+      <div className="space-y-3 rounded-xl border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold">Indeed</h4>
+            <p className="text-xs text-muted-foreground">
+              No OAuth — Indeed uses a public XML feed. Enable it, register the URL below once in your Indeed employer
+              account, then opt individual jobs into it from each job&apos;s Promote tab.
+            </p>
+          </div>
+          <Switch checked={isFeedOn} onCheckedChange={handleToggle} disabled={isPending || !enabled} />
         </div>
-        <Switch checked={enabled} onCheckedChange={handleToggle} disabled={isPending} />
+        {isFeedOn && (
+          <div className="flex items-center gap-2">
+            <Input readOnly value={feedUrl} className="font-mono text-xs" />
+            <Button type="button" size="icon-sm" variant="outline" onClick={handleCopy}>
+              <Copy className="size-4" />
+            </Button>
+          </div>
+        )}
       </div>
-      {enabled && (
-        <div className="flex items-center gap-2">
-          <Input readOnly value={feedUrl} className="font-mono text-xs" />
-          <Button type="button" size="icon-sm" variant="outline" onClick={handleCopy}>
-            <Copy className="size-4" />
-          </Button>
-        </div>
-      )}
-    </div>
+    </FeatureGate>
   );
 }
 
@@ -348,27 +381,35 @@ export function CompanyIntegrationConfigPanel({
   config,
   companySlug,
   appBaseUrl,
+  n8nAutomationsEnabled,
+  emailNotificationsEnabled,
+  socialJobPostingEnabled,
+  indeedJobFeedEnabled,
 }: {
   config: CompanyIntegrationConfigRow;
   companySlug: string;
   appBaseUrl: string;
+  n8nAutomationsEnabled: boolean;
+  emailNotificationsEnabled: boolean;
+  socialJobPostingEnabled: boolean;
+  indeedJobFeedEnabled: boolean;
 }) {
   const feedUrl = `${appBaseUrl}/api/job-feeds/${companySlug}/indeed.xml`;
 
   return (
     <div className="space-y-8">
-      <WebhookConfigForm config={config} />
+      <WebhookConfigForm config={config} enabled={n8nAutomationsEnabled} />
       <div className="border-t pt-6">
-        <EmailConfigForm config={config} />
+        <EmailConfigForm config={config} enabled={emailNotificationsEnabled} />
       </div>
       <div className="border-t pt-6">
         <h3 className="mb-1 text-sm font-semibold">Social Media Integration</h3>
         <p className="mb-4 text-xs text-muted-foreground">Used for multi-platform job posting from a Job&apos;s Promote tab.</p>
         <div className="max-w-xl space-y-4">
-          <LinkedinConfigForm config={config} />
-          <FacebookConfigForm config={config} />
-          <XConfigForm config={config} />
-          <IndeedConfigForm config={config} feedUrl={feedUrl} />
+          <LinkedinConfigForm config={config} enabled={socialJobPostingEnabled} />
+          <FacebookConfigForm config={config} enabled={socialJobPostingEnabled} />
+          <XConfigForm config={config} enabled={socialJobPostingEnabled} />
+          <IndeedConfigForm config={config} feedUrl={feedUrl} enabled={indeedJobFeedEnabled} />
         </div>
       </div>
     </div>
