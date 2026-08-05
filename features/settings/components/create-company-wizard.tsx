@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COMPANY_FEATURE_GROUPS, DEFAULT_ENABLED_COMPANY_FEATURES, type CompanyFeatureKey } from "@/constants/company-features";
 import { TIMEZONE_OPTIONS, DATE_FORMAT_OPTIONS, COLOR_PRESETS } from "@/constants/appearance";
@@ -491,13 +491,10 @@ export function CreateCompanyWizard() {
         <div className="rounded-2xl border bg-card p-5 shadow-sm">
           <p className="mb-3 text-sm font-medium">Setup Progress</p>
           <Progress value={progressPercent}>
-            <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <div className="mb-1 flex w-full items-center justify-between text-xs text-muted-foreground">
               <span>Step {step + 1} of {STEPS.length}</span>
               <span>{progressPercent}%</span>
             </div>
-            <ProgressTrack>
-              <ProgressIndicator />
-            </ProgressTrack>
           </Progress>
           <ul className="mt-4 space-y-2 text-sm">
             {STEPS.map((s, i) => (
