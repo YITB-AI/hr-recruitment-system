@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, AlertTriangle, Users2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Building2, AlertTriangle, Users2, ShieldAlert, ShieldCheck, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // A deliberately separate sidebar from components/layout/sidebar.tsx — this
@@ -16,6 +16,7 @@ const PLATFORM_NAV_ITEMS = [
   { href: "/platform/unmapped-jobs", label: "Unmapped Jobs", icon: AlertTriangle },
   { href: "/platform/orphaned-applicants", label: "Orphaned Applicants", icon: Users2 },
   { href: "/platform/error-logs", label: "System Error Logs", icon: ShieldAlert },
+  { href: "/platform/settings", label: "Platform Settings", icon: Settings },
 ];
 
 export function PlatformSidebar() {

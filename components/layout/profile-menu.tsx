@@ -26,7 +26,12 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function ProfileMenu({ user }: { user: SessionUser }) {
+// basePath lets a caller keep the viewer inside their current workspace —
+// PlatformTopbar passes "/platform" so these links resolve to
+// /platform/profile and /platform/settings instead of the tenant
+// app/(app)/* routes; the default ("") preserves the existing tenant
+// behavior for the regular Topbar with zero change there.
+export function ProfileMenu({ user, basePath = "" }: { user: SessionUser; basePath?: string }) {
   const [isLoggingOut, startLogout] = useTransition();
 
   function handleLogout() {
@@ -61,11 +66,11 @@ export function ProfileMenu({ user }: { user: SessionUser }) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/profile" />}>
+        <DropdownMenuItem render={<Link href={`${basePath}/profile`} />}>
           <User className="size-4" />
           Profile
         </DropdownMenuItem>
-        <DropdownMenuItem render={<Link href="/settings" />}>
+        <DropdownMenuItem render={<Link href={`${basePath}/settings`} />}>
           <Settings className="size-4" />
           Settings
         </DropdownMenuItem>

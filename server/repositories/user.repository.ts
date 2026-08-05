@@ -130,6 +130,35 @@ export const userRepository = {
   findPlatformAdminByEmail(email: string) {
     return User.findOne({ email: email.toLowerCase().trim(), isPlatformAdmin: true });
   },
+  /**
+   * Global (not companyId-scoped), unlike this file's other email lookups
+   * -- safe here specifically because every caller (see
+   * platform-admin-management.service.ts) is already gated by
+   * requirePlatformAdmin before this runs. It's the same category as
+   * PlatformErrorLog/Company being globally readable to a platform admin:
+   * they are SUPPOSED to see cross-company data. Never call this from a
+   * path a regular tenant user can reach — that would reintroduce the
+   * cross-tenant email-existence oracle fixed in Security Phase 4.
+   */
+  findAnyByEmailForPlatformAdmin(email: string) {
+    return User.findOne({ email: email.toLowerCase().trim() });
+  },
+  /** Same "global lookup, only for an already-verified platform admin caller" contract as findAnyByEmailForPlatformAdmin above. */
+  findAnyByIdForPlatformAdmin(userId: string) {
+    return User.findById(userId);
+  },
+  async findAllPlatformAdmins(): Promise<Array<{ _id: string; name: string; email: string; companyId: string | null }>> {
+    const rows = await User.find({ isPlatformAdmin: true })
+      .select("name email companyId")
+      .lean<Array<{ _id: unknown; name: string; email: string; companyId?: unknown }>>();
+    return rows.map((row) => ({ _id: String(row._id), name: row.name, email: row.email, companyId: row.companyId ? String(row.companyId) : null }));
+  },
+  countPlatformAdmins(): Promise<number> {
+    return User.countDocuments({ isPlatformAdmin: true });
+  },
+  async setPlatformAdmin(userId: string, value: boolean): Promise<void> {
+    await User.updateOne({ _id: userId }, { isPlatformAdmin: value });
+  },
   async recordLoginFailure(id: string, attempts: number, lockedUntil?: Date): Promise<void> {
     await User.updateOne({ _id: id }, lockedUntil ? { failedLoginAttempts: attempts, lockedUntil } : { failedLoginAttempts: attempts });
   },
