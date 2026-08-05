@@ -13,10 +13,11 @@
  * else is a real opt-in/opt-out a Global Super Admin can flip.
  *
  * `Company.enabledFeatures` stores only the *non-core* keys a company has
- * turned on. An empty/missing array is treated as "every feature enabled" —
- * see the comment on `Company.enabledFeatures` — so existing companies
- * created before this registry existed are never accidentally locked out of
- * anything.
+ * turned on. Whether an empty array means "unrestricted" or "no optional
+ * modules" depends on `Company.featureAccessConfigured` — see that field's
+ * comment — so existing companies created before this registry existed are
+ * never accidentally locked out of anything, while every company created
+ * through the wizard gets exactly the modules explicitly chosen for it.
  */
 export type CompanyFeatureKey =
   | "employees"
@@ -102,12 +103,14 @@ export const CORE_COMPANY_FEATURE_KEYS: CompanyFeatureKey[] = COMPANY_FEATURE_GR
   g.features.filter((f) => f.isCore).map((f) => f.key),
 );
 
-/** Non-core keys enabled by default for a newly created company, absent explicit choices. */
-export const DEFAULT_ENABLED_COMPANY_FEATURES: CompanyFeatureKey[] = [
-  "aiResumeAnalysis",
-  "emailNotifications",
-  "smsNotifications",
-];
+/**
+ * Non-core keys pre-checked when the wizard opens, before the Global Super
+ * Admin makes any explicit choice. Deliberately empty: only Core Modules
+ * (always included, see COMPANY_FEATURE_GROUPS above) should appear
+ * enabled by default -- every optional module is an opt-in the admin must
+ * choose per company, never a default they'd have to notice and uncheck.
+ */
+export const DEFAULT_ENABLED_COMPANY_FEATURES: CompanyFeatureKey[] = [];
 
 export function isValidCompanyFeatureKey(value: string): value is CompanyFeatureKey {
   return (ALL_COMPANY_FEATURE_KEYS as string[]).includes(value);

@@ -15,6 +15,7 @@ export type CompanyRow = {
   country: string | null;
   defaultLanguage: string;
   enabledFeatures: string[];
+  featureAccessConfigured: boolean;
 };
 
 type RawRow = Record<string, unknown> & { _id: unknown };
@@ -34,6 +35,7 @@ function serialize(row: RawRow): CompanyRow {
     country: (row.country as string | undefined) ?? null,
     defaultLanguage: (row.defaultLanguage as string | undefined) ?? "en",
     enabledFeatures: Array.isArray(row.enabledFeatures) ? (row.enabledFeatures as string[]) : [],
+    featureAccessConfigured: Boolean(row.featureAccessConfigured),
   };
 }
 
@@ -47,9 +49,10 @@ export type CreateCompanyInput = {
   country?: string;
   defaultLanguage?: string;
   enabledFeatures?: string[];
+  featureAccessConfigured?: boolean;
 };
 
-export type UpdateCompanyInput = Partial<{ name: string; logoUrl: string; enabledFeatures: string[] }>;
+export type UpdateCompanyInput = Partial<{ name: string; logoUrl: string; enabledFeatures: string[]; featureAccessConfigured: boolean }>;
 
 export type CompanyListFilters = {
   search?: string;

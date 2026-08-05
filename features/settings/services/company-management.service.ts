@@ -109,7 +109,7 @@ export async function updateCompanyFeatures(companyId: string, enabledFeatures: 
   requirePlatformAdmin(actor);
 
   const filtered = enabledFeatures.filter(isValidCompanyFeatureKey);
-  const company = await companyRepository.update(companyId, { enabledFeatures: filtered });
+  const company = await companyRepository.update(companyId, { enabledFeatures: filtered, featureAccessConfigured: true });
   if (!company) throw new Error("Company not found");
 
   await activityLogRepository.create({
@@ -264,6 +264,11 @@ export async function createCompanyWithAdmin(input: {
     country: input.country,
     defaultLanguage: input.defaultLanguage,
     enabledFeatures,
+    // Every company created through the wizard has made a real, explicit
+    // Model Access choice (even one that resolves to zero optional
+    // modules) -- see the comment on Company.featureAccessConfigured for
+    // why this can't be left to infer from enabledFeatures alone.
+    featureAccessConfigured: true,
   });
 
   // One Setting row created up front (Configurations step), rather than

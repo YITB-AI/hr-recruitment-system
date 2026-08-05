@@ -29,11 +29,20 @@ const companySchema = new Schema(
     // Global Super Admin's per-company Model Access grant (see
     // constants/company-features.ts). Stores only the non-core keys this
     // company has been granted — core keys are always on and never stored
-    // here. An empty/absent array means "unrestricted" (every feature
-    // enabled), not "nothing enabled" — this is what every company created
-    // before this field existed already has, and it must never be
-    // retroactively locked out of features it already relies on.
+    // here.
     enabledFeatures: { type: [String], default: [] },
+    // Whether enabledFeatures reflects a real, explicit choice. Mongoose
+    // applies schema defaults even when hydrating pre-existing documents
+    // that never had this field at all, so an empty enabledFeatures array
+    // is indistinguishable from "never set" at the storage level — this
+    // flag is what actually distinguishes them. false (every company that
+    // existed before Model Access shipped) means "unrestricted" (every
+    // feature enabled), so nothing already relying on a feature is
+    // retroactively locked out. true (every company created via the
+    // wizard, or ever explicitly edited from its detail page) means
+    // enabledFeatures is enforced literally — including a deliberate empty
+    // array, which then correctly means "no optional modules granted".
+    featureAccessConfigured: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
