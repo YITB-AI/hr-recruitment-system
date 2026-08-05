@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  companySlug: z.string().min(1, "Company ID is required"),
+  // Optional: a platform admin operates across every company, not one
+  // tenant, so they can leave this blank and log in by email alone (see
+  // loginAction/userRepository.findPlatformAdminByEmail). Every regular
+  // user still needs their real Company ID -- leaving it blank for a
+  // non-platform-admin account is treated as a normal failed login, not a
+  // shortcut.
+  companySlug: z.string().trim().optional().default(""),
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });

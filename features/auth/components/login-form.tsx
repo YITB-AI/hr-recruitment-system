@@ -46,8 +46,7 @@ export function LoginForm() {
             name="companySlug"
             type="text"
             autoComplete="organization"
-            placeholder="e.g. digital-auxilius"
-            required
+            placeholder="e.g. digital-auxilius — leave blank if you're a platform admin"
             className="pl-9"
           />
         </div>

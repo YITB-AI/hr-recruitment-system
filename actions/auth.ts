@@ -78,18 +78,33 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   if (!captchaValid) return CAPTCHA_ERROR;
 
   await connectDB();
-  const company = await companyRepository.findBySlug(parsed.data.companySlug.toLowerCase().trim());
-  if (!company || company.status !== "active") return GENERIC_ERROR;
-
   const email = parsed.data.email.toLowerCase().trim();
-  const user = await userRepository.findForLogin(String(company._id), email);
+  const companySlug = parsed.data.companySlug.toLowerCase().trim();
 
-  if (!user) {
+  // Two resolution paths: a regular user must supply their real Company ID
+  // (tenant-scoped lookup, unchanged from before); a platform admin
+  // operates across every company, not one tenant, so they may leave it
+  // blank and resolve by email alone -- but ONLY a genuine
+  // isPlatformAdmin:true account can ever succeed that way (enforced by
+  // the query itself, not a post-check), so this can't become a shortcut
+  // for a regular user who simply doesn't know their Company ID.
+  let user;
+  let company;
+  if (companySlug) {
+    company = await companyRepository.findBySlug(companySlug);
+    if (!company || company.status !== "active") return GENERIC_ERROR;
+    user = await userRepository.findForLogin(String(company._id), email);
+  } else {
+    user = await userRepository.findPlatformAdminByEmail(email);
+    company = user ? await companyRepository.findById(String(user.companyId)) : null;
+  }
+
+  if (!user || !company) {
     await activityLogRepository.create({
-      companyId: company._id,
+      companyId: company?._id,
       action: "auth.login_failed",
       entityType: "auth",
-      entityId: company._id,
+      entityId: company?._id,
       message: `Failed login attempt for unknown email ${email}`,
     });
     return GENERIC_ERROR;

@@ -115,6 +115,21 @@ export const userRepository = {
   findForLogin(companyId: string, email: string) {
     return User.findOne({ companyId, email: email.toLowerCase().trim() });
   },
+  /**
+   * Global (not companyId-scoped) — deliberately, and safely so: this only
+   * ever matches isPlatformAdmin:true accounts, a small set Digital
+   * Auxilius itself provisions, not tenant data. It does NOT reintroduce
+   * the cross-tenant email-existence oracle fixed in Security Phase 4 --
+   * that fix was about `email` being globally unique across every regular
+   * user; this is a distinct, narrower query that reveals nothing about
+   * regular tenant users at all. Used by loginAction when a platform
+   * admin logs in without specifying a Company ID -- they operate the
+   * platform itself, not any one tenant, so requiring them to know/type a
+   * company slug just to authenticate doesn't make sense.
+   */
+  findPlatformAdminByEmail(email: string) {
+    return User.findOne({ email: email.toLowerCase().trim(), isPlatformAdmin: true });
+  },
   async recordLoginFailure(id: string, attempts: number, lockedUntil?: Date): Promise<void> {
     await User.updateOne({ _id: id }, lockedUntil ? { failedLoginAttempts: attempts, lockedUntil } : { failedLoginAttempts: attempts });
   },
