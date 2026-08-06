@@ -22,17 +22,46 @@ function initials(name: string) {
   return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 }
 
+const INDUSTRY_OPTIONS = ["Technology", "Healthcare", "Finance", "Manufacturing", "Retail", "Education", "Other"];
+const COMPANY_SIZE_OPTIONS = ["1-10", "11-50", "51-200", "201-500", "500+"];
+
 export function CompanyDetailHeader({ company }: { company: CompanyRow }) {
   const router = useRouter();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [name, setName] = useState(company.name);
+  const [legalName, setLegalName] = useState(company.legalName ?? "");
+  const [industry, setIndustry] = useState(company.industry ?? "");
+  const [companySize, setCompanySize] = useState(company.companySize ?? "");
+  const [adminPhone, setAdminPhone] = useState(company.adminPhone ?? "");
+  const [country, setCountry] = useState(company.country ?? "");
+  const [defaultLanguage, setDefaultLanguage] = useState(company.defaultLanguage ?? "en");
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isActive = company.status === "active";
 
+  function openEdit() {
+    setName(company.name);
+    setLegalName(company.legalName ?? "");
+    setIndustry(company.industry ?? "");
+    setCompanySize(company.companySize ?? "");
+    setAdminPhone(company.adminPhone ?? "");
+    setCountry(company.country ?? "");
+    setDefaultLanguage(company.defaultLanguage ?? "en");
+    setIsEditOpen(true);
+  }
+
   function handleSaveName() {
     startTransition(async () => {
-      const result = await updateCompanyAction({ companyId: company._id, name });
+      const result = await updateCompanyAction({
+        companyId: company._id,
+        name,
+        legalName: legalName || undefined,
+        industry: industry || undefined,
+        companySize: companySize || undefined,
+        adminPhone: adminPhone || undefined,
+        country: country || undefined,
+        defaultLanguage: defaultLanguage || undefined,
+      });
       if (result.success) {
         toast.success("Company updated");
         setIsEditOpen(false);
@@ -68,7 +97,7 @@ export function CompanyDetailHeader({ company }: { company: CompanyRow }) {
       const result = await deleteCompanyAction(company._id);
       if (result.success) {
         toast.success("Company deleted");
-        router.push("/settings");
+        router.push("/platform/companies");
       } else {
         toast.error(result.error);
       }
@@ -110,7 +139,7 @@ export function CompanyDetailHeader({ company }: { company: CompanyRow }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => setIsEditOpen(true)}>
+        <Button variant="outline" onClick={openEdit}>
           <Pencil className="size-4" />
           Edit
         </Button>
@@ -125,13 +154,59 @@ export function CompanyDetailHeader({ company }: { company: CompanyRow }) {
       </div>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit company</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label htmlFor="company-name">Company name</Label>
-            <Input id="company-name" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="grid gap-3 py-2 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="company-name">Company name</Label>
+              <Input id="company-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="company-legal-name">Legal name</Label>
+              <Input id="company-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Acme Incorporated LLC" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="company-industry">Industry</Label>
+              <select
+                id="company-industry"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="h-8 w-full rounded-lg border border-border bg-background px-2.5 text-sm dark:border-input dark:bg-input/30"
+              >
+                <option value="">Select industry</option>
+                {INDUSTRY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="company-size">Company size</Label>
+              <select
+                id="company-size"
+                value={companySize}
+                onChange={(e) => setCompanySize(e.target.value)}
+                className="h-8 w-full rounded-lg border border-border bg-background px-2.5 text-sm dark:border-input dark:bg-input/30"
+              >
+                <option value="">Select size</option>
+                {COMPANY_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt} employees</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="company-admin-phone">Admin phone</Label>
+              <Input id="company-admin-phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder="+92 300 1234567" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="company-country">Country</Label>
+              <Input id="company-country" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Pakistan" />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="company-default-language">Default language</Label>
+              <Input id="company-default-language" value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)} placeholder="en" />
+            </div>
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>

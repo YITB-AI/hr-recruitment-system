@@ -7,7 +7,7 @@ import { companyRepository, type CompanyRow, type CompanyListFilters } from "@/s
 import { userRepository, type CompanyUserRow } from "@/server/repositories/user.repository";
 import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
 import { activityLogRepository, type ActivityLogRow } from "@/server/repositories/activity-log.repository";
-import { settingRepository } from "@/server/repositories/setting.repository";
+import { settingRepository, type SettingRow } from "@/server/repositories/setting.repository";
 import { saveFile, deleteFileByKey } from "@/lib/file-storage";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requirePlatformAdmin } from "@/lib/auth/permissions";
@@ -50,6 +50,7 @@ export async function getCompaniesPageData(filters: CompanyListFilters) {
 
 export type CompanyDetail = {
   company: CompanyRow;
+  setting: SettingRow;
   userCount: number;
   jobCount: number;
   users: CompanyUserRow[];
@@ -69,7 +70,8 @@ export async function getCompanyDetail(companyId: string): Promise<CompanyDetail
   const company = await companyRepository.findById(companyId);
   if (!company) return null;
 
-  const [userCount, jobCount, users, jobs, activity] = await Promise.all([
+  const [setting, userCount, jobCount, users, jobs, activity] = await Promise.all([
+    settingRepository.get(companyId),
     companyRepository.countUsers(companyId),
     companyRepository.countJobs(companyId),
     userRepository.findAllForCompany(companyId),
@@ -77,17 +79,28 @@ export async function getCompanyDetail(companyId: string): Promise<CompanyDetail
     activityLogRepository.findRecent(companyId, 30),
   ]);
 
-  return { company, userCount, jobCount, users, jobs, activity };
+  return { company, setting, userCount, jobCount, users, jobs, activity };
 }
 
 export type CompanyActionResult = { success: true } | { success: false; error: string };
 
-export async function updateCompany(companyId: string, input: { name: string }): Promise<CompanyRow> {
+export async function updateCompany(
+  companyId: string,
+  input: {
+    name: string;
+    legalName?: string;
+    industry?: string;
+    companySize?: string;
+    adminPhone?: string;
+    country?: string;
+    defaultLanguage?: string;
+  },
+): Promise<CompanyRow> {
   await connectDB();
   const actor = await getCurrentUser();
   requirePlatformAdmin(actor);
 
-  const company = await companyRepository.update(companyId, { name: input.name });
+  const company = await companyRepository.update(companyId, input);
   if (!company) throw new Error("Company not found");
 
   await activityLogRepository.create({
@@ -101,6 +114,56 @@ export async function updateCompany(companyId: string, input: { name: string }):
   });
 
   return company;
+}
+
+// Configurations (timezone, formats, currency, branding) — same field set
+// as the wizard's Configurations step, editable after creation. Lives on
+// Setting, not Company, so this updates a different row than updateCompany
+// above; settingRepository.update already merges partial nested
+// features/appearance updates without clobbering siblings.
+export async function updateCompanyConfiguration(
+  companyId: string,
+  input: {
+    timezone?: string;
+    weekStartsOn?: "sunday" | "monday";
+    dateFormat?: string;
+    timeFormat?: "12h" | "24h";
+    currency?: string;
+    numberFormat?: string;
+    multiLanguageEnabled?: boolean;
+    primaryColor?: string;
+    secondaryColor?: string;
+  },
+): Promise<SettingRow> {
+  await connectDB();
+  const actor = await getCurrentUser();
+  requirePlatformAdmin(actor);
+
+  const company = await companyRepository.findById(companyId);
+  if (!company) throw new Error("Company not found");
+
+  const setting = await settingRepository.update(companyId, {
+    timezone: input.timezone,
+    weekStartsOn: input.weekStartsOn,
+    dateFormat: input.dateFormat,
+    timeFormat: input.timeFormat,
+    currency: input.currency,
+    numberFormat: input.numberFormat,
+    multiLanguageEnabled: input.multiLanguageEnabled,
+    appearance: { primaryColor: input.primaryColor, secondaryColor: input.secondaryColor },
+  });
+
+  await activityLogRepository.create({
+    companyId: actor.companyId,
+    actorId: resolveActorId(actor),
+    actorName: actor.name,
+    action: "company.updated",
+    entityType: "setting",
+    entityId: companyId,
+    message: `${actor.name} updated configuration for company "${company.name}"`,
+  });
+
+  return setting;
 }
 
 export async function updateCompanyFeatures(companyId: string, enabledFeatures: string[]): Promise<CompanyRow> {

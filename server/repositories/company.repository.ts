@@ -52,7 +52,18 @@ export type CreateCompanyInput = {
   featureAccessConfigured?: boolean;
 };
 
-export type UpdateCompanyInput = Partial<{ name: string; logoUrl: string; enabledFeatures: string[]; featureAccessConfigured: boolean }>;
+export type UpdateCompanyInput = Partial<{
+  name: string;
+  logoUrl: string;
+  enabledFeatures: string[];
+  featureAccessConfigured: boolean;
+  legalName: string;
+  industry: string;
+  companySize: string;
+  adminPhone: string;
+  country: string;
+  defaultLanguage: string;
+}>;
 
 export type CompanyListFilters = {
   search?: string;

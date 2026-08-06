@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CompanyDetailHeader } from "@/features/settings/components/company-detail-header";
+import {
+  CompanyProfileCard,
+  CompanyConfigurationCard,
+  CompanyModelAccessCard,
+} from "@/features/settings/components/company-profile-cards";
 import { getCompanyDetail } from "@/features/settings/services/company-management.service";
 
 export const metadata: Metadata = { title: "Company Details" };
@@ -22,7 +27,7 @@ export default async function CompanyDetailsPage({ params }: { params: Promise<{
   const detail = await getCompanyDetail(id);
   if (!detail) notFound();
 
-  const { company, userCount, jobCount, users, jobs, activity } = detail;
+  const { company, setting, userCount, jobCount, users, jobs, activity } = detail;
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -62,6 +67,13 @@ export default async function CompanyDetailsPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CompanyProfileCard company={company} />
+        <CompanyModelAccessCard companyId={company._id} enabledFeatures={company.enabledFeatures} />
+      </div>
+
+      <CompanyConfigurationCard companyId={company._id} setting={setting} />
 
       <Card>
         <CardContent className="pt-6">

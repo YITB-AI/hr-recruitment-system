@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCompanySchema, updateCompanySchema, setCompanyStatusSchema } from "@/validators/company";
+import { createCompanySchema, updateCompanySchema, updateCompanyConfigurationSchema, setCompanyStatusSchema } from "@/validators/company";
 import { isValidCompanyFeatureKey } from "@/constants/company-features";
 import {
   createCompanyWithAdmin,
   updateCompany,
+  updateCompanyConfiguration,
   updateCompanyFeatures,
   setCompanyStatus,
   uploadCompanyLogo,
@@ -25,7 +26,7 @@ export async function createCompanyAction(input: unknown): Promise<CreateCompany
 
   try {
     const result = await createCompanyWithAdmin(parsed.data);
-    revalidatePath("/settings");
+    revalidatePath("/platform/companies");
     return { success: true, result };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to create company" };
@@ -39,12 +40,27 @@ export async function updateCompanyAction(input: unknown): Promise<CompanyAction
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   try {
-    await updateCompany(parsed.data.companyId, { name: parsed.data.name });
-    revalidatePath("/settings");
-    revalidatePath(`/settings/companies/${parsed.data.companyId}`);
+    const { companyId, ...rest } = parsed.data;
+    await updateCompany(companyId, rest);
+    revalidatePath("/platform/companies");
+    revalidatePath(`/platform/companies/${companyId}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to update company" };
+  }
+}
+
+export async function updateCompanyConfigurationAction(input: unknown): Promise<CompanyActionResult> {
+  const parsed = updateCompanyConfigurationSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  try {
+    const { companyId, ...rest } = parsed.data;
+    await updateCompanyConfiguration(companyId, rest);
+    revalidatePath(`/platform/companies/${companyId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update configuration" };
   }
 }
 
@@ -68,8 +84,8 @@ export async function setCompanyStatusAction(input: unknown): Promise<CompanyAct
 
   try {
     await setCompanyStatus(parsed.data.companyId, parsed.data.status);
-    revalidatePath("/settings");
-    revalidatePath(`/settings/companies/${parsed.data.companyId}`);
+    revalidatePath("/platform/companies");
+    revalidatePath(`/platform/companies/${parsed.data.companyId}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to update company status" };
@@ -82,7 +98,7 @@ export async function uploadCompanyLogoAction(companyId: string, formData: FormD
 
   try {
     await uploadCompanyLogo(companyId, file);
-    revalidatePath(`/settings/companies/${companyId}`);
+    revalidatePath(`/platform/companies/${companyId}`);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to upload logo" };
@@ -92,7 +108,7 @@ export async function uploadCompanyLogoAction(companyId: string, formData: FormD
 export async function deleteCompanyAction(companyId: string): Promise<CompanyActionResult> {
   try {
     await deleteCompany(companyId);
-    revalidatePath("/settings");
+    revalidatePath("/platform/companies");
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to delete company" };
