@@ -1,8 +1,10 @@
 import { connectDB } from "@/server/db/connect";
 import { jobRepository, type JobRow } from "@/server/repositories/job.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { requireCompanyFeature } from "@/lib/auth/feature-access";
 import { getJobPostingProvider } from "@/lib/job-posting/providers";
 import type { JobPostingPlatform } from "@/constants/job";
 import type { PublishResult } from "@/lib/job-posting/types";
@@ -14,6 +16,9 @@ export async function publishJobToPlatform(jobId: string, platform: JobPostingPl
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "job.manage");
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) throw new Error("Company not found");
+  requireCompanyFeature(company, "socialJobPosting");
 
   const job = await jobRepository.findById(actor.companyId, jobId);
   if (!job) throw new Error("Job not found");
@@ -57,6 +62,9 @@ export async function setPostToIndeed(jobId: string, postToIndeed: boolean): Pro
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "job.manage");
+  const company = await companyRepository.findById(actor.companyId);
+  if (!company) throw new Error("Company not found");
+  requireCompanyFeature(company, "indeedJobFeed");
 
   const job = await jobRepository.setPostToIndeed(actor.companyId, jobId, postToIndeed);
   if (!job) throw new Error("Job not found");

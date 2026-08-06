@@ -112,7 +112,19 @@ function LogPromotionDialog({ jobId }: { jobId: string }) {
   );
 }
 
-function PublishToJobBoards({ jobId, platformPostings, postToIndeed }: { jobId: string; platformPostings: PlatformPosting[]; postToIndeed: boolean }) {
+function PublishToJobBoards({
+  jobId,
+  platformPostings,
+  postToIndeed,
+  socialJobPostingEnabled,
+  indeedJobFeedEnabled,
+}: {
+  jobId: string;
+  platformPostings: PlatformPosting[];
+  postToIndeed: boolean;
+  socialJobPostingEnabled: boolean;
+  indeedJobFeedEnabled: boolean;
+}) {
   const [pending, setPending] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const postingByPlatform = new Map(platformPostings.map((p) => [p.platform, p]));
@@ -156,11 +168,12 @@ function PublishToJobBoards({ jobId, platformPostings, postToIndeed }: { jobId: 
                 <div>
                   <p className="text-sm font-medium">{JOB_POSTING_PLATFORM_LABELS[platform]}</p>
                   <p className="text-xs text-muted-foreground">
-                    Indeed uses a public XML feed, not a per-job publish action — enable it and configure the feed URL in
-                    Settings &gt; Integrations, then opt this job in here.
+                    {indeedJobFeedEnabled
+                      ? "Indeed uses a public XML feed, not a per-job publish action — enable it and configure the feed URL in Settings > Integrations, then opt this job in here."
+                      : "Not enabled for your company — contact your platform administrator."}
                   </p>
                 </div>
-                <Switch checked={postToIndeed} onCheckedChange={handleToggleIndeed} disabled={isPending} />
+                <Switch checked={postToIndeed} onCheckedChange={handleToggleIndeed} disabled={isPending || !indeedJobFeedEnabled} />
               </div>
             );
           }
@@ -181,11 +194,14 @@ function PublishToJobBoards({ jobId, platformPostings, postToIndeed }: { jobId: 
                     )}
                   </p>
                 )}
+                {!socialJobPostingEnabled && (
+                  <p className="text-xs text-muted-foreground">Not enabled for your company — contact your platform administrator.</p>
+                )}
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={isPending && pending === platform}
+                disabled={(isPending && pending === platform) || !socialJobPostingEnabled}
                 onClick={() => handlePublish(platform)}
               >
                 {isPending && pending === platform ? (
@@ -211,12 +227,16 @@ export function JobPromoteTab({
   sourceBreakdown,
   platformPostings,
   postToIndeed,
+  socialJobPostingEnabled,
+  indeedJobFeedEnabled,
 }: {
   jobId: string;
   promotionLog: PromotionLogEntry[];
   sourceBreakdown: Array<{ label: string; count: number }>;
   platformPostings: PlatformPosting[];
   postToIndeed: boolean;
+  socialJobPostingEnabled: boolean;
+  indeedJobFeedEnabled: boolean;
 }) {
   const totalApplicants = sourceBreakdown.reduce((sum, row) => sum + row.count, 0);
 
@@ -228,7 +248,13 @@ export function JobPromoteTab({
 
   return (
     <div className="space-y-8">
-      <PublishToJobBoards jobId={jobId} platformPostings={platformPostings} postToIndeed={postToIndeed} />
+      <PublishToJobBoards
+        jobId={jobId}
+        platformPostings={platformPostings}
+        postToIndeed={postToIndeed}
+        socialJobPostingEnabled={socialJobPostingEnabled}
+        indeedJobFeedEnabled={indeedJobFeedEnabled}
+      />
 
       <div>
         <h3 className="mb-4 text-sm font-medium">Where Applicants Came From</h3>

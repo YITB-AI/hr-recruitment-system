@@ -20,6 +20,8 @@ import { JobPromoteTab } from "@/features/jobs/components/job-promote-tab";
 import { getJobDetail } from "@/features/jobs/services/job.service";
 import { listActiveStatuses } from "@/features/settings/services/status-management.service";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
+import { companyRepository } from "@/server/repositories/company.repository";
+import { hasCompanyFeature } from "@/lib/auth/feature-access";
 import { getCurrentUser } from "@/lib/current-user";
 
 export const metadata: Metadata = { title: "Job Details" };
@@ -55,10 +57,13 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
   } = detail;
   const { companyId, role } = await getCurrentUser();
   const isHr = role === "admin" || role === "hr";
-  const [activity, applicantStatuses] = await Promise.all([
+  const [activity, applicantStatuses, company] = await Promise.all([
     activityLogRepository.findByEntity(companyId, "job", id, 30),
     listActiveStatuses("applicant"),
+    companyRepository.findById(companyId),
   ]);
+  const socialJobPostingEnabled = Boolean(company && hasCompanyFeature(company, "socialJobPosting"));
+  const indeedJobFeedEnabled = Boolean(company && hasCompanyFeature(company, "indeedJobFeed"));
 
   const statusLabel = new Map(applicantStatuses.map((s) => [s.key, s.name]));
   const pipelineStages = pipeline.map((stage) => ({ label: statusLabel.get(stage.status) ?? stage.status, count: stage.count }));
@@ -293,6 +298,8 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
                     sourceBreakdown={sourceBreakdown}
                     platformPostings={job.platformPostings}
                     postToIndeed={job.postToIndeed}
+                    socialJobPostingEnabled={socialJobPostingEnabled}
+                    indeedJobFeedEnabled={indeedJobFeedEnabled}
                   />
                 </TabsContent>
 
