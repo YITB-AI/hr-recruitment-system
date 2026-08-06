@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { NAV_ITEMS } from "@/config/nav";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { NavLinkPendingIndicator } from "@/components/layout/nav-link-pending-indicator";
 
 type NavListProps = {
   collapsed?: boolean;
@@ -50,6 +51,7 @@ export function NavList({ collapsed = false, layoutId = "active-pill", onNavigat
                 {item.badgeCount}
               </Badge>
             ) : null}
+            {!collapsed && <NavLinkPendingIndicator />}
           </Link>
         );
       })}

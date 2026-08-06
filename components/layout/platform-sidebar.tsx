@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Building2, AlertTriangle, Users2, ShieldAlert, ShieldCheck, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NavLinkPendingIndicator } from "@/components/layout/nav-link-pending-indicator";
 
 // A deliberately separate sidebar from components/layout/sidebar.tsx — this
 // is the Global Super Admin workspace (app/(platform)/*), not a company's
@@ -71,6 +72,7 @@ export function PlatformSidebar() {
                 >
                   <Icon className="size-[18px] shrink-0" />
                   <span className="truncate">{item.label}</span>
+                  <NavLinkPendingIndicator />
                 </Link>
               );
             })}

@@ -68,7 +68,18 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
   if (session.expiresAt.getTime() < now) return null;
   if (now - session.lastActiveAt.getTime() > IDLE_TTL_MS) return null;
 
-  const user = await User.findById(session.userId).lean<RawUser | null>();
+  // The main user lookup and the (usually absent) impersonator-name lookup
+  // depend only on `session`, not on each other's result — run them
+  // concurrently rather than one after another. This is on the critical
+  // path of every single authenticated request, unlike touchLastActive
+  // below, so it's worth the one real round trip it saves whenever
+  // impersonation is active.
+  const [user, impersonatorAdmin] = await Promise.all([
+    User.findById(session.userId).lean<RawUser | null>(),
+    session.impersonatedBy
+      ? User.findById(session.impersonatedBy).select("name").lean<{ name: string } | null>()
+      : Promise.resolve(null),
+  ]);
   if (!user) return null;
   if (user.companyId && String(user.companyId) !== String(session.companyId)) return null;
 
@@ -84,11 +95,8 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
       .catch((error) => console.error("Failed to touch session lastActiveAt:", error)),
   );
 
-  let impersonatedBy: SessionUser["impersonatedBy"] = null;
-  if (session.impersonatedBy) {
-    const admin = await User.findById(session.impersonatedBy).select("name").lean<{ name: string } | null>();
-    if (admin) impersonatedBy = { id: String(session.impersonatedBy), name: admin.name };
-  }
+  const impersonatedBy: SessionUser["impersonatedBy"] =
+    session.impersonatedBy && impersonatorAdmin ? { id: String(session.impersonatedBy), name: impersonatorAdmin.name } : null;
 
   // Dynamic RBAC: resolved ONCE per request, here — not re-looked-up inside
   // every individual requireRole call downstream (see that function's own
