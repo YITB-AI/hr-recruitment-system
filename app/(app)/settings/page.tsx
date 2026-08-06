@@ -53,7 +53,7 @@ import { connectDB } from "@/server/db/connect";
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
-const DEEP_LINKABLE_TABS = new Set(["notifications"]);
+const DEEP_LINKABLE_TABS = new Set(["notifications", "integrations"]);
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab } = await searchParams;
