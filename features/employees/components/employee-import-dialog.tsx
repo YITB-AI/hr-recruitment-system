@@ -111,7 +111,7 @@ export function EmployeeImportDialog({ bulkEmployeeImportEnabled }: { bulkEmploy
             {step === "upload" && (
               <>
                 <DialogClose render={<Button variant="outline" disabled={isPending} />}>Cancel</DialogClose>
-                <Button onClick={handleValidate} disabled={isPending || !file}>
+                <Button onClick={handleValidate} loading={isPending} disabled={isPending || !file}>
                   {isPending ? "Reading..." : "Continue"}
                 </Button>
               </>
@@ -121,7 +121,7 @@ export function EmployeeImportDialog({ bulkEmployeeImportEnabled }: { bulkEmploy
                 <Button variant="outline" disabled={isPending} onClick={() => setStep("upload")}>
                   Back
                 </Button>
-                <Button onClick={handleCommit} disabled={isPending || readyCount === 0}>
+                <Button onClick={handleCommit} loading={isPending} disabled={isPending || readyCount === 0}>
                   {isPending ? "Importing..." : `Import ${readyCount} Employee${readyCount === 1 ? "" : "s"}`}
                 </Button>
               </>

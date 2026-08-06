@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { PlatformSidebar } from "@/components/layout/platform-sidebar";
 import { PlatformTopbar } from "@/components/layout/platform-topbar";
+import { PlatformCommandPalette } from "@/components/layout/platform-command-palette";
 import { getCurrentUser } from "@/lib/current-user";
 
 // The one shared layout for every app/platform/* route. isPlatformAdmin is
@@ -31,6 +32,7 @@ export async function PlatformShell({ children }: { children: React.ReactNode })
         <PlatformTopbar user={user} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+      <PlatformCommandPalette />
     </div>
   );
 }

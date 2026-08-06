@@ -479,7 +479,7 @@ export function CreateCompanyWizard() {
               Next <ChevronRight className="size-4" />
             </Button>
           ) : (
-            <Button disabled={isSubmitting} onClick={handleSubmit}>
+            <Button disabled={isSubmitting} loading={isSubmitting} onClick={handleSubmit}>
               {isSubmitting ? "Creating…" : "Create Company"}
             </Button>
           )}

@@ -190,7 +190,11 @@ export function RoleManagementPanel({
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={handleSave} disabled={isPending || !form.name.trim() || (editing?.mode === "create" && !form.key.trim())}>
+            <Button
+              onClick={handleSave}
+              loading={isPending}
+              disabled={isPending || !form.name.trim() || (editing?.mode === "create" && !form.key.trim())}
+            >
               {isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { formatDistanceToNow } from "date-fns";
 import { Building2, CheckCircle2, PauseCircle, ShieldAlert, ArrowRight, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -10,8 +11,8 @@ import { getPlatformDashboardData } from "@/features/platform/services/platform-
 export const metadata: Metadata = { title: "Global Dashboard" };
 export const dynamic = "force-dynamic";
 
-function formatDate(value: Date) {
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function formatRelative(value: Date) {
+  return formatDistanceToNow(new Date(value), { addSuffix: true });
 }
 
 export default async function PlatformDashboardPage() {
@@ -74,13 +75,16 @@ export default async function PlatformDashboardPage() {
           ) : (
             <ul className="divide-y">
               {data.recentCompanies.map((company) => (
-                <li key={company._id} className="flex items-center justify-between py-3">
-                  <div>
+                <li key={company._id} className="flex items-center gap-3 py-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Building2 className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <Link href={`/platform/companies/${company._id}`} className="text-sm font-medium hover:underline">
                       {company.name}
                     </Link>
-                    <p className="text-xs text-muted-foreground">
-                      {company.slug} · {formatDate(company.createdAt)}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {company.slug} · {formatRelative(company.createdAt)}
                     </p>
                   </div>
                   <Badge variant={company.status === "active" ? "outline" : "destructive"} className="capitalize">
@@ -105,11 +109,16 @@ export default async function PlatformDashboardPage() {
           ) : (
             <ul className="divide-y">
               {data.recentErrors.map((error) => (
-                <li key={error._id} className="py-3">
-                  <p className="text-sm font-medium">{error.message}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {error.source} · {error.companyName ?? "No company"} · {formatDate(error.createdAt)}
-                  </p>
+                <li key={error._id} className="flex items-start gap-3 py-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                    <ShieldAlert className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{error.message}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {error.source} · {error.companyName ?? "No company"} · {formatRelative(error.createdAt)}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>

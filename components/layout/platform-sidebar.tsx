@@ -15,7 +15,7 @@ import { NavLinkPendingIndicator } from "@/components/layout/nav-link-pending-in
 // scanability — every item here is a real, built page; no placeholder
 // destinations (API Keys, Audit Logs, etc.) are added just to fill out a
 // group, since none of those exist as real features yet.
-const PLATFORM_NAV_GROUPS: Array<{ label: string | null; items: Array<{ href: string; label: string; icon: typeof LayoutDashboard }> }> = [
+export const PLATFORM_NAV_GROUPS: Array<{ label: string | null; items: Array<{ href: string; label: string; icon: typeof LayoutDashboard }> }> = [
   { label: null, items: [{ href: "/platform/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
   {
     label: "Management",

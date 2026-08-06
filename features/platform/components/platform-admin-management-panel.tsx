@@ -105,7 +105,7 @@ export function PlatformAdminManagementPanel({ admins, currentUserId }: { admins
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={handleGrant} disabled={isPending || !email.trim()}>
+            <Button onClick={handleGrant} loading={isPending} disabled={isPending || !email.trim()}>
               {isPending ? "Granting..." : "Grant Access"}
             </Button>
           </DialogFooter>

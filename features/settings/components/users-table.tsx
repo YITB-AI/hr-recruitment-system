@@ -267,7 +267,7 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
               </div>
               <DialogFooter>
                 <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-                <Button onClick={handleCreate} disabled={isCreating || !newName || !newEmail}>
+                <Button onClick={handleCreate} loading={isCreating} disabled={isCreating || !newName || !newEmail}>
                   {isCreating ? "Creating..." : "Create User"}
                 </Button>
               </DialogFooter>
@@ -326,7 +326,7 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={handleSaveEdit} disabled={isSavingEdit || !editName}>
+            <Button onClick={handleSaveEdit} loading={isSavingEdit} disabled={isSavingEdit || !editName}>
               {isSavingEdit ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
@@ -356,7 +356,7 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={handleReset} disabled={isResetting || newPassword.length < 8}>
+            <Button onClick={handleReset} loading={isResetting} disabled={isResetting || newPassword.length < 8}>
               {isResetting ? "Resetting..." : "Reset Password"}
             </Button>
           </DialogFooter>
