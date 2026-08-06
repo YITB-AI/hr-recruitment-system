@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Building2, CheckCircle2, PauseCircle, ShieldAlert, ArrowRight } from "lucide-react";
+import { Building2, CheckCircle2, PauseCircle, ShieldAlert, ArrowRight, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +21,15 @@ export default async function PlatformDashboardPage() {
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader title="Global Dashboard" description="Platform-wide overview across every company." />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Companies" value={data.totalCompanies} icon={Building2} href="/platform/companies" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          label="Total Companies"
+          value={data.totalCompanies}
+          trend={data.totalCompaniesTrend}
+          periodLabel="last week"
+          icon={Building2}
+          href="/platform/companies"
+        />
         <StatCard
           label="Active Companies"
           value={data.activeCompanies}
@@ -43,6 +50,13 @@ export default async function PlatformDashboardPage() {
           icon={ShieldAlert}
           iconClassName="bg-destructive/10 text-destructive"
           href="/platform/error-logs"
+        />
+        <StatCard
+          label="Platform Admins"
+          value={data.platformAdmins}
+          icon={ShieldCheck}
+          iconClassName="bg-[var(--status-interview)]/10 text-[var(--status-interview)]"
+          href="/platform/settings"
         />
       </div>
 

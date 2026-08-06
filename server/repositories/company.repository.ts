@@ -86,6 +86,9 @@ export const companyRepository = {
   countByStatus(status: CompanyStatus): Promise<number> {
     return Company.countDocuments({ status });
   },
+  countCreatedBetween(start: Date, end: Date): Promise<number> {
+    return Company.countDocuments({ createdAt: { $gte: start, $lt: end } });
+  },
   async findAllPaginated(filters: CompanyListFilters): Promise<CompanyListResult> {
     const query: Record<string, unknown> = {};
     if (filters.status) query.status = filters.status;

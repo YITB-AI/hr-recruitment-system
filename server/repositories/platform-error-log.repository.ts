@@ -57,6 +57,10 @@ export const platformErrorLogRepository = {
     return PlatformErrorLog.countDocuments({ createdAt: { $gte: since } });
   },
 
+  async countCreatedBetween(start: Date, end: Date): Promise<number> {
+    return PlatformErrorLog.countDocuments({ createdAt: { $gte: start, $lt: end } });
+  },
+
   async findRecent(limit: number): Promise<PlatformErrorLogRow[]> {
     const rows = await PlatformErrorLog.find()
       .sort({ createdAt: -1 })
