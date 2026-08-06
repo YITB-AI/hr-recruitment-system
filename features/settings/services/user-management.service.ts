@@ -87,18 +87,25 @@ export async function updateCompanyUser(input: UpdateUserInput): Promise<Company
   const actor = await getCurrentUser();
   requireRole(actor, "user.manage");
 
-  const target = await userRepository.findById(actor.companyId, input.userId);
+  const [target, newRole] = await Promise.all([
+    userRepository.findById(actor.companyId, input.userId),
+    roleRepository.findByKey(input.role),
+  ]);
   if (!target) throw new Error("User not found");
+  if (!newRole) throw new Error(`Role "${input.role}" doesn't exist`);
 
-  if (!(await roleRepository.findByKey(input.role))) throw new Error(`Role "${input.role}" doesn't exist`);
-
-  // Guard: don't let the last admin of a company demote themselves (or be
-  // demoted) out of the admin role — that would leave the company with no
-  // one able to manage users/settings at all.
-  if (target.role === "admin" && input.role !== "admin") {
-    const adminCount = await userRepository.countByRole(actor.companyId, "admin");
-    if (adminCount <= 1) {
-      throw new Error("Cannot change the role of the last admin — promote another user to admin first");
+  // Guard: don't let the last full-access user of a company be demoted out
+  // of full access — that would leave the company with no one able to
+  // manage users/settings at all. "Full access" = the ROLE's wildcard
+  // flag, not the literal key "admin" — a custom role created with
+  // isWildcard:true (see /platform/roles) must be protected identically.
+  if (target.role !== input.role) {
+    const wildcardKeys = await roleRepository.findWildcardKeys();
+    if (wildcardKeys.includes(target.role) && !newRole.isWildcard) {
+      const wildcardCount = await userRepository.countByRoleKeys(actor.companyId, wildcardKeys);
+      if (wildcardCount <= 1) {
+        throw new Error("Cannot change the role of the last user with full administrative access — promote another user to a full-access role first");
+      }
     }
   }
 
@@ -128,9 +135,10 @@ export async function deleteCompanyUser(userId: string): Promise<void> {
   const target = await userRepository.findById(actor.companyId, userId);
   if (!target) throw new Error("User not found");
 
-  if (target.role === "admin") {
-    const adminCount = await userRepository.countByRole(actor.companyId, "admin");
-    if (adminCount <= 1) throw new Error("Cannot delete the last admin");
+  const wildcardKeys = await roleRepository.findWildcardKeys();
+  if (wildcardKeys.includes(target.role)) {
+    const wildcardCount = await userRepository.countByRoleKeys(actor.companyId, wildcardKeys);
+    if (wildcardCount <= 1) throw new Error("Cannot delete the last user with full administrative access");
   }
 
   await userRepository.delete(actor.companyId, userId);

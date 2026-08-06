@@ -80,6 +80,25 @@ export const roleRepository = {
     const row = await Role.findOne({ key: key.toLowerCase().trim() }).select("_id").lean();
     return row !== null;
   },
+  /**
+   * Single-role wildcard check for a raw role-key string that isn't the
+   * current session (a different target user, or pre-session login time —
+   * see lib/auth/permissions.ts's hasWildcardPermissions for the
+   * session-resolved equivalent). Fails safe to false if the key doesn't
+   * resolve to a real role, matching verifySessionToken's own fail-safe
+   * default for an unresolvable role.
+   */
+  async isWildcardKey(key: string): Promise<boolean> {
+    await ensureSystemRolesSeeded();
+    const row = await Role.findOne({ key: key.toLowerCase().trim() }).select("isWildcard").lean<{ isWildcard?: boolean } | null>();
+    return Boolean(row?.isWildcard);
+  },
+  /** Every currently-wildcard role's key, platform-wide. Role has a tiny expected cardinality (a handful of roles, not per-company), so this is a cheap way to answer "which of this company's users have full access" without a per-role loop. */
+  async findWildcardKeys(): Promise<string[]> {
+    await ensureSystemRolesSeeded();
+    const rows = await Role.find({ isWildcard: true }).select("key").lean<Array<{ key: string }>>();
+    return rows.map((r) => r.key);
+  },
   async create(input: CreateRoleInput): Promise<RoleRow> {
     const doc = await Role.create({
       key: input.key.toLowerCase().trim(),

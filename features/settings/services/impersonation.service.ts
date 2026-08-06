@@ -4,6 +4,7 @@ import { User } from "@/models/User";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { getCurrentUser } from "@/lib/current-user";
 import { requireRole } from "@/lib/auth/permissions";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { startImpersonation, endImpersonation, verifySession, verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 
 export type ImpersonationResult = { success: true } | { success: false; error: string };
@@ -28,7 +29,12 @@ export async function requestStartImpersonation(targetUserId: string): Promise<I
     role: string;
   } | null>();
   if (!target) return { success: false, error: "User not found" };
-  if (target.role === "admin") return { success: false, error: "Admins can't be impersonated" };
+  // Wildcard (admin-equivalent) permissions, not the literal role key
+  // "admin" -- a custom role created with isWildcard:true deserves the
+  // exact same privilege-escalation protection.
+  if (await roleRepository.isWildcardKey(target.role)) {
+    return { success: false, error: "Admins can't be impersonated" };
+  }
 
   try {
     await startImpersonation(targetUserId, actor.companyId);

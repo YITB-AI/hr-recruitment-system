@@ -200,7 +200,7 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
                         <KeyRound className="size-4" />
                         Reset Password
                       </DropdownMenuItem>
-                      {user.role !== "admin" && (
+                      {!roles.find((r) => r.key === user.role)?.isWildcard && (
                         <DropdownMenuItem onClick={() => handleImpersonate(user)}>
                           <UserCog className="size-4" />
                           Impersonate User

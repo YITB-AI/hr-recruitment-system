@@ -114,6 +114,19 @@ export class ForbiddenError extends Error {
 // back to the hardcoded SYSTEM_ROLE_DEFAULTS matrix above -- the exact
 // behavior this function had before Dynamic RBAC shipped, so nothing
 // outside a real request is affected by this change.
+// "Effectively admin" for checks that care about full/admin-equivalent
+// access rather than one specific action (e.g. "can this account be
+// impersonated", "is this the company's last full-access user", "must
+// this account complete mandatory MFA setup") — the wildcard flag on a
+// Role (see models/Role.ts's isWildcard), not the literal string "admin".
+// The built-in admin role happens to ship with isWildcard:true, but that
+// flag is itself editable from /platform/roles, and a company can create
+// its OWN custom role with isWildcard:true — both must get identical
+// treatment to a literal "admin" user everywhere this matters.
+export function hasWildcardPermissions(permissions: "*" | PermissionAction[]): boolean {
+  return permissions === "*";
+}
+
 export function requireRole(user: { role: string; permissions?: "*" | PermissionAction[] }, action: PermissionAction): void {
   if (user.permissions !== undefined) {
     if (user.permissions === "*" || user.permissions.includes(action)) return;

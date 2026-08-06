@@ -32,6 +32,7 @@ import { EmployeeLookupManagementPanel } from "@/features/settings/components/em
 import { AiCallQuestionManagementPanel } from "@/features/settings/components/ai-call-question-management-panel";
 import { CompanyIntegrationConfigPanel } from "@/features/settings/components/company-integration-config-panel";
 import { hasCompanyFeature } from "@/lib/auth/feature-access";
+import { hasWildcardPermissions } from "@/lib/auth/permissions";
 import { PermissionsPanel } from "@/features/settings/components/permissions-panel";
 import { getSettings } from "@/features/settings/services/settings.service";
 import { listCompanyUsers } from "@/features/settings/services/user-management.service";
@@ -60,7 +61,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const defaultTab = tab && DEEP_LINKABLE_TABS.has(tab) ? tab : "general";
   await connectDB();
   const actor = await getCurrentUser();
-  const isAdmin = actor.role === "admin";
+  // Wildcard (admin-equivalent) permissions, not the literal role key
+  // "admin" -- a custom role created with isWildcard:true (see
+  // /platform/roles) must see this same admin surface. actor.permissions
+  // is already resolved on the SessionUser, so this is a zero-cost check.
+  const isAdmin = hasWildcardPermissions(actor.permissions);
   const isPlatformAdmin = actor.isPlatformAdmin;
 
   const [

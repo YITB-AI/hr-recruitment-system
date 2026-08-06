@@ -7,6 +7,7 @@ import { connectDB } from "@/server/db/connect";
 import { User } from "@/models/User";
 import { sessionRepository } from "@/server/repositories/session.repository";
 import { roleRepository } from "@/server/repositories/role.repository";
+import { hasWildcardPermissions } from "@/lib/auth/permissions";
 import type { UserRole } from "@/models/User";
 import type { SessionUser } from "@/types/user";
 
@@ -119,7 +120,10 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     isPlatformAdmin: Boolean(user.isPlatformAdmin),
     impersonatedBy,
     mustChangePassword: Boolean(user.mustChangePassword),
-    mfaSetupRequired: user.role === "admin" && !user.mfaSetupCompletedAt,
+    // Wildcard (admin-equivalent) permissions, not the literal role key --
+    // a custom role created with isWildcard:true must be forced through
+    // mandatory MFA setup exactly like the built-in "admin" role is.
+    mfaSetupRequired: hasWildcardPermissions(permissions) && !user.mfaSetupCompletedAt,
   };
 }
 

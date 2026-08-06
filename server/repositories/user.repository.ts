@@ -211,6 +211,11 @@ export const userRepository = {
   countByRole(companyId: string, role: string): Promise<number> {
     return User.countDocuments({ companyId, role });
   },
+  /** Count of a company's users whose role key is one of `roleKeys` -- e.g. every currently-wildcard role, for the "last full-access user" guards in user-management.service.ts. */
+  countByRoleKeys(companyId: string, roleKeys: string[]): Promise<number> {
+    if (roleKeys.length === 0) return Promise.resolve(0);
+    return User.countDocuments({ companyId, role: { $in: roleKeys } });
+  },
   /** Global (not companyId-scoped) — used by role.repository.ts's delete usage-guard, since Role is a platform-wide template, not per-company. */
   countByRoleGlobal(role: string): Promise<number> {
     return User.countDocuments({ role });

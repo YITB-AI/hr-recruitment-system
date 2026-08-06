@@ -8,6 +8,7 @@ import { loginSchema, changePasswordSchema, adminResetPasswordSchema, verifyMfaS
 import { connectDB } from "@/server/db/connect";
 import { userRepository } from "@/server/repositories/user.repository";
 import { companyRepository } from "@/server/repositories/company.repository";
+import { roleRepository } from "@/server/repositories/role.repository";
 import { activityLogRepository } from "@/server/repositories/activity-log.repository";
 import { requireRole } from "@/lib/auth/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -170,15 +171,24 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
 
   // mustChangePassword is checked FIRST — a freshly-provisioned admin
   // (mustChangePassword: true, mfaSetupCompletedAt unset) must set a real
-  // password before anything else, including MFA enrollment. Admins must
-  // also have completed MFA enrollment at least once, ever — checked via
-  // mfaSetupCompletedAt (survives a later disable), not the toggleable
-  // mfaEnabled, so disabling MFA afterward never re-forces this page. This
-  // is a one-time nudge right after login; app/(app)/layout.tsx enforces
-  // the same two checks on every subsequent request so neither can be
-  // bypassed by navigating straight to a URL instead of following the redirect.
+  // password before anything else, including MFA enrollment. Accounts with
+  // wildcard (admin-equivalent) permissions must also have completed MFA
+  // enrollment at least once, ever — checked via mfaSetupCompletedAt
+  // (survives a later disable), not the toggleable mfaEnabled, so disabling
+  // MFA afterward never re-forces this page. This is a one-time nudge right
+  // after login; app/(app)/layout.tsx enforces the same two checks on every
+  // subsequent request so neither can be bypassed by navigating straight to
+  // a URL instead of following the redirect.
+  //
+  // Wildcard permissions, not the literal role key "admin" -- a custom role
+  // created with isWildcard:true (see /platform/roles) must be forced
+  // through this exactly like the built-in admin role is. This runs after
+  // password verification, session creation, and the login-success audit
+  // log above, so it can't weaken any of the enumeration-safe/timing-
+  // sensitive early-return branches earlier in this function.
   if (user.mustChangePassword) redirect("/change-password");
-  if (user.role === "admin" && !user.mfaSetupCompletedAt) redirect("/mfa-setup");
+  const requiresMfaSetup = await roleRepository.isWildcardKey(user.role);
+  if (requiresMfaSetup && !user.mfaSetupCompletedAt) redirect("/mfa-setup");
   // A platform admin's "home" is the Global Super Admin workspace, not
   // their own company's tenant dashboard — they can always switch to the
   // tenant view via the link in that workspace's sidebar.
