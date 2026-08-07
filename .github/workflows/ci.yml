@@ -2,9 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
-    branches: [main]
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-lint-test:

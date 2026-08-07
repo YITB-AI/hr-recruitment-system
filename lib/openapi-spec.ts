@@ -33,6 +33,7 @@ export const openApiSpec = {
     { name: "Webhooks", description: "Inbound callbacks from n8n" },
     { name: "Files", description: "Serves uploaded templates and generated documents" },
     { name: "Employees", description: "Data export" },
+    { name: "Health", description: "Uptime/monitoring" },
   ],
   components: {
     securitySchemes: {
@@ -298,6 +299,19 @@ export const openApiSpec = {
             description: "CSV file",
             content: { "text/csv": { schema: { type: "string" } } },
           },
+        },
+      },
+    },
+    "/api/health": {
+      get: {
+        tags: ["Health"],
+        summary: "Uptime/health check",
+        description:
+          "Public, unauthenticated. Confirms MongoDB Atlas is reachable and the always-required secrets " +
+          "(CONFIG_ENCRYPTION_KEY, BLOB_READ_WRITE_TOKEN) are set. Point an uptime monitor at this, not at a page.",
+        responses: {
+          "200": { description: "Healthy" },
+          "503": { description: "Database unreachable or a required secret is missing" },
         },
       },
     },

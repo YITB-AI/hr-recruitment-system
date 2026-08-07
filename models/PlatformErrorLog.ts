@@ -12,6 +12,7 @@ export const PLATFORM_ERROR_SOURCES = [
   "data-repair.auto-heal",
   "server-action",
   "api-route",
+  "calendar.sync",
 ] as const;
 
 const platformErrorLogSchema = new Schema(
