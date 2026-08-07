@@ -15,7 +15,11 @@ function Tabs({
       data-slot="tabs"
       data-orientation={orientation}
       className={cn(
-        "group/tabs flex gap-2 data-horizontal:flex-col",
+        // Mobile-first: stack regardless of orientation below md (a vertical
+        // tab rail sitting side-by-side with its content on a phone leaves
+        // almost no room for the content) — only switch a vertical Tabs
+        // root to a side-by-side row once there's room for it, at md+.
+        "group/tabs flex flex-col gap-2 md:data-vertical:flex-row",
         className
       )}
       {...props}

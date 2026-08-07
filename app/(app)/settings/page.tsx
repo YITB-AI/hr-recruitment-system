@@ -125,7 +125,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
         <Tabs defaultValue={defaultTab} orientation="vertical" className="items-start">
-          <TabsList variant="line" className="h-fit w-56 shrink-0 flex-col items-stretch gap-1 bg-transparent p-0">
+          <TabsList variant="line" className="h-fit w-full shrink-0 flex-col items-stretch gap-1 bg-transparent p-0 md:w-56">
             <TabsTrigger value="general" className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none">
               <SettingsIcon className="size-4" />
               General

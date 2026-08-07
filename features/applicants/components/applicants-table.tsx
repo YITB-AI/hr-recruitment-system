@@ -41,6 +41,7 @@ export function ApplicantsTable({
   const allSelected = applicants.length > 0 && applicants.every((a) => selectedIds.has(a._id));
 
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
         <tr>
@@ -96,5 +97,6 @@ export function ApplicantsTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

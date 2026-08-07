@@ -38,7 +38,7 @@ export function ProfilePageContent({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
         <Tabs defaultValue={defaultTab} orientation="vertical" className="items-start">
-          <TabsList variant="line" className="h-fit w-52 shrink-0 flex-col items-stretch gap-1 bg-transparent p-0">
+          <TabsList variant="line" className="h-fit w-full shrink-0 flex-col items-stretch gap-1 bg-transparent p-0 md:w-52">
             <TabsTrigger
               value="profile"
               className="w-full justify-start gap-2 rounded-lg px-3 py-2 data-active:bg-muted data-active:shadow-none"
