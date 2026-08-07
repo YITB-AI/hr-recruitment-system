@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { grantPlatformAdminAction, revokePlatformAdminAction } from "@/actions/platform-admins";
+import { confirmAction } from "@/store/confirm-store";
 import type { PlatformAdminRow } from "@/features/platform/services/platform-admin-management.service";
 
 function initials(name: string) {
@@ -35,8 +36,14 @@ export function PlatformAdminManagementPanel({ admins, currentUserId }: { admins
     });
   }
 
-  function handleRevoke(admin: PlatformAdminRow) {
-    if (!confirm(`Revoke platform admin access from ${admin.name}? They'll keep their normal account, just lose access to this workspace.`)) return;
+  async function handleRevoke(admin: PlatformAdminRow) {
+    if (
+      !(await confirmAction({
+        title: `Revoke platform admin access from ${admin.name}?`,
+        description: "They'll keep their normal account, just lose access to this workspace.",
+      }))
+    )
+      return;
     startTransition(async () => {
       const result = await revokePlatformAdminAction(admin._id);
       if (result.success) toast.success("Platform admin access revoked");

@@ -19,6 +19,7 @@ import { logJobPromotionSchema, type LogJobPromotionInput } from "@/validators/j
 import { PROMOTION_CHANNELS, PROMOTION_CHANNEL_LABELS, JOB_POSTING_PLATFORMS, JOB_POSTING_PLATFORM_LABELS } from "@/constants/job";
 import type { PromotionLogEntry, PlatformPosting } from "@/server/repositories/job.repository";
 import { Switch } from "@/components/ui/switch";
+import { confirmAction } from "@/store/confirm-store";
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -241,7 +242,7 @@ export function JobPromoteTab({
   const totalApplicants = sourceBreakdown.reduce((sum, row) => sum + row.count, 0);
 
   async function handleRemove(entryId: string) {
-    if (!confirm("Remove this promotion log entry?")) return;
+    if (!(await confirmAction({ title: "Remove this promotion log entry?" }))) return;
     const result = await removeJobPromotionLogEntryAction({ jobId, entryId });
     if (!result.success) toast.error(result.error);
   }

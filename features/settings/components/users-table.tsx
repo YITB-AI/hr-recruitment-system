@@ -34,6 +34,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { adminResetPasswordAction } from "@/actions/auth";
 import { createUserAction, updateUserAction, deleteUserAction } from "@/actions/users";
 import { startImpersonationAction } from "@/actions/impersonation";
+import { confirmAction } from "@/store/confirm-store";
 import type { CompanyUserRow } from "@/server/repositories/user.repository";
 import type { RoleRow } from "@/server/repositories/role.repository";
 
@@ -113,8 +114,8 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
     setEditTarget(null);
   }
 
-  function handleDelete(user: CompanyUserRow) {
-    if (!confirm(`Remove ${user.name} from the team? This can't be undone.`)) return;
+  async function handleDelete(user: CompanyUserRow) {
+    if (!(await confirmAction({ title: `Remove ${user.name} from the team?`, description: "This can't be undone." }))) return;
     startRowAction(async () => {
       const result = await deleteUserAction(user._id);
       if (!result.success) toast.error(result.error);
@@ -122,8 +123,15 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
     });
   }
 
-  function handleImpersonate(user: CompanyUserRow) {
-    if (!confirm(`View the app as ${user.name}? You can return to your own account at any time.`)) return;
+  async function handleImpersonate(user: CompanyUserRow) {
+    if (
+      !(await confirmAction({
+        title: `View the app as ${user.name}?`,
+        description: "You can return to your own account at any time.",
+        variant: "default",
+      }))
+    )
+      return;
     startRowAction(async () => {
       const result = await startImpersonationAction(user._id);
       if (!result.success) {

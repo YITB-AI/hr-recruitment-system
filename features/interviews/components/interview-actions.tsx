@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { EmptyState } from "@/components/shared/empty-state";
 import { SendEmailDialog } from "@/features/applicants/components/send-email-dialog";
 import { deleteInterviewAction } from "@/actions/interviews";
+import { confirmAction } from "@/store/confirm-store";
 import { isDateInFuture } from "@/lib/is-future";
 import type { InterviewRow } from "@/server/repositories/interview.repository";
 import type { ActivityLogRow } from "@/server/repositories/activity-log.repository";
@@ -75,8 +76,8 @@ export function InterviewActions({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleDelete() {
-    if (!confirm("Delete this interview? This can't be undone.")) return;
+  async function handleDelete() {
+    if (!(await confirmAction({ title: "Delete this interview?", description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteInterviewAction(interview._id);
       if (!result.success) toast.error(result.error);

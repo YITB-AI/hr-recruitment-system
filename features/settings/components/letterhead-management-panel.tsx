@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { uploadLetterheadAction, deleteLetterheadAction, updateLetterheadMarginsAction } from "@/actions/letterheads";
+import { confirmAction } from "@/store/confirm-store";
 import type { LetterheadRow } from "@/server/repositories/letterhead.repository";
 
 function MarginsDialog({ letterhead, open, onOpenChange }: { letterhead: LetterheadRow; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -105,8 +106,8 @@ export function LetterheadManagementPanel({ letterheads }: { letterheads: Letter
     });
   }
 
-  function handleDelete(letterhead: LetterheadRow) {
-    if (!confirm(`Delete "${letterhead.name}"?`)) return;
+  async function handleDelete(letterhead: LetterheadRow) {
+    if (!(await confirmAction({ title: `Delete "${letterhead.name}"?` }))) return;
     startTransition(async () => {
       const result = await deleteLetterheadAction(letterhead._id);
       if (result.success) toast.success("Letterhead deleted");

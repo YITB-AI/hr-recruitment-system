@@ -17,6 +17,7 @@ import {
   deleteEmployeeTypeAction,
   reorderEmployeeTypesAction,
 } from "@/actions/employee-types";
+import { confirmAction } from "@/store/confirm-store";
 import type { EmployeeTypeRow } from "@/server/repositories/employee-type.repository";
 
 type EditingState = { mode: "create" } | { mode: "edit"; employeeType: EmployeeTypeRow } | null;
@@ -80,8 +81,8 @@ export function EmployeeTypeManagementPanel({ employeeTypes }: { employeeTypes: 
     });
   }
 
-  function handleDelete(employeeType: EmployeeTypeRow) {
-    if (!confirm(`Delete "${employeeType.name}"? This can't be undone.`)) return;
+  async function handleDelete(employeeType: EmployeeTypeRow) {
+    if (!(await confirmAction({ title: `Delete "${employeeType.name}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteEmployeeTypeAction(employeeType._id);
       if (result.success) toast.success("Employee type deleted");

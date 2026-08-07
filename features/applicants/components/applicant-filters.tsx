@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useStatusLookup } from "@/components/shared/status-config-provider";
 import { createSavedViewAction, deleteSavedViewAction } from "@/actions/saved-views";
+import { confirmAction } from "@/store/confirm-store";
 import type { SavedViewRow } from "@/server/repositories/saved-view.repository";
 import type { StatusRow } from "@/server/repositories/status.repository";
 
@@ -104,8 +105,8 @@ export function ApplicantFilters({
     });
   }
 
-  function handleDeleteView(id: string, name: string) {
-    if (!confirm(`Delete saved view "${name}"?`)) return;
+  async function handleDeleteView(id: string, name: string) {
+    if (!(await confirmAction({ title: `Delete saved view "${name}"?` }))) return;
     startDeletingView(async () => {
       const result = await deleteSavedViewAction(id);
       if (!result.success) toast.error(result.error);

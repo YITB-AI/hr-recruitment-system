@@ -17,6 +17,7 @@ import {
   deleteStatusAction,
   reorderStatusesAction,
 } from "@/actions/statuses";
+import { confirmAction } from "@/store/confirm-store";
 import { STATUS_MODULES, STATUS_MODULE_LABELS, type StatusModule } from "@/constants/status-module";
 import type { StatusRow } from "@/server/repositories/status.repository";
 
@@ -69,8 +70,8 @@ function StatusModuleList({ module, statuses }: { module: StatusModule; statuses
     });
   }
 
-  function handleDelete(status: StatusRow) {
-    if (!confirm(`Delete "${status.name}"? This can't be undone.`)) return;
+  async function handleDelete(status: StatusRow) {
+    if (!(await confirmAction({ title: `Delete "${status.name}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteStatusAction(status._id, module);
       if (result.success) toast.success("Status deleted");

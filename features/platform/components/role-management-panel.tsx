@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { createRoleAction, updateRoleAction, deleteRoleAction } from "@/actions/roles";
+import { confirmAction } from "@/store/confirm-store";
 import type { RoleWithUsage } from "@/features/platform/services/role-management.service";
 import type { PermissionAction } from "@/lib/auth/permissions";
 
@@ -72,8 +73,8 @@ export function RoleManagementPanel({
     });
   }
 
-  function handleDelete(role: RoleWithUsage) {
-    if (!confirm(`Delete the "${role.name}" role? This can't be undone.`)) return;
+  async function handleDelete(role: RoleWithUsage) {
+    if (!(await confirmAction({ title: `Delete the "${role.name}" role?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteRoleAction(role.key);
       if (result.success) toast.success("Role deleted");

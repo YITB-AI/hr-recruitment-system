@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { deleteGeneratedDocumentAction } from "@/actions/documents";
+import { confirmAction } from "@/store/confirm-store";
 import { withDownloadFilename } from "@/lib/download-url";
 import type { GeneratedDocumentRow } from "@/server/repositories/generated-document.repository";
 
@@ -25,8 +26,8 @@ function DeleteButton({ id }: { id: string }) {
       size="icon-sm"
       disabled={isPending}
       className="text-muted-foreground hover:text-destructive"
-      onClick={() => {
-        if (!confirm("Delete this document?")) return;
+      onClick={async () => {
+        if (!(await confirmAction({ title: "Delete this document?" }))) return;
         startTransition(async () => {
           const result = await deleteGeneratedDocumentAction(id);
           if (!result.success) toast.error(result.error);

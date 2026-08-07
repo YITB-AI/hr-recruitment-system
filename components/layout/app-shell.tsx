@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { ConfirmDialogHost } from "@/components/shared/confirm-dialog-host";
 import { AuthTabSync } from "@/components/layout/auth-tab-sync";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { NotificationBellData } from "@/components/layout/notification-bell-data";
@@ -50,6 +51,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
         <CommandPalette />
+        <ConfirmDialogHost />
       </div>
     </div>
   );

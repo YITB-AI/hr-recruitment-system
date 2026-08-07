@@ -17,6 +17,7 @@ import {
   deleteEmployeeLookupAction,
   reorderEmployeeLookupAction,
 } from "@/actions/employee-lookups";
+import { confirmAction } from "@/store/confirm-store";
 import {
   EMPLOYEE_LOOKUP_KINDS,
   EMPLOYEE_LOOKUP_LABELS,
@@ -73,8 +74,8 @@ function EmployeeLookupList({ kind, rows }: { kind: EmployeeLookupKind; rows: Em
     });
   }
 
-  function handleDelete(row: EmployeeLookupRow) {
-    if (!confirm(`Delete "${row.name}"? This can't be undone.`)) return;
+  async function handleDelete(row: EmployeeLookupRow) {
+    if (!(await confirmAction({ title: `Delete "${row.name}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteEmployeeLookupAction(kind, row._id);
       if (result.success) toast.success(`${label} deleted`);

@@ -16,6 +16,7 @@ import {
   uploadCompanyLogoAction,
   deleteCompanyAction,
 } from "@/actions/companies";
+import { confirmAction } from "@/store/confirm-store";
 import type { CompanyRow } from "@/server/repositories/company.repository";
 
 function initials(name: string) {
@@ -91,8 +92,8 @@ export function CompanyDetailHeader({ company }: { company: CompanyRow }) {
     });
   }
 
-  function handleDelete() {
-    if (!confirm(`Delete "${company.name}"? This can't be undone.`)) return;
+  async function handleDelete() {
+    if (!(await confirmAction({ title: `Delete "${company.name}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteCompanyAction(company._id);
       if (result.success) {

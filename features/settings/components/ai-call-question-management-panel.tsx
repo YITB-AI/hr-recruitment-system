@@ -17,6 +17,7 @@ import {
   deleteAiCallQuestionAction,
   reorderAiCallQuestionsAction,
 } from "@/actions/ai-call-questions";
+import { confirmAction } from "@/store/confirm-store";
 import type { AiCallQuestionRow } from "@/server/repositories/ai-call-question.repository";
 
 type EditingState = { mode: "create" } | { mode: "edit"; question: AiCallQuestionRow } | null;
@@ -65,8 +66,8 @@ export function AiCallQuestionManagementPanel({ questions }: { questions: AiCall
     });
   }
 
-  function handleDelete(question: AiCallQuestionRow) {
-    if (!confirm("Delete this question? This can't be undone.")) return;
+  async function handleDelete(question: AiCallQuestionRow) {
+    if (!(await confirmAction({ title: "Delete this question?", description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteAiCallQuestionAction(question._id);
       if (result.success) toast.success("Question deleted");

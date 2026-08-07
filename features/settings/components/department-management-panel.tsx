@@ -16,6 +16,7 @@ import {
   deleteDepartmentAction,
   reorderDepartmentsAction,
 } from "@/actions/departments";
+import { confirmAction } from "@/store/confirm-store";
 import type { DepartmentRow } from "@/server/repositories/department.repository";
 
 type EditingState = { mode: "create" } | { mode: "edit"; department: DepartmentRow } | null;
@@ -67,8 +68,8 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
     });
   }
 
-  function handleDelete(department: DepartmentRow) {
-    if (!confirm(`Delete "${department.name}"? This can't be undone.`)) return;
+  async function handleDelete(department: DepartmentRow) {
+    if (!(await confirmAction({ title: `Delete "${department.name}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteDepartmentAction(department._id);
       if (result.success) toast.success("Department deleted");

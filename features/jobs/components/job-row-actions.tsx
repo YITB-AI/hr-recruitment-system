@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { archiveJobAction, restoreJobAction, deleteJobAction } from "@/actions/jobs";
+import { confirmAction } from "@/store/confirm-store";
 
 export function JobRowActions({ jobId, title, isArchived }: { jobId: string; title: string; isArchived: boolean }) {
   const [isPending, startTransition] = useTransition();
@@ -33,8 +34,8 @@ export function JobRowActions({ jobId, title, isArchived }: { jobId: string; tit
     });
   }
 
-  function handleDelete() {
-    if (!confirm(`Delete "${title}"? This can't be undone.`)) return;
+  async function handleDelete() {
+    if (!(await confirmAction({ title: `Delete "${title}"?`, description: "This can't be undone." }))) return;
     startTransition(async () => {
       const result = await deleteJobAction(jobId);
       if (!result.success) toast.error(result.error);

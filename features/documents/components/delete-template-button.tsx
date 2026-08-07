@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteTemplateAction } from "@/actions/document-templates";
+import { confirmAction } from "@/store/confirm-store";
 
 export function DeleteTemplateButton({ id, name }: { id: string; name: string }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleDelete() {
-    if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+  async function handleDelete() {
+    if (!(await confirmAction({ title: `Delete "${name}"?`, description: "This can't be undone." }))) return;
 
     startTransition(async () => {
       const result = await deleteTemplateAction(id);
