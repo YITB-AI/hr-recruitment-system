@@ -45,7 +45,7 @@ export function JobRowActions({ jobId, title, isArchived }: { jobId: string; tit
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} aria-label={`Actions for ${title}`} />}>
         <MoreVertical className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

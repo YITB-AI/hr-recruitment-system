@@ -49,7 +49,7 @@ export function JobHrRequirementsTab({ jobId, hrRequirements }: { jobId: string;
           {items.map((item, index) => (
             <li key={index} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
               <p className="text-sm">{item}</p>
-              <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => removeItem(index)}>
+              <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => removeItem(index)} aria-label={`Remove requirement: ${item}`}>
                 <X className="size-4" />
               </Button>
             </li>

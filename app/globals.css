@@ -98,7 +98,9 @@
   --status-offer: #1baf7a;
   --status-hired: #0ca30c;
   --status-rejected: #d03b3b;
-  --status-incomplete: #898781;
+  /* Darkened from #898781 — the original failed WCAG AA text contrast
+     (~3.6:1) against this badge's light background; this clears ~4.7:1. */
+  --status-incomplete: #7a7268;
   --status-applied: #5b8def;
   --status-ai-screening: #0891b2;
   --status-interview-completed: #6d28d9;
@@ -157,7 +159,9 @@
   --status-offer: #199e70;
   --status-hired: #0ca30c;
   --status-rejected: #e66767;
-  --status-incomplete: #898781;
+  /* Lightened from #898781 (the same value light mode used) — that value
+     also failed AA contrast against the dark surface this badge sits on. */
+  --status-incomplete: #a8a49c;
   --status-applied: #7ba7f5;
   --status-ai-screening: #22b8cf;
   --status-interview-completed: #9775fa;

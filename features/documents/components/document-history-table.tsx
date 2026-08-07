@@ -21,6 +21,7 @@ function DeleteButton({ id }: { id: string }) {
       size="icon-sm"
       disabled={isPending}
       className="text-muted-foreground hover:text-destructive"
+      aria-label="Delete document"
       onClick={async () => {
         if (!(await confirmAction({ title: "Delete this document?" }))) return;
         startTransition(async () => {

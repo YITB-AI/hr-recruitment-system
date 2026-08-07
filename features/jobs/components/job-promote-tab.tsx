@@ -303,7 +303,12 @@ export function JobPromoteTab({
                     </a>
                   )}
                 </div>
-                <Button variant="ghost" size="icon-sm" onClick={() => handleRemove(entry._id)}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleRemove(entry._id)}
+                  aria-label={`Remove promotion log entry for ${entry.channel === "other" ? entry.customChannel : PROMOTION_CHANNEL_LABELS[entry.channel]}`}
+                >
                   <Trash2 className="size-4" />
                 </Button>
               </li>

@@ -196,7 +196,7 @@ export function UsersTable({ users, roles }: { users: CompanyUserRow[]; roles: R
                 </td>
                 <td className="px-4 py-3 text-right">
                   <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isRowActionPending} />}>
+                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isRowActionPending} aria-label={`Actions for ${user.name}`} />}>
                       <MoreVertical className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

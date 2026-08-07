@@ -139,10 +139,10 @@ function EmployeeLookupList({ kind, rows }: { kind: EmployeeLookupKind; rows: Em
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={row.isActive} onCheckedChange={() => handleToggleActive(row)} disabled={isPending} />
-                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(row)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(row)} disabled={isPending} aria-label={`Edit ${row.name}`}>
                   <Pencil className="size-4" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(row)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(row)} disabled={isPending} aria-label={`Delete ${row.name}`}>
                   <Trash2 className="size-4" />
                 </Button>
               </div>

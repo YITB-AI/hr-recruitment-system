@@ -21,7 +21,14 @@ export function NotificationBell({ count = 0, notifications }: NotificationBellP
   return (
     <Popover>
       <PopoverTrigger
-        render={<Button variant="ghost" size="icon" className="relative rounded-full" />}
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative rounded-full"
+            aria-label={count > 0 ? `Notifications, ${count} unread` : "Notifications"}
+          />
+        }
       >
         <Bell className="size-[18px]" />
         {count > 0 && (

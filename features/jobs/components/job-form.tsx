@@ -117,13 +117,13 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Department</Label>
+          <Label id="department-label">Department</Label>
           <Controller
             control={control}
             name="department"
             render={({ field }) => (
               <Select items={departmentItems} value={field.value ?? NO_DEPARTMENT} onValueChange={(v) => field.onChange(v ?? NO_DEPARTMENT)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-labelledby="department-label">
                   <SelectValue placeholder="No department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -138,13 +138,13 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Job Type</Label>
+          <Label id="job-type-label">Job Type</Label>
           <Controller
             control={control}
             name="type"
             render={({ field }) => (
               <Select items={TYPE_ITEMS} value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-labelledby="job-type-label">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -177,13 +177,13 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label id="status-label">Status</Label>
           <Controller
             control={control}
             name="status"
             render={({ field }) => (
               <Select items={STATUS_ITEMS} value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-labelledby="status-label">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -198,7 +198,7 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Experience Level</Label>
+          <Label id="experience-level-label">Experience Level</Label>
           <Controller
             control={control}
             name="experienceLevel"
@@ -208,7 +208,7 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
                 value={field.value ?? NO_EXPERIENCE_LEVEL}
                 onValueChange={(v) => field.onChange(v || undefined)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-labelledby="experience-level-label">
                   <SelectValue placeholder="Not specified" />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +224,7 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Work Mode</Label>
+          <Label id="work-mode-label">Work Mode</Label>
           <Controller
             control={control}
             name="workMode"
@@ -234,7 +234,7 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
                 value={field.value ?? NO_WORK_MODE}
                 onValueChange={(v) => field.onChange(v || undefined)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-labelledby="work-mode-label">
                   <SelectValue placeholder="Not specified" />
                 </SelectTrigger>
                 <SelectContent>
@@ -254,8 +254,8 @@ export function JobForm({ job, departments }: { job?: JobRow; departments: Depar
       <div className="space-y-1.5">
         <Label>Salary Range</Label>
         <div className="grid grid-cols-3 gap-4">
-          <Input type="number" min={0} placeholder="Min" {...register("salaryMin", { valueAsNumber: true })} />
-          <Input type="number" min={0} placeholder="Max" {...register("salaryMax", { valueAsNumber: true })} />
+          <Input type="number" min={0} placeholder="Min" aria-label="Minimum salary" {...register("salaryMin", { valueAsNumber: true })} />
+          <Input type="number" min={0} placeholder="Max" aria-label="Maximum salary" {...register("salaryMax", { valueAsNumber: true })} />
           <Controller
             control={control}
             name="salaryCurrency"

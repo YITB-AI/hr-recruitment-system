@@ -51,15 +51,16 @@ function OptionSelect({
   placeholder?: string;
 }) {
   const withNone = [{ value: "", label: placeholder }, ...items];
+  const labelId = `${name}-label`;
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label id={labelId}>{label}</Label>
       <Controller
         control={control}
         name={name}
         render={({ field }) => (
           <Select items={withNone} value={(field.value as string) ?? ""} onValueChange={(v) => field.onChange(v ?? "")}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" aria-labelledby={labelId}>
               <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
@@ -272,13 +273,13 @@ export function EmployeeForm({ managers, statuses, departments, employeeTypes, l
         <TabsContent value="employment" className="space-y-4 pt-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>Department</Label>
+              <Label id="departmentId-label">Department</Label>
               <Controller
                 control={control}
                 name="departmentId"
                 render={({ field }) => (
                   <Select items={departmentItems} value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full" aria-labelledby="departmentId-label">
                       <SelectValue placeholder="Select a department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -303,7 +304,7 @@ export function EmployeeForm({ managers, statuses, departments, employeeTypes, l
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>Reports To</Label>
+              <Label id="managerId-label">Reports To</Label>
               <Controller
                 control={control}
                 name="managerId"
@@ -313,7 +314,7 @@ export function EmployeeForm({ managers, statuses, departments, employeeTypes, l
                     value={field.value ?? ""}
                     onValueChange={(v) => field.onChange(v ?? "")}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full" aria-labelledby="managerId-label">
                       <SelectValue placeholder="No manager" />
                     </SelectTrigger>
                     <SelectContent>
@@ -351,13 +352,13 @@ export function EmployeeForm({ managers, statuses, departments, employeeTypes, l
               {errors.joiningDate && <p className="text-xs text-destructive">{errors.joiningDate.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>Employment Type</Label>
+              <Label id="employmentType-label">Employment Type</Label>
               <Controller
                 control={control}
                 name="employmentType"
                 render={({ field }) => (
                   <Select items={TYPE_ITEMS} value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full" aria-labelledby="employmentType-label">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -372,13 +373,13 @@ export function EmployeeForm({ managers, statuses, departments, employeeTypes, l
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Status</Label>
+              <Label id="employmentStatus-label">Status</Label>
               <Controller
                 control={control}
                 name="employmentStatus"
                 render={({ field }) => (
                   <Select items={statusItems} value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full" aria-labelledby="employmentStatus-label">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

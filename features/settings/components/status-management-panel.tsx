@@ -139,10 +139,10 @@ function StatusModuleList({ module, statuses }: { module: StatusModule; statuses
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={status.isActive} onCheckedChange={() => handleToggleActive(status)} disabled={isPending} />
-                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(status)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(status)} disabled={isPending} aria-label={`Edit ${status.name}`}>
                   <Pencil className="size-4" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(status)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(status)} disabled={isPending} aria-label={`Delete ${status.name}`}>
                   <Trash2 className="size-4" />
                 </Button>
               </div>

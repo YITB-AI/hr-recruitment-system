@@ -78,7 +78,7 @@ export function JobTeamTab({
                   </Badge>
                 </div>
               </div>
-              <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => handleRemove(member._id)}>
+              <Button variant="ghost" size="icon-sm" disabled={isPending} onClick={() => handleRemove(member._id)} aria-label={`Remove ${member.name} from the team`}>
                 <X className="size-4" />
               </Button>
             </li>

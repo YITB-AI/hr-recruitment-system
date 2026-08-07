@@ -133,10 +133,10 @@ export function DepartmentManagementPanel({ departments }: { departments: Depart
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={department.isActive} onCheckedChange={() => handleToggleActive(department)} disabled={isPending} />
-                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(department)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(department)} disabled={isPending} aria-label={`Edit ${department.name}`}>
                   <Pencil className="size-4" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(department)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(department)} disabled={isPending} aria-label={`Delete ${department.name}`}>
                   <Trash2 className="size-4" />
                 </Button>
               </div>

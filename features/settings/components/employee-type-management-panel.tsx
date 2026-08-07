@@ -151,10 +151,10 @@ export function EmployeeTypeManagementPanel({ employeeTypes }: { employeeTypes: 
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={employeeType.isActive} onCheckedChange={() => handleToggleActive(employeeType)} disabled={isPending} />
-                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(employeeType)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => openEdit(employeeType)} disabled={isPending} aria-label={`Edit ${employeeType.name}`}>
                   <Pencil className="size-4" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(employeeType)} disabled={isPending}>
+                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(employeeType)} disabled={isPending} aria-label={`Delete ${employeeType.name}`}>
                   <Trash2 className="size-4" />
                 </Button>
               </div>

@@ -367,7 +367,7 @@ function IndeedConfigForm({ config, feedUrl, enabled }: { config: CompanyIntegra
         {isFeedOn && (
           <div className="flex items-center gap-2">
             <Input readOnly value={feedUrl} className="font-mono text-xs" />
-            <Button type="button" size="icon-sm" variant="outline" onClick={handleCopy}>
+            <Button type="button" size="icon-sm" variant="outline" onClick={handleCopy} aria-label="Copy feed URL">
               <Copy className="size-4" />
             </Button>
           </div>

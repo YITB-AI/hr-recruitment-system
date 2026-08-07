@@ -136,7 +136,7 @@ export function InterviewActions({
       <InterviewActivityDialog activity={activity} />
 
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} />}>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} aria-label="Interview actions" />}>
           <MoreVertical className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

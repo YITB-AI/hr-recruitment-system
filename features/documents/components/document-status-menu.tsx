@@ -52,7 +52,7 @@ export function DocumentStatusMenu({ documentId, status }: { documentId: string;
         {status}
       </Badge>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} />}>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={isPending} aria-label="Document status actions" />}>
           <MoreVertical className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

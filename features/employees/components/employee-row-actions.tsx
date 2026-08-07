@@ -30,7 +30,7 @@ export function EmployeeRowActions({ employeeId, name }: { employeeId: string; n
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon-sm" disabled={isPending} />}
+        render={<Button variant="ghost" size="icon-sm" disabled={isPending} aria-label={`Actions for ${name}`} />}
       >
         <MoreVertical className="size-4" />
       </DropdownMenuTrigger>
