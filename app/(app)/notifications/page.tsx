@@ -35,15 +35,15 @@ export default async function NotificationsPage({ searchParams }: NotificationsP
   const showUnreadOnly = params.unread === "1";
 
   const user = await getCurrentUser();
-  const [data, counts, totalUnread] = await Promise.all([
+  const [data, counts, totalUnread, detail] = await Promise.all([
     getNotificationsPageData(user.id, page, PAGE_SIZE, type, showUnreadOnly),
     getNotificationCategoryCounts(user.id),
     getUnreadCount(user.id),
+    params.selected ? getNotificationDetail(user.id, user.companyId, params.selected) : Promise.resolve(null),
   ]);
 
   const totalCount = counts.reduce((sum, c) => sum + c.count, 0);
   const dayGroups = groupNotificationsByDay(data.data);
-  const detail = params.selected ? await getNotificationDetail(user.id, user.companyId, params.selected) : null;
 
   function buildHref(targetPage: number) {
     const query = new URLSearchParams();

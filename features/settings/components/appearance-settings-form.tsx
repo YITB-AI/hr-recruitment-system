@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COLOR_PRESETS, FONT_OPTIONS } from "@/constants/appearance";
+import { ALL_FONT_VARIABLE_CLASSES } from "@/lib/fonts";
 import { updateAppearanceSettingsAction } from "@/actions/settings";
 import type { SettingRow } from "@/server/repositories/setting.repository";
 
@@ -93,7 +94,11 @@ export function AppearanceSettingsForm({ settings }: { settings: SettingRow }) {
 
       <div className="space-y-2">
         <Label>Preview</Label>
-        <div style={previewStyle} className="rounded-xl border p-4">
+        {/* ALL_FONT_VARIABLE_CLASSES is scoped to just this card — every
+            font option's CSS variable is defined here so switching the
+            dropdown above previews instantly, without loading any of them
+            onto the rest of the app (see app/layout.tsx). */}
+        <div style={previewStyle} className={`${ALL_FONT_VARIABLE_CLASSES} rounded-xl border p-4`}>
           <p className="text-sm">The quick brown fox jumps over the lazy dog.</p>
           <Button className="mt-3" style={{ backgroundColor: "var(--primary)" }}>
             Sample Button

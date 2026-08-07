@@ -61,5 +61,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ com
 ${items}
 </source>`;
 
-  return new NextResponse(xml, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
+  return new NextResponse(xml, {
+    headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      // Safe to cache — this route has no auth/session dependency (it
+      // re-derives its own tenant scoping entirely from the URL slug) and
+      // job postings don't change second-to-second, but Indeed's crawler
+      // hits it repeatedly on its own schedule.
+      "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
+    },
+  });
 }

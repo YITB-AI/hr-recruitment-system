@@ -24,7 +24,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <NavList collapsed={collapsed} layoutId="sidebar-active-pill" />
+      <NavList collapsed={collapsed} />
     </aside>
   );
 }

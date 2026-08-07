@@ -1,28 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter, Poppins, Roboto, Lora } from "next/font/google";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getAppearanceStyle } from "@/features/settings/services/settings.service";
+import { geistMono, getFontVariableClass } from "@/lib/fonts";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-// Every font option offered on the Appearance settings page is preloaded
-// here so switching fonts is just re-pointing --font-sans at a different
-// already-loaded variable (see getAppearanceStyle) — no extra network
-// request or flash of unstyled text when a user changes it.
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const poppins = Poppins({ variable: "--font-poppins", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-const roboto = Roboto({ variable: "--font-roboto", subsets: ["latin"] });
-const lora = Lora({ variable: "--font-lora", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
@@ -43,13 +24,19 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const appearanceStyle = await getAppearanceStyle();
+  const appearance = await getAppearanceStyle();
+  // Only the active tenant's chosen font is loaded site-wide — every other
+  // font option a company COULD pick is still loaded (cheap, module-scope)
+  // but its .variable class is only ever applied locally, inside the
+  // Appearance settings page's own preview card (see appearance-settings-
+  // form.tsx), not spread onto every page's <html> element.
+  const activeFontVariable = getFontVariableClass(appearance.fontKey);
 
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${poppins.variable} ${roboto.variable} ${lora.variable} h-full antialiased`}
-      style={appearanceStyle}
+      className={`${activeFontVariable} ${geistMono.variable} h-full antialiased`}
+      style={appearance.style}
     >
       <body className="min-h-full flex flex-col">
         <TooltipProvider delay={150}>

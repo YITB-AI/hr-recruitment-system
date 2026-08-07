@@ -20,7 +20,7 @@ export function MobileSidebar() {
             HR Platform
           </SheetTitle>
         </SheetHeader>
-        <NavList layoutId="mobile-active-pill" onNavigate={() => setOpen(false)} />
+        <NavList onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { NAV_ITEMS } from "@/config/nav";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +9,10 @@ import { NavLinkPendingIndicator } from "@/components/layout/nav-link-pending-in
 
 type NavListProps = {
   collapsed?: boolean;
-  layoutId?: string;
   onNavigate?: () => void;
 };
 
-export function NavList({ collapsed = false, layoutId = "active-pill", onNavigate }: NavListProps) {
+export function NavList({ collapsed = false, onNavigate }: NavListProps) {
   const pathname = usePathname();
 
   return (
@@ -30,20 +28,13 @@ export function NavList({ collapsed = false, layoutId = "active-pill", onNavigat
             onClick={onNavigate}
             title={collapsed ? item.label : undefined}
             className={cn(
-              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
               collapsed && "justify-center px-0",
               isActive
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
             )}
           >
-            {isActive && (
-              <motion.span
-                layoutId={layoutId}
-                className="absolute inset-0 -z-10 rounded-xl bg-sidebar-accent"
-                transition={{ type: "spring", stiffness: 400, damping: 35 }}
-              />
-            )}
             <Icon className="size-[18px] shrink-0" />
             {!collapsed && <span className="truncate">{item.label}</span>}
             {!collapsed && item.badgeCount ? (

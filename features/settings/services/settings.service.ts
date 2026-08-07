@@ -4,7 +4,7 @@ import { activityLogRepository } from "@/server/repositories/activity-log.reposi
 import { getCurrentUser, resolveActorId } from "@/lib/current-user";
 import { verifySession } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/permissions";
-import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY } from "@/constants/appearance";
+import { FONT_OPTIONS, DEFAULT_PRIMARY_COLOR, DEFAULT_FONT_KEY, type FontKey } from "@/constants/appearance";
 
 import type { GeneralSettingsInput, NotificationSettingsInput, AppearanceSettingsInput } from "@/validators/settings";
 
@@ -15,17 +15,23 @@ export async function getSettings(): Promise<SettingRow> {
   return settingRepository.get(companyId);
 }
 
-const DEFAULT_APPEARANCE_STYLE: React.CSSProperties = {
-  "--primary": DEFAULT_PRIMARY_COLOR,
-  "--font-sans": `var(${FONT_OPTIONS.find((f) => f.key === DEFAULT_FONT_KEY)?.variable ?? FONT_OPTIONS[0].variable})`,
-} as React.CSSProperties;
+export type AppearanceStyleResult = { style: React.CSSProperties; fontKey: FontKey };
+
+const DEFAULT_APPEARANCE_RESULT: AppearanceStyleResult = {
+  style: {
+    "--primary": DEFAULT_PRIMARY_COLOR,
+    "--font-sans": `var(${FONT_OPTIONS.find((f) => f.key === DEFAULT_FONT_KEY)?.variable ?? FONT_OPTIONS[0].variable})`,
+  } as React.CSSProperties,
+  fontKey: DEFAULT_FONT_KEY,
+};
 
 /**
  * Turns the saved appearance settings into inline CSS custom properties for
- * the root layout to apply on <html>. Overriding `--primary` here beats every
- * selector in globals.css on specificity, and `--font-sans` is reassigned to
- * whichever font's own variable (set by that font's next/font loader class,
- * also applied on <html>) the user picked — see app/layout.tsx.
+ * the root layout to apply on <html>, plus the resolved font key so the
+ * layout knows which single font's next/font `.variable` class to actually
+ * apply (see app/layout.tsx and lib/fonts.ts — only the active tenant's font
+ * is loaded site-wide; every other option is scoped to the Appearance
+ * settings preview card only).
  *
  * Deliberately uses verifySession() (returns null, never redirects), NOT
  * getCurrentUser() — the root layout renders for unauthenticated requests
@@ -33,18 +39,21 @@ const DEFAULT_APPEARANCE_STYLE: React.CSSProperties = {
  * which would break the login page's own rendering. Falls back to the
  * default style pre-login, when there's no company to resolve yet.
  */
-export async function getAppearanceStyle(): Promise<React.CSSProperties> {
+export async function getAppearanceStyle(): Promise<AppearanceStyleResult> {
   await connectDB();
   const session = await verifySession();
-  if (!session) return DEFAULT_APPEARANCE_STYLE;
+  if (!session) return DEFAULT_APPEARANCE_RESULT;
 
   const settings = await settingRepository.get(session.companyId);
   const font = FONT_OPTIONS.find((f) => f.key === settings.appearance.fontKey) ?? FONT_OPTIONS[0];
 
   return {
-    "--primary": settings.appearance.primaryColor,
-    "--font-sans": `var(${font.variable})`,
-  } as React.CSSProperties;
+    style: {
+      "--primary": settings.appearance.primaryColor,
+      "--font-sans": `var(${font.variable})`,
+    } as React.CSSProperties,
+    fontKey: font.key,
+  };
 }
 
 async function logSettingsChange(companyId: string, section: string, settingsId: string) {
