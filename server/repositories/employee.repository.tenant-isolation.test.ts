@@ -50,4 +50,57 @@ describe("employeeRepository — tenant isolation", () => {
     const { rows } = await employeeRepository.findAll(companyBId, { page: 1, pageSize: 100 });
     expect(rows.find((r) => r._id === employeeAId)).toBeUndefined();
   });
+
+  it("two different companies can each create an employee with the same email", async () => {
+    const sharedEmail = `shared-email-${Date.now()}@example.invalid`;
+    const employeeA = await employeeRepository.create(companyAId, {
+      employeeCode: "EMP-A-2",
+      name: "Shared Email A",
+      email: sharedEmail,
+      department: "Engineering",
+      designation: "Engineer",
+      joiningDate: new Date(),
+      employmentType: "full_time",
+      employmentStatus: "active",
+      basicSalary: 90000,
+      grossSalary: 120000,
+    });
+    const employeeB = await employeeRepository.create(companyBId, {
+      employeeCode: "EMP-B-1",
+      name: "Shared Email B",
+      email: sharedEmail,
+      department: "Engineering",
+      designation: "Engineer",
+      joiningDate: new Date(),
+      employmentType: "full_time",
+      employmentStatus: "active",
+      basicSalary: 90000,
+      grossSalary: 120000,
+    });
+    expect(employeeA._id).not.toBe(employeeB._id);
+
+    await Employee.deleteMany({ _id: { $in: [employeeA._id, employeeB._id] } });
+  });
+
+  it("existsByEmail only reports a collision within the caller's own company", async () => {
+    const email = `existsbyemail-${Date.now()}@example.invalid`;
+    const employeeA = await employeeRepository.create(companyAId, {
+      employeeCode: "EMP-A-3",
+      name: "Exists Check A",
+      email,
+      department: "Engineering",
+      designation: "Engineer",
+      joiningDate: new Date(),
+      employmentType: "full_time",
+      employmentStatus: "active",
+      basicSalary: 90000,
+      grossSalary: 120000,
+    });
+
+    expect(await employeeRepository.existsByEmail(companyAId, email)).toBe(true);
+    expect(await employeeRepository.existsByEmail(companyBId, email)).toBe(false);
+    expect(await employeeRepository.existsByEmail(companyAId, email, employeeA._id)).toBe(false);
+
+    await Employee.deleteOne({ _id: employeeA._id });
+  });
 });

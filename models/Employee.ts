@@ -3,14 +3,19 @@ import { EMPLOYMENT_TYPES, GENDER_OPTIONS } from "@/constants/employee";
 
 const employeeSchema = new Schema(
   {
-    // Optional for now — see the companyId comment in models/User.ts.
-    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
+    // Required since the Employee/SavedView tenant-scoping fix — every row
+    // was already backfilled by scripts/migrate-tenancy.ts long ago and
+    // every write path has supplied it since. The old global-unique `email`
+    // index below is now the compound `{companyId, email}` unique index
+    // (see the bottom of this schema): the same email can legitimately
+    // belong to an employee at two different client companies.
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
     // Human-friendly display id shown in the UI (e.g. "EMP-1001"), distinct
     // from Mongo's _id. Assigned once at creation, never reused.
     employeeCode: { type: String, required: true },
     applicantId: { type: Schema.Types.ObjectId, ref: "Applicant" },
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     // Free-string legacy field, kept in sync with departmentId's resolved
     // name by employee.service.ts on every create/update so every existing
@@ -121,6 +126,13 @@ employeeSchema.index({ name: "text", email: "text", employeeCode: "text" });
 // another company's existing one (nextEmployeeCode's sequence starts over
 // per company).
 employeeSchema.index({ companyId: 1, employeeCode: 1 }, { unique: true });
+// email is unique per-company, not globally — the same person's email can
+// legitimately belong to an employee at two different client companies
+// (mirrors the identical fix already applied to User.email). Applying this
+// to a live database also requires scripts/migrate-employee-email-index.ts's
+// own separate --confirm run (Mongoose's autoIndex never drops an existing
+// live index, only adds new ones).
+employeeSchema.index({ companyId: 1, email: 1 }, { unique: true });
 // A partial index, NOT sparse — for a COMPOUND index, `sparse` only
 // excludes a document that is missing ALL indexed fields; since companyId
 // is always present, a plain sparse index here would still index every

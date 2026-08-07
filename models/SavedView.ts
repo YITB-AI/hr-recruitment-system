@@ -8,16 +8,23 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 // is display-only, never used for permissions.
 const savedViewSchema = new Schema(
   {
-    // Optional for now — see the companyId comment in models/User.ts. The
-    // `name` unique index becomes compound `{companyId, name}` once every
-    // row has one (two companies should be able to reuse the same view name).
-    companyId: { type: Schema.Types.ObjectId, ref: "Company", index: true },
-    name: { type: String, required: true, trim: true, unique: true },
+    // Required since the Employee/SavedView tenant-scoping fix — every row
+    // was already backfilled by scripts/migrate-tenancy.ts long ago. The
+    // `name` unique index below is compound `{companyId, name}`, not
+    // global — two companies can legitimately both name a view "Shortlisted".
+    companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    name: { type: String, required: true, trim: true },
     filters: { type: Map, of: String, required: true },
     createdByName: { type: String, trim: true },
   },
   { timestamps: true },
 );
+
+// Applying this to a live database also requires
+// scripts/migrate-saved-view-name-index.ts's own separate --confirm run
+// (Mongoose's autoIndex never drops an existing live index, only adds new
+// ones).
+savedViewSchema.index({ companyId: 1, name: 1 }, { unique: true });
 
 export type SavedViewDoc = InferSchemaType<typeof savedViewSchema>;
 

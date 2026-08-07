@@ -30,6 +30,12 @@ export const savedViewRepository = {
     const rows = await SavedView.find({ companyId }).sort({ name: 1 }).lean<RawRow[]>();
     return rows.map(serialize);
   },
+  // companyId-scoped — two companies can legitimately both name a view
+  // "Shortlisted" (mirrors employeeRepository.existsByEmail).
+  async existsByName(companyId: string, name: string): Promise<boolean> {
+    const count = await SavedView.countDocuments({ companyId, name });
+    return count > 0;
+  },
   async create(companyId: string, input: CreateSavedViewInput): Promise<SavedViewRow> {
     const doc = await SavedView.create({ ...input, companyId });
     return serialize(doc.toObject());

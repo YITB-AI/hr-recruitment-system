@@ -627,8 +627,15 @@ export const employeeRepository = {
   // on `email` (line 13 above). Used by bulk import's per-row duplicate
   // check before attempting a create that would otherwise fail with a
   // raw duplicate-key error.
-  async existsByEmail(email: string): Promise<boolean> {
-    const count = await Employee.countDocuments({ email: email.toLowerCase() });
+  // companyId-scoped — the same email can legitimately belong to an
+  // employee at two different client companies (mirrors userRepository's
+  // isEmailTaken). excludeId lets an update check "does anyone ELSE at this
+  // company already have this email" without the employee's own row
+  // colliding with itself.
+  async existsByEmail(companyId: string, email: string, excludeId?: string): Promise<boolean> {
+    const query: Record<string, unknown> = { companyId, email: email.toLowerCase() };
+    if (excludeId) query._id = { $ne: excludeId };
+    const count = await Employee.countDocuments(query);
     return count > 0;
   },
   // For bulk import's optional "Manager Employee Code" column — the

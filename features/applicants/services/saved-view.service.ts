@@ -13,6 +13,9 @@ export async function createSavedView(name: string, filters: Record<string, stri
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "saved_view.manage");
+  if (await savedViewRepository.existsByName(actor.companyId, name)) {
+    throw new Error("A saved view with this name already exists");
+  }
   return savedViewRepository.create(actor.companyId, {
     name,
     filters,

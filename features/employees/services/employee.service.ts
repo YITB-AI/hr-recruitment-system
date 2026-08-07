@@ -175,6 +175,9 @@ export async function listManagerOptions() {
 // its own behavior is unchanged.
 export async function createEmployeeCore(actor: SessionUser, input: EmployeeFormInput): Promise<EmployeeDetailRow> {
   requireRole(actor, "employee.create");
+  if (await employeeRepository.existsByEmail(actor.companyId, input.email)) {
+    throw new Error("An employee with this email already exists");
+  }
   await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
   const departmentName = await resolveDepartmentName(actor.companyId, input.departmentId);
   if (input.employeeTypeId) await assertValidEmployeeType(actor.companyId, input.employeeTypeId);
@@ -231,6 +234,9 @@ export async function updateEmployee(id: string, input: EmployeeFormInput): Prom
   await connectDB();
   const actor = await getCurrentUser();
   requireRole(actor, "employee.update");
+  if (await employeeRepository.existsByEmail(actor.companyId, input.email, id)) {
+    throw new Error("An employee with this email already exists");
+  }
   await assertValidEmploymentStatus(actor.companyId, input.employmentStatus);
   const departmentName = await resolveDepartmentName(actor.companyId, input.departmentId);
   if (input.employeeTypeId) await assertValidEmployeeType(actor.companyId, input.employeeTypeId);

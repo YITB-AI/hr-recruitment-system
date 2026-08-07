@@ -213,7 +213,7 @@ export async function validateEmployeeImport(fileBuffer: Buffer, fileName: strin
       }
     }
 
-    const emailAlreadyExists = await employeeRepository.existsByEmail(email);
+    const emailAlreadyExists = await employeeRepository.existsByEmail(actor.companyId, email);
     if (emailAlreadyExists) {
       errors.push("An employee with this email already exists");
     }
